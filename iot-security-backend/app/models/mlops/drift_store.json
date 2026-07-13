@@ -1,0 +1,318 @@
+{
+  "window": [
+    {
+      "score": -0.30036796516783143,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.258647"
+    },
+    {
+      "score": -0.2249706557586613,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.265415"
+    },
+    {
+      "score": -0.6490603463857183,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.267973"
+    },
+    {
+      "score": -0.29389151452286416,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.270182"
+    },
+    {
+      "score": -0.16584965112900615,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.272522"
+    },
+    {
+      "score": -0.5314461528036808,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.274328"
+    },
+    {
+      "score": -0.09911414197434448,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.282186"
+    },
+    {
+      "score": -0.2871471485950932,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.284789"
+    },
+    {
+      "score": -0.4557517783637613,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.287036"
+    },
+    {
+      "score": -0.3583653616486559,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.288718"
+    },
+    {
+      "score": -0.2662509631217416,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.292161"
+    },
+    {
+      "score": -0.33859919128813826,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.298725"
+    },
+    {
+      "score": -0.2691866011330446,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.301677"
+    },
+    {
+      "score": -0.48810103896190493,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.304275"
+    },
+    {
+      "score": -0.32459587639458826,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.306751"
+    },
+    {
+      "score": -0.562057174535747,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.308650"
+    },
+    {
+      "score": -0.36668390920230504,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.314627"
+    },
+    {
+      "score": -0.4855861462197184,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.316851"
+    },
+    {
+      "score": -0.46032949138846496,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.318903"
+    },
+    {
+      "score": -0.16458602371843437,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.321620"
+    },
+    {
+      "score": -0.18630348191085963,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.324195"
+    },
+    {
+      "score": -0.2586292818639234,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.328159"
+    },
+    {
+      "score": -0.5138469147008868,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.331214"
+    },
+    {
+      "score": -0.3974612674542203,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.334076"
+    },
+    {
+      "score": -0.16803534500312248,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.337029"
+    },
+    {
+      "score": -0.32874246295401427,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.340482"
+    },
+    {
+      "score": -0.0021005690027458557,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.348362"
+    },
+    {
+      "score": -0.2910023240908442,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.352307"
+    },
+    {
+      "score": -0.3211926325264952,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.355126"
+    },
+    {
+      "score": -0.39636746963037517,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.358046"
+    },
+    {
+      "score": -0.32996886428265765,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.363359"
+    },
+    {
+      "score": -0.3728704754570816,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.366962"
+    },
+    {
+      "score": -0.24378369849671142,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.369741"
+    },
+    {
+      "score": -0.20649465248081236,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.372704"
+    },
+    {
+      "score": -0.4678984190761924,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.375813"
+    },
+    {
+      "score": -0.5496849430336667,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.381388"
+    },
+    {
+      "score": -0.6254308059654945,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.384712"
+    },
+    {
+      "score": -0.27380130096311844,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.388598"
+    },
+    {
+      "score": -0.515504990926081,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.391706"
+    },
+    {
+      "score": -0.6729335889428725,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.396839"
+    },
+    {
+      "score": -0.2917132093203554,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.399932"
+    },
+    {
+      "score": 0.023949927614918598,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.403337"
+    },
+    {
+      "score": -0.350910636730984,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.406533"
+    },
+    {
+      "score": -0.2242263838322537,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.412292"
+    },
+    {
+      "score": -0.33772559621786524,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.417640"
+    },
+    {
+      "score": -0.3648334479786714,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.421677"
+    },
+    {
+      "score": -0.2121385275518347,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.424955"
+    },
+    {
+      "score": -0.39354118162829765,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.431475"
+    },
+    {
+      "score": -0.30989115288921454,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.435516"
+    },
+    {
+      "score": -0.3017453290705979,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.439377"
+    },
+    {
+      "score": -0.4502135680464573,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.448068"
+    },
+    {
+      "score": -0.20119364756952157,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.452217"
+    },
+    {
+      "score": -0.3762439635043113,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.455966"
+    },
+    {
+      "score": -0.4633617739239267,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.461480"
+    },
+    {
+      "score": -0.2695235234644394,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.469150"
+    },
+    {
+      "score": -0.48477019726865556,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.473192"
+    },
+    {
+      "score": -0.34577282639463075,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.479432"
+    },
+    {
+      "score": -0.3513678494966305,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.484956"
+    },
+    {
+      "score": -0.18711566512526326,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.488306"
+    },
+    {
+      "score": -0.27879526506800706,
+      "is_anomaly": false,
+      "timestamp": "2026-06-23T22:11:17.491919"
+    },
+    {
+      "score": -0.46008882840414983,
+      "is_anomaly": false,
+      "timestamp": "2026-06-24T19:12:36.189633"
+    },
+    {
+      "score": -0.46008882840414983,
+      "is_anomaly": false,
+      "timestamp": "2026-06-24T19:12:44.404897"
+    }
+  ],
+  "drift_count": 8,
+  "last_drift_at": "2026-06-24T18:50:51.508571",
+  "ref_mean": -0.3955059578054746,
+  "ref_std": 0.03533873711888434
+}

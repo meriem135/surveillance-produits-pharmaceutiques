@@ -1,0 +1,42 @@
+# General ignores
+.DS_Store
+*.swp
+*.swo
+*.log
+node_modules/
+dist/
+build/
+.vscode/
+.idea/
+
+# Wazuh Dashboard (too large for GitHub - 695MB)
+/wazuh-dashboard/
+
+# Wazuh Docker specific (from subfolder)
+/wazuh-docker/single-node/config/wazuh_indexer_ssl_certs/*.pem
+/wazuh-docker/single-node/config/wazuh_indexer_ssl_certs/*.key
+/wazuh-docker/multi-node/config/wazuh_indexer_ssl_certs/*.pem
+/wazuh-docker/multi-node/config/wazuh_indexer_ssl_certs/*.key
+
+# IoT Security Backend
+/iot-security-backend/node_modules/
+/iot-security-backend/dist/
+/iot-security-backend/.env
+/iot-security-backend/static/
+
+# Custom Docker Build Config
+/docker_config_bypass/
+/docs
+
+# Large data files (too big for GitHub)
+/phase2/Data/Processed/
+/phase2/Data/Raw/
+
+# Python specific
+.venv/
+__pycache__/
+/*/__pycache__/
+/*/*/__pycache__/
+*.py[cod]
+*$py.class
+

@@ -1,0 +1,17 @@
+{
+  "current_version": "v1",
+  "models": [
+    {
+      "version": "v1",
+      "path": "C:\\peaksoft-security-platform-main\\peaksoft-security-platform-main\\iot-security-backend\\app\\models\\mlops\\model_v1.joblib",
+      "trained_at": "2026-06-23T22:50:31.611412",
+      "reason": "initial",
+      "status": "active",
+      "score_mean": 0.0,
+      "score_std": 1.0,
+      "n_training_samples": 0,
+      "drift_severity": "none",
+      "notes": "Modele initial importe depuis pipeline_complete.joblib"
+    }
+  ]
+}
