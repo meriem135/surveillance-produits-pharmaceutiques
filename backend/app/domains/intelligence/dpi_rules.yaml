@@ -1,0 +1,81 @@
+rules:
+- conditions:
+    field: __delta__
+    operator: gt
+    sensor_config:
+      fridge:
+        delta_threshold: 5.0
+        fields:
+        - fridge_temperature
+      multi-sensor:
+        delta_threshold: 5.0
+        fields:
+        - weather_temperature
+        - fridge_temperature
+        - thermostat_temperature
+        thresholds:
+          fridge_temperature: 5.0
+          thermostat_temperature: 16.0
+          weather_temperature: 14.0
+      thermostat:
+        delta_threshold: 16.0
+        fields:
+        - current_temperature
+      weather:
+        delta_threshold: 14.0
+        fields:
+        - temperature
+    value: 5.0
+  correlation:
+    boost_on_match: 3
+  description: Variation brutale de température en un pas, au-delà du seuil propre à chaque capteur (weather 14°C, fridge 5°C, thermostat 16°C).
+  enabled: true
+  group: behavioral
+  id: DPI-001
+  name: Variation brusque (Δt)
+  severity: 9
+- conditions:
+    field: fridge_temperature
+    operator: gt
+    value: 9.5
+  correlation:
+    boost_on_match: 2
+  description: Température du frigo > 9.5°C alors qu'il doit rester stable autour
+    de 7°C (σ≈0.5). Dérive très brutale, sonde défaillante ou falsification massive.
+  enabled: true
+  group: sensor
+  id: DPI-002
+  name: Frigo hors plage (>9.5°C)
+  severity: 8
+- conditions:
+    field: __delta__
+    operator: gt
+    sensor_config:
+      multi-sensor:
+        delta_threshold: 2.5
+        fields:
+        - thermostat_temperature
+        thresholds:
+          thermostat_temperature: 2.5
+    value: 2.5
+  correlation:
+    boost_on_match: 3
+  description: Variation du thermostat > 2.5°C en un pas (σ réel ≈0.6°C). Rampe
+    d'attaque violente, cycle forcé ou données injectées massivement.
+  enabled: true
+  group: behavioral
+  id: DPI-003
+  name: Saut thermostat (>2.5°C)
+  severity: 9
+- conditions:
+    field: weather_roll_std_10
+    operator: gt
+    value: 2.2
+  correlation:
+    boost_on_match: 2
+  description: Écart-type glissant (10 mesures) de la température météo > 2.2 alors qu'il vaut ~0.47 en régime normal. Dérive extrêmement brutale, injection de valeurs aberrantes.
+  enabled: true
+  group: behavioral
+  id: DPI-004
+  name: Instabilité météo (>2.2)
+  severity: 7

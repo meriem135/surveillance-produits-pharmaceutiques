@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import {
-  Shield, Brain, Radio,
+  Shield, Brain,
   ArrowRight, ChevronDown, ShieldCheck,
   Cpu, Lock, Zap, Network, Eye,
-  Activity
+  Activity, Boxes, Factory, CloudSun, Database, Rocket
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -28,18 +28,89 @@ function useReducedMotion() {
 
 // ─── Data ───────────────────────────────────────────────────────────────────
 
+const API_BASE = '/api/v1';
+
+interface DatasetKpi {
+  dataset: {
+    total: number;
+    normal: number;
+    attack: number;
+    attack_pct: number;
+    duration_days: number;
+    sensors: string[];
+  };
+  training: {
+    available?: boolean;
+    best_model?: string | null;
+    metrics?: {
+      precision?: number;
+      recall?: number;
+      f1?: number;
+      roc_auc?: number;
+      threshold?: number;
+    };
+    attack_detection?: {
+      attack_type: string;
+      n_total: number;
+      n_detected: number;
+      detection_rate: number;
+    }[];
+  };
+}
+
 const FEATURES = [
-  { icon: Radio, title: 'Phase 1 — DPI & MQTT', desc: 'Deep Packet Inspection sur flux MQTT. Analyse temps réel des protocoles industriels avec 6 règles DPI et inspection de 15K+ messages/s.', color: '#00F5FF', tag: 'Réseau' },
-  { icon: Brain, title: 'Phase 2 — ML & Anomalies', desc: '7 modèles ML (Isolation Forest, Autoencodeur PCA, GNN, LSTM) pour la détection d\'anomalies comportementales avec un F1 moyen de 94.7%.', color: '#818cf8', tag: 'Machine Learning' },
-  { icon: Shield, title: 'Phase 3 — CVE & Risques', desc: 'Analyse de vulnérabilités, score de risque prédictif, intégration CVE et simulation What-If pour 412 appareils surveillés.', color: '#F97316', tag: 'Sécurité' },
+  { icon: Database, title: 'Collecte & préparation des données', desc: 'J\'ai collecté 5 jours de mesures réelles des capteurs IoT (frigo, thermostat, météo), puis nettoyé, resamplé et généré un jeu annuel fidèle au climat tunisien pour couvrir stock, production et logistique.', color: '#00B8D9', tag: 'Data' },
+  { icon: Brain, title: 'Modélisation ML & explicabilité', desc: 'J\'ai entraîné et comparé One-Class SVM, Autoencodeur MLP, LSTM et IsolationForest avec recherche d\'hyperparamètres par grille (GridSearch), puis j\'ai interprété chaque détection à l\'aide de SHAP sur les 3 capteurs pharma.', color: '#A855F7', tag: 'Machine Learning' },
+  { icon: Rocket, title: 'Déploiement de la plateforme', desc: 'J\'ai construit l\'API FastAPI, le dashboard React temps réel et le moteur de surveillance, avec scoring de risque appliqué au stock, à la production et à la météo des produits pharmaceutiques.', color: '#00FFA3', tag: 'Déploiement' },
 ];
 
-const STATS = [
-  { value: 412, display: '412', label: 'Appareils', suffix: 'surveillés', icon: Cpu, color: '#00F5FF', format: (n: number) => `${Math.round(n)}` },
-  { value: 7, display: '7', label: 'Modèles ML', suffix: 'déployés', icon: Brain, color: '#818cf8', format: (n: number) => `${Math.round(n)}` },
-  { value: 94.7, display: '94.7%', label: 'F1 Score', suffix: 'détection anomalies', icon: Zap, color: '#22C55E', format: (n: number) => `${n.toFixed(1)}%` },
-  { value: 15000, display: '15 000+', label: 'Messages/s', suffix: 'inspectés DPI', icon: Shield, color: '#F97316', format: (n: number) => `${n >= 1000 ? `${(n / 1000).toFixed(0)} 000+` : Math.round(n)}` },
-];
+function formatInt(n: number): string {
+  return (n || 0).toLocaleString('fr-FR');
+}
+
+function useDatasetKpi(): DatasetKpi | null {
+  const [data, setData] = useState<DatasetKpi | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetch(`${API_BASE}/phase2/dataset-kpis`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((json: DatasetKpi | null) => { if (active) setData(json); })
+      .catch(() => { if (active) setData(null); });
+    return () => { active = false; };
+  }, []);
+  return data;
+}
+
+function buildStats(kpi: DatasetKpi | null) {
+  if (!kpi) return [];
+  const d = kpi.dataset;
+  const t = kpi.training;
+  const f1 = t?.metrics?.f1 ? t.metrics.f1 * 100 : null;
+  return [
+    { value: d.total, display: formatInt(d.total), label: 'Échantillons', suffix: 'analysés', icon: Cpu, color: '#00F5FF', format: (n: number) => formatInt(Math.round(n)) },
+    { value: d.attack, display: formatInt(d.attack), label: 'Attaques', suffix: `${d.attack_pct}% du dataset`, icon: Shield, color: '#F97316', format: (n: number) => formatInt(Math.round(n)) },
+    { value: f1 ?? 0, display: f1 != null ? `${f1.toFixed(1)}%` : '—', label: 'F1 Score', suffix: t?.best_model || 'meilleur modèle ML', icon: Brain, color: '#22C55E', format: (n: number) => (f1 != null ? `${n.toFixed(1)}%` : '—') },
+    { value: d.sensors?.length || 0, display: String(d.sensors?.length || 0), label: 'Capteurs', suffix: (d.sensors || []).join(' · '), icon: Zap, color: '#818cf8', format: (n: number) => `${Math.round(n)}` },
+  ];
+}
+
+function buildThreatFeed(kpi: DatasetKpi | null) {
+  if (!kpi) return [];
+  const d = kpi.dataset;
+  const t = kpi.training;
+  const items: { type: string; msg: string; color: string }[] = [];
+  items.push({ type: 'INFO', msg: `${formatInt(d.total)} échantillons analysés sur ${d.duration_days} jours`, color: '#818cf8' });
+  items.push({ type: 'ALERTE', msg: `${formatInt(d.attack)} attaques détectées — ${d.attack_pct}% du dataset`, color: '#F97316' });
+  items.push({ type: 'OK', msg: `${formatInt(d.normal)} échantillons normaux (baseline capteurs)`, color: '#22C55E' });
+  if (t?.metrics?.f1) {
+    items.push({ type: 'CRITIQUE', msg: `${t.best_model} — F1 ${(t.metrics.f1 * 100).toFixed(1)}% · Precision ${((t.metrics.precision ?? 0) * 100).toFixed(1)}%`, color: '#EF4444' });
+  }
+  (t?.attack_detection || []).slice(0, 3).forEach(a => {
+    const name = a.attack_type.replace(/IoT_/i, '').replace(/_normal/i, '').replace(/_/g, ' ');
+    items.push({ type: 'ALERTE', msg: `${name} détectée à ${a.detection_rate}% (${formatInt(a.n_detected)}/${formatInt(a.n_total)})`, color: '#F97316' });
+  });
+  return items;
+}
 
 const TECHNOLOGIES = [
   { name: 'React', cat: 'Frontend' },
@@ -50,27 +121,17 @@ const TECHNOLOGIES = [
   { name: 'scikit-learn', cat: 'ML' },
   { name: 'SHAP', cat: 'ML' },
   { name: 'MQTT', cat: 'Protocol' },
-  { name: 'Modbus', cat: 'Protocol' },
-  { name: 'Wazuh', cat: 'SIEM' },
   { name: 'PostgreSQL', cat: 'Data' },
-  { name: 'Docker', cat: 'DevOps' },
   { name: 'WebSocket', cat: 'RT' },
-  { name: 'OpenSearch', cat: 'Search' },
 ];
 
 const ARCH_STEPS = [
-  { icon: Radio, title: 'Phase 1 — DPI', desc: 'Deep Packet Inspection sur MQTT, 6 règles, 15K+ msg/s', color: '#00F5FF', step: '1' },
-  { icon: Brain, title: 'Phase 2 — ML', desc: '7 modèles, F1 94.7%, détection anomalies comportementales', color: '#818cf8', step: '2' },
-  { icon: Shield, title: 'Phase 3 — CVE', desc: 'Score risque prédictif, intégration CVE, 412 appareils', color: '#F97316', step: '3' },
+  { icon: CloudSun, title: 'Météo — Logistique', desc: 'Conditions climatiques du transport des produits pharmaceutiques', color: '#00B8D9', step: '1' },
+  { icon: Boxes, title: 'Stock — Chaîne du froid', desc: 'Chambre froide des entrepôts : vaccins, médicaments, matières premières', color: '#00FFA3', step: '2' },
+  { icon: Factory, title: 'Production — Usine', desc: 'Lignes de fabrication, salles blanches et conditionnement pilotés par thermostat', color: '#A855F7', step: '3' },
 ];
 
-const THREAT_FEED = [
-  { type: 'CRITIQUE', msg: 'Tentative d\'intrusion Modbus détectée — PLC-07', time: '00:03', color: '#EF4444' },
-  { type: 'ALERTE', msg: 'Anomalie trafic MQTT — Broker central', time: '01:22', color: '#F97316' },
-  { type: 'INFO', msg: 'Scan réseau automatisé bloqué — 192.168.1.44', time: '02:11', color: '#818cf8' },
-  { type: 'OK', msg: 'Baseline ML mise à jour — 10 247 capteurs', time: '03:45', color: '#22C55E' },
-  { type: 'ALERTE', msg: 'Pic d\'activité OPC-UA — Zone B3', time: '04:18', color: '#F97316' },
-];
+const THREAT_FEED = (kpi: DatasetKpi | null) => buildThreatFeed(kpi);
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -222,13 +283,22 @@ function AnimatedCounter({ target, format }: { target: number; format?: (n: numb
 
 // ─── Live Threat Ticker ──────────────────────────────────────────────────────
 
-function ThreatTicker() {
+function ThreatTicker({ kpi }: { kpi: DatasetKpi | null }) {
   const [index, setIndex] = useState(0);
+  const items = THREAT_FEED(kpi);
   useEffect(() => {
-    const t = setInterval(() => setIndex(i => (i + 1) % THREAT_FEED.length), 3000);
+    if (items.length < 2) return;
+    const t = setInterval(() => setIndex(i => (i + 1) % items.length), 3000);
     return () => clearInterval(t);
-  }, []);
-  const item = THREAT_FEED[index];
+  }, [items.length]);
+  if (items.length === 0) {
+    return (
+      <span className="text-xs font-mono truncate" style={{ color: 'var(--text-secondary)' }}>
+        Chargement des métriques du dataset…
+      </span>
+    );
+  }
+  const item = items[Math.min(index, items.length - 1)];
   return (
     <div className="flex items-center gap-3 overflow-hidden">
       <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono shrink-0"
@@ -246,7 +316,6 @@ function ThreatTicker() {
           {item.msg}
         </motion.span>
       </AnimatePresence>
-      <span className="text-[10px] font-mono shrink-0 opacity-40" style={{ color: 'var(--text-secondary)' }}>{item.time}s ago</span>
     </div>
   );
 }
@@ -283,17 +352,16 @@ function Navbar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3">
-        <div className="relative w-9 h-9">
-          <div className="absolute inset-0 rounded-lg animate-pulse-glow" style={{ background: 'var(--accent-primary)', opacity: 0.2, filter: 'blur(6px)' }} aria-hidden="true" />
-          <div className="relative w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-bold font-mono"
-            style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-purple))', color: '#000', boxShadow: '0 0 18px color-mix(in srgb, var(--accent-primary) 40%, transparent)' }}>
-            PS
+<div className="relative w-9 h-9">
+            <div className="absolute inset-0 rounded-lg animate-pulse-glow" style={{ background: 'var(--accent-primary)', opacity: 0.2, filter: 'blur(6px)' }} aria-hidden="true" />
+            <div className="relative w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-bold font-mono"
+              style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-purple))', color: '#000', boxShadow: '0 0 18px color-mix(in srgb, var(--accent-primary) 40%, transparent)' }}>
+              VC
+            </div>
           </div>
-        </div>
-        <div className="flex flex-col leading-none">
-          <span className="font-display font-bold text-sm tracking-wider" style={{ color: 'var(--text-primary)' }}>PEAKSOFT</span>
-          <span className="text-[9px] font-mono tracking-[0.15em] opacity-50" style={{ color: 'var(--accent-primary)' }}>CYBER-GUARDIAN v2</span>
-        </div>
+          <div className="flex flex-col leading-none">
+            <span className="font-display font-bold text-sm tracking-wider" style={{ color: 'var(--text-primary)' }}>VigiloChain</span>
+          </div>
       </div>
 
       {/* Desktop Links */}
@@ -368,7 +436,7 @@ function Navbar() {
 
 // ─── Hero Section ────────────────────────────────────────────────────────────
 
-function HeroSection() {
+function HeroSection({ kpi }: { kpi: DatasetKpi | null }) {
   const navigate = useNavigate();
   const [glitch, setGlitch] = useState(false);
   const [typedText, setTypedText] = useState('');
@@ -427,7 +495,7 @@ function HeroSection() {
       </div>
 
       {/* Main content */}
-      <motion.div className="relative z-10 text-center px-6 max-w-5xl mx-auto" style={{ opacity: heroOpacity, y: heroY }}>
+      <motion.div className="relative z-10 text-center px-6 max-w-5xl mx-auto mt-32" style={{ opacity: heroOpacity, y: heroY }}>
 
         {/* Status badge */}
         <motion.div
@@ -440,7 +508,7 @@ function HeroSection() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: 'var(--accent-primary)' }} />
             <span className="relative inline-flex rounded-full w-2 h-2" style={{ background: 'var(--accent-primary)' }} />
           </span>
-          PEAKSOFT Cyber-Guardian
+          VigiloChain — IoT Security
           <Activity className="w-3 h-3" aria-hidden="true" />
         </motion.div>
 
@@ -451,10 +519,10 @@ function HeroSection() {
         >
           <h1 className={`text-[clamp(3rem,10vw,6.5rem)] font-display font-black leading-[0.95] mb-4 ${glitch ? 'animate-glitch' : ''}`}>
             <span className="block bg-gradient-to-r from-[var(--accent-primary)] via-[var(--accent-purple)] to-[var(--accent-success)] bg-clip-text text-transparent animate-gradient">
-              PEAKSOFT
+              Vigilo
             </span>
             <span className="block" style={{ color: 'var(--text-primary)' }}>
-              Cyber<span className="text-transparent" style={{ WebkitTextStroke: '1px var(--accent-primary)' }}>-Guardian</span>
+              <span className="text-transparent" style={{ WebkitTextStroke: '1px var(--accent-primary)' }}>Chain</span>
             </span>
           </h1>
         </motion.div>
@@ -476,10 +544,10 @@ function HeroSection() {
           style={{ color: 'var(--text-secondary)' }}
           initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.75 }}
         >
-          Plateforme de détection d'intrusions IoT industrielle.
-          3 phases : <strong style={{ color: 'var(--accent-primary)' }}>DPI MQTT</strong>,
-          <strong style={{ color: 'var(--accent-primary)' }}>ML & Anomalies</strong>,
-          <strong style={{ color: 'var(--accent-primary)' }}>CVE & Risques</strong>.
+          Plateforme de cybersécurité IoT dédiée aux produits pharmaceutiques.
+          Elle surveille <strong style={{ color: 'var(--accent-primary)' }}>le stock</strong> en chambre froide,
+          <strong style={{ color: 'var(--accent-primary)' }}> la production</strong> en usine
+          et <strong style={{ color: 'var(--accent-primary)' }}>la météo</strong> de la logistique de transport.
         </motion.p>
 
         {/* CTA buttons */}
@@ -528,7 +596,7 @@ function HeroSection() {
             <span className="text-[10px] font-mono font-bold tracking-wider" style={{ color: '#EF4444' }}>LIVE</span>
           </div>
           <div className="w-px h-4 opacity-30" style={{ background: 'var(--border)' }} />
-          <ThreatTicker />
+          <ThreatTicker kpi={kpi} />
         </motion.div>
       </motion.div>
 
@@ -547,7 +615,8 @@ function HeroSection() {
 
 // ─── Stats Section ───────────────────────────────────────────────────────────
 
-function StatsSection() {
+function StatsSection({ kpi }: { kpi: DatasetKpi | null }) {
+  const stats = buildStats(kpi);
   return (
     <section className="relative py-20 px-6 overflow-hidden">
       {/* Background grid */}
@@ -557,14 +626,14 @@ function StatsSection() {
         {/* Section header */}
         <motion.div className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
-          <span className="text-[10px] font-mono tracking-[0.25em] uppercase" style={{ color: 'var(--accent-primary)' }}>Métriques en Temps Réel</span>
+          <span className="text-[10px] font-mono tracking-[0.25em] uppercase" style={{ color: 'var(--accent-primary)' }}>Métriques — Dataset Réel</span>
         </motion.div>
 
         <motion.div
           className="grid grid-cols-2 lg:grid-cols-4 gap-4"
           variants={containerVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }}
         >
-          {STATS.map((stat) => {
+          {stats.map((stat) => {
             const Icon = stat.icon;
             return (
               <motion.div
@@ -625,17 +694,19 @@ function FeaturesSection() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-4"
             style={{ background: 'color-mix(in srgb, var(--accent-primary) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)' }}>
             <Zap className="w-3 h-3" style={{ color: 'var(--accent-primary)' }} aria-hidden="true" />
-            <span className="text-[10px] font-mono tracking-[0.2em] uppercase" style={{ color: 'var(--accent-primary)' }}>3 Phases</span>
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase" style={{ color: 'var(--accent-primary)' }}>Ma Démarche</span>
           </div>
           <h2 className="text-3xl md:text-5xl font-display font-black mb-4" style={{ color: 'var(--text-primary)' }}>
-            Détection d'Intrusions
+            Produits Pharmaceutiques
             <br />
             <span className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-purple)] bg-clip-text text-transparent">
-              IoT Industrielle
+              Comment j'ai réussi ce projet
             </span>
           </h2>
           <p className="max-w-xl mx-auto text-base" style={{ color: 'var(--text-secondary)' }}>
-            DPI → ML → CVE : pipeline complet de cybersécurité IoT temps réel.
+            De la collecte des données des capteurs (frigo, thermostat, météo) jusqu'au déploiement
+            de la plateforme : la démarche complète que j'ai menée pour protéger le stock,
+            la production et la logistique de vos produits pharmaceutiques.
           </p>
         </motion.div>
 
@@ -726,16 +797,16 @@ function ArchitectureSection() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-4"
             style={{ background: 'color-mix(in srgb, var(--accent-purple) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-purple) 25%, transparent)' }}>
             <Network className="w-3 h-3" style={{ color: 'var(--accent-purple)' }} aria-hidden="true" />
-            <span className="text-[10px] font-mono tracking-[0.2em] uppercase" style={{ color: 'var(--accent-purple)' }}>Pipeline</span>
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase" style={{ color: 'var(--accent-purple)' }}>3 Capteurs</span>
           </div>
           <h2 className="text-3xl md:text-5xl font-display font-black mb-4" style={{ color: 'var(--text-primary)' }}>
             Les{' '}
             <span className="bg-gradient-to-r from-[var(--accent-purple)] to-[var(--accent-primary)] bg-clip-text text-transparent">
-              3 Phases
+              Zones de Confiance
             </span>
           </h2>
           <p className="max-w-xl mx-auto" style={{ color: 'var(--text-secondary)' }}>
-            DPI → Détection ML → Scoring CVE
+            Météo → Stock → Production : la chaîne complète de vos produits pharmaceutiques.
           </p>
         </motion.div>
 
@@ -917,8 +988,8 @@ function CtaSection() {
             votre Infrastructure ?
           </h2>
           <p className="text-base mb-10 max-w-lg mx-auto leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            Accédez au tableau de bord temps réel, explorez les capacités ML et prenez le contrôle
-            de votre cybersécurité industrielle.
+            Accédez au tableau de bord temps réel et protégez la qualité de vos
+            produits pharmaceutiques : stock, production et logistique météo.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -968,22 +1039,19 @@ function Footer() {
           <div className="relative w-7 h-7">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold font-mono"
               style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-purple))', color: '#000' }}>
-              PS
+              VC
             </div>
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-display font-bold text-xs" style={{ color: 'var(--text-primary)' }}>PEAKSOFT Cyber-Guardian</span>
-            <span className="text-[9px] font-mono opacity-40" style={{ color: 'var(--text-secondary)' }}>Industrie 4.0 Security Platform</span>
+            <span className="font-display font-bold text-xs" style={{ color: 'var(--text-primary)' }}>VigiloChain</span>
+            <span className="text-[9px] font-mono opacity-40" style={{ color: 'var(--text-secondary)' }}>Cold Chain Security Platform</span>
           </div>
         </div>
         <div className="flex items-center gap-4 text-xs font-mono flex-wrap justify-center" style={{ color: 'var(--text-secondary)' }}>
-          <span className="opacity-40">© {new Date().getFullYear()} PeakSoft</span>
+          <span className="opacity-40">© {new Date().getFullYear()} VigiloChain</span>
           <span className="opacity-20" aria-hidden="true">|</span>
           <span className="opacity-40">Protection IA Industrielle</span>
           <span className="opacity-20" aria-hidden="true">|</span>
-          <span className="px-2 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--accent-primary) 10%, transparent)', color: 'var(--accent-primary)', border: '1px solid color-mix(in srgb, var(--accent-primary) 20%, transparent)' }}>
-            v2.0.0
-          </span>
         </div>
       </div>
     </footer>
@@ -993,11 +1061,12 @@ function Footer() {
 // ─── Main Export ─────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const kpi = useDatasetKpi();
   return (
     <div style={{ background: 'var(--bg-base)' }}>
       <Navbar />
-      <HeroSection />
-      <StatsSection />
+      <HeroSection kpi={kpi} />
+      <StatsSection kpi={kpi} />
       <FeaturesSection />
       <ArchitectureSection />
       <TechSection />

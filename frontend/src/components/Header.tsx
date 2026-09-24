@@ -6,7 +6,7 @@ export default function Header() {
       <div>
         <h1 className="font-display text-[26px] font-bold bg-gradient-to-r from-accent-cyan via-blue-400 to-accent-green bg-clip-text text-transparent flex items-center gap-3">
           <ShieldCheck className="w-7 h-7 text-accent-cyan" />
-          PEAKSOFT Cyber-Guardian
+          VigiloChain
         </h1>
         <p className="text-text-secondary text-xs font-medium tracking-wide mt-1">
           Jumeau Numérique Industriel — Surveillance par Intelligence Artificielle en Temps Réel (100% Offline-First)

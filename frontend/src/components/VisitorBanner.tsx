@@ -9,7 +9,7 @@ export default function VisitorBanner() {
           Qu'est-ce que vous regardez ?
         </h4>
         <p className="text-text-secondary text-xs leading-relaxed">
-          Ce dashboard représente un <strong className="text-text-primary">"Jumeau Numérique"</strong>. Une Intelligence Artificielle (Isolation Forest) surveille notre usine industrielle physique.
+          Ce dashboard représente un <strong className="text-text-primary">"Jumeau Numérique"</strong>. Une Intelligence Artificielle (One-Class SVM) surveille notre usine industrielle physique.
           Elle analyse chaque signal et lève immédiatement la main (alerte rouge) si un pirate ou un dysfonctionnement perturbe les capteurs.
         </p>
       </div>

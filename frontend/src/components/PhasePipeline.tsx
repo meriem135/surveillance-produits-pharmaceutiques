@@ -1,5 +1,3 @@
-import { motion } from 'framer-motion';
-
 export interface PhaseItem {
   num: number;
   label: string;
@@ -16,7 +14,7 @@ export const PHASE_CONFIG: PhaseItem[] = [
     icon: '\u{1F4E5}', color: '#00F5FF', status: 'completed', progress: 100,
   },
   {
-    num: 2, label: 'ML Anomaly Detection', subtitle: 'Isolation Forest · 7 modèles',
+    num: 2, label: 'ML Anomaly Detection', subtitle: 'One-Class SVM · Modèles ML',
     icon: '\u{1F9E0}', color: '#00FFA3', status: 'completed', progress: 100,
   },
   {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { RiskFactor, RiskHistoryPoint, WhatIfAction, CveItem } from '../types';
+import { authHeaders } from '../lib/auth';
 
 /* ------------------------------------------------------------------ */
 /*  API response shapes                                              */
@@ -95,7 +96,7 @@ export interface RiskData {
 /* ------------------------------------------------------------------ */
 
 const FACTOR_LABELS: Record<string, { name: string; direction: 'higher' | 'lower'; description: string }> = {
-  ml_anomaly: { name: 'Anomalies IA', direction: 'higher', description: 'Score d\'anomalie Isolation Forest' },
+  ml_anomaly: { name: 'Anomalies IA', direction: 'higher', description: 'Score d\'anomalie One-Class SVM' },
   cve: { name: 'Vulnérabilités logicielles', direction: 'higher', description: 'CVSS + EPSS des CVEs matchées' },
   dpi_alert: { name: 'Alertes DPI', direction: 'higher', description: 'Fréquence et sévérité des alertes DPI' },
   criticality: { name: 'Criticité équipement', direction: 'higher', description: 'Importance du type d\'équipement et localisation' },
@@ -203,7 +204,7 @@ export function useRiskData(): RiskData {
         }
 
         // 3. What-if
-        const whatIfRes = await fetch(`${API_BASE}/risks/${selectedId}/what-if`, { method: 'POST' });
+        const whatIfRes = await fetch(`${API_BASE}/risks/${selectedId}/what-if`, { method: 'POST', headers: authHeaders() });
         if (whatIfRes.ok) {
           const whatIfData: WhatIfResponse = await whatIfRes.json();
           const actions: WhatIfAction[] = whatIfData.scenarios.map((s) => {

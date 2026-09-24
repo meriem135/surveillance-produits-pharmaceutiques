@@ -57,9 +57,9 @@ const RULE_DOCS: Record<string, { problem: string; impact: string; action: strin
     action: 'Comparer avec les capteurs voisins, vérifier l\'étalonnage',
   },
   'DPI-005': {
-    problem: 'Pic anormal détecté : une valeur numérique dépasse le seuil de 1000',
-    impact: 'Bruit parasite ou tentative de saturation du canal de données',
-    action: 'Analyser la tendance sur les dernières minutes, filtrer si isolé',
+    problem: 'Pic de température au-delà de la moyenne saisonnière + 3.5σ (seuil ~46°C l\u2019été, adapté à chaque saison)',
+    impact: 'Emballement thermique, risque d\u2019incendie ou injection de fausses valeurs',
+    action: 'Analyser la tendance sur les dernières minutes, contrôler l\u2019environnement, vérifier le capteur',
   },
   'DPI-006': {
     problem: 'Valeur d\'humidité en dehors de la plage valide [0%, 100%]',

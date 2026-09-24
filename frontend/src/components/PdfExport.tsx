@@ -17,7 +17,7 @@ export default function PdfExport({ targetId }: { targetId: string }) {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save('dashboard-peaksoft.pdf');
+      pdf.save('dashboard-vigilochain.pdf');
     } catch (e) {
       console.error('PDF export failed', e);
     } finally {

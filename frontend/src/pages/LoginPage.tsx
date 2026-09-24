@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Eye, EyeOff, ArrowRight, Shield, AlertCircle, User, KeyRound } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 
 function MatrixRain({ count = 30 }: { count?: number }) {
   const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789<>/{}[]|&^%$#@!';
@@ -45,6 +46,7 @@ function SecurityHexGrid() {
 export default function LoginPage() {
   const navigate = useNavigate();
   const { theme, nextTheme } = useTheme();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
@@ -61,9 +63,14 @@ export default function LoginPage() {
       return;
     }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    navigate('/dashboard');
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -113,7 +120,7 @@ export default function LoginPage() {
               style={{ color: 'var(--text-primary)' }}
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             >
-              PEAKSOFT
+              VigiloChain
             </motion.h1>
             <motion.p
               className="text-lg mb-6"
@@ -122,26 +129,7 @@ export default function LoginPage() {
             >
               Détection d'Intrusions IoT
             </motion.p>
-            <motion.div
-              className="space-y-3 text-left"
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-            >
-              {[
-                'Phase 1 — Deep Packet Inspection MQTT',
-                'Phase 2 — Détection anomalies par ML (F1 94.7%)',
-                'Phase 3 — Analyse CVE & scoring risque prédictif',
-              ].map((item, i) => (
-                <motion.div
-                  key={item}
-                  className="flex items-center gap-3 text-sm"
-                  initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 + i * 0.1 }}
-                >
-                  <div className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse-glow" style={{ background: 'var(--accent-primary)' }} />
-                  <span style={{ color: 'var(--text-secondary)' }}>{item}</span>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
+            </div>
         </motion.div>
 
         <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12">
@@ -157,7 +145,7 @@ export default function LoginPage() {
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <h2 className="text-2xl font-display font-bold" style={{ color: 'var(--text-primary)' }}>Connexion</h2>
-              <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>PEAKSOFT — Détection IoT</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>VigiloChain — Détection IoT</p>
             </div>
             <div className="hidden lg:block mb-10">
               <h2 className="text-3xl font-display font-bold" style={{ color: 'var(--text-primary)' }}>Connexion</h2>
@@ -189,7 +177,7 @@ export default function LoginPage() {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@peaksoft.security"
+                    placeholder="admin@vigilochain.security"
                     className="w-full pl-11 pr-4 py-3.5 rounded-xl text-sm outline-none transition-all duration-300"
                     style={{
                       background: 'var(--bg-card)',
@@ -270,7 +258,10 @@ export default function LoginPage() {
             </form>
             <div className="mt-8 pt-6 text-center" style={{ borderTop: '1px solid var(--border)' }}>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Plateforme sécurisée — Connexion réservée au personnel autorisé
+                <Link to="/register" className="hover:underline font-medium" style={{ color: 'var(--accent-primary)' }}>
+                  Créer un compte
+                </Link>
+                {' '}· Réservé aux administrateurs
               </p>
               <div className="flex items-center justify-center gap-1.5 mt-3">
                 <Shield className="w-3 h-3" style={{ color: 'var(--accent-success)' }} />

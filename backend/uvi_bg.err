@@ -1,0 +1,19 @@
+OpenSearch indisponible: timed out
+INFO:app.domains.intelligence.mqtt_dpi_service:DPI: 4 règles chargées depuis YAML
+INFO:     Started server process [17952]
+INFO:     Waiting for application startup.
+INFO:app.services.mqtt_service:\U0001f50c Connecting to MQTT broker at 127.0.0.1...
+INFO:app.services.modbus_service:\u23f1\ufe0f Starting Modbus service (polling every 30s)...
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "ModbusService._poll_device" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:     Application startup complete.
+INFO:gmqtt.mqtt.protocol:[CONNECTION MADE]
+ERROR:    [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8000): [winerror 10048] une seule utilisation de chaque adresse de socket (protocole/adresse réseau/port) est habituellement autorisée
+INFO:     Waiting for application shutdown.
+INFO:gmqtt.mqtt.protocol:[CONN CLOSE NORMALLY]
+WARNING:app.services.mqtt_service:\u26a0\ufe0f Disconnected from MQTT broker
+INFO:app.services.mqtt_service:\U0001f50c MQTT client disconnected
+INFO:app.services.modbus_service:\U0001f6d1 Stopping Modbus service...
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.

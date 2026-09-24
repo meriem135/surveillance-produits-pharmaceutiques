@@ -19,7 +19,8 @@ const THEME_ORDER: ThemeMode[] = ['dark', 'cyberpunk', 'matrix', 'light'];
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem(STORAGE_KEY) as ThemeMode) || 'dark';
+      const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
+      return stored && THEME_ORDER.includes(stored) ? stored : 'dark';
     }
     return 'dark';
   });

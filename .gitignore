@@ -1,42 +1,76 @@
-# General ignores
+# ===== SYSTEM =====
 .DS_Store
+Thumbs.db
+desktop.ini
 *.swp
 *.swo
-*.log
+
+# ===== PYTHON =====
+.venv/
+.venv-1/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.pytest_cache/
+**/.pytest_cache/
+.ruff_cache/
+
+# ===== NODE / JS =====
 node_modules/
 dist/
 build/
+.vite/
+
+# ===== LOGS =====
+*.log
+vite*.log
+
+# ===== IDE =====
 .vscode/
 .idea/
 
-# Wazuh Dashboard (too large for GitHub - 695MB)
-/wazuh-dashboard/
+# ===== DOCKER =====
+docker_config_bypass/
 
-# Wazuh Docker specific (from subfolder)
-/wazuh-docker/single-node/config/wazuh_indexer_ssl_certs/*.pem
-/wazuh-docker/single-node/config/wazuh_indexer_ssl_certs/*.key
-/wazuh-docker/multi-node/config/wazuh_indexer_ssl_certs/*.pem
-/wazuh-docker/multi-node/config/wazuh_indexer_ssl_certs/*.key
+# ===== DATA =====
+/data/processed/iot_security.db
+/data/processed/iot_security.db-shm
+/data/processed/iot_security.db-wal
+/data/raw/
+/data/models/
 
-# IoT Security Backend
-/iot-security-backend/node_modules/
-/iot-security-backend/dist/
-/iot-security-backend/.env
-/iot-security-backend/static/
+# ===== MODELE / ARTIFACTS =====
+*.pkl
+*.joblib
+*.pth
+*.pt
+*.onnx
+*.h5
+*.hdf5
 
-# Custom Docker Build Config
-/docker_config_bypass/
-/docs
+# Canonical models/ at project root — kept tracked
+!models/*.pkl
+!models/*.json
 
-# Large data files (too big for GitHub)
-/phase2/Data/Processed/
-/phase2/Data/Raw/
+# ===== NOTEBOOKS DATA (large files) =====
+/notebooks/**/Data/
 
-# Python specific
-.venv/
-__pycache__/
-/*/__pycache__/
-/*/*/__pycache__/
-*.py[cod]
-*$py.class
+# ===== BACKEND =====
+/backend/static/
+/backend/.env
+/backend/app/models/cve_cache/
+/backend/app/models/risk_history/
+/backend/app/models/mlops/
 
+# ===== FRONTEND =====
+/frontend/dist/
+/frontend/node_modules/
+
+# ===== DOUBLONS / ARCHIVES LOCALES =====
+/peaksoft-security-platform-main/
+
+# ===== TEMP / BUILD ARTIFACTS =====
+output.txt
+_DELETE_LATER/

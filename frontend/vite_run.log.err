@@ -1,0 +1,1088 @@
+[2m00:17:51[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m00:18:11[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m00:18:25[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/auth/login[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:15:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:16:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:33[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:33[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:33[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:33[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:17:52[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m16:19:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:41:38[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:50:16[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 2 errors:
+
+[31m[PARSE_ERROR] [0mExpected corresponding closing tag for JSX fragment.
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:9 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2386 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m<>[38;5;249m{[0m[38;5;249m/[0m[38;5;249m*[0m[38;5;249m [0m[38;5;249mK[0m[38;5;249mP[0m[38;5;249mI[0m[38;5;249m [0m[38;5;249mC[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249md[0m[38;5;249ms[0m[38;5;249m [0m[38;5;249m*[0m[38;5;249m/[0m[38;5;249m}[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m           ─┬  
+ [38;5;240m     │[0m            ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0mdiv[38;5;249m>[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m         ─┬─  
+ [38;5;240m     │[0m          ╰─── Expected `</>`
+[38;5;246m──────╯[0m
+
+[31m[PARSE_ERROR] [0mExpected `,` or `)` but found `{`
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:13 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2385 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m{[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249my[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m&[0m[38;5;249m&[0m[38;5;249m [0m(
+ [38;5;240m     │[0m                                     ┬  
+ [38;5;240m     │[0m                                     ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249m>[0m{[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m             ┬  
+ [38;5;240m     │[0m             ╰── `,` or `)` expected
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/peaksoft-security-platform-main/frontend/src/pages/ShapDashboardPage.tsx[39m
+      at transformWithOxc (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3339:19)
+      at TransformPluginContext.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3410:26)
+      at EnvironmentPluginContainer.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:30271:51)
+      at async loadAndTransform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24532:26)
+      at async viteTransformMiddleware (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24326:20)
+[2m18:50:16[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Failed to fetch dynamically imported module: http://localhost:5173/src/pages/ShapDashboardPage.tsx?t=1788976193126
+[39m
+[2m18:50:16[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in one of your React components.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m18:50:30[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 2 errors:
+
+[31m[PARSE_ERROR] [0mExpected corresponding closing tag for JSX fragment.
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:9 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2386 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m<>[38;5;249m{[0m[38;5;249m/[0m[38;5;249m*[0m[38;5;249m [0m[38;5;249mK[0m[38;5;249mP[0m[38;5;249mI[0m[38;5;249m [0m[38;5;249mC[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249md[0m[38;5;249ms[0m[38;5;249m [0m[38;5;249m*[0m[38;5;249m/[0m[38;5;249m}[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m           ─┬  
+ [38;5;240m     │[0m            ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0mdiv[38;5;249m>[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m         ─┬─  
+ [38;5;240m     │[0m          ╰─── Expected `</>`
+[38;5;246m──────╯[0m
+
+[31m[PARSE_ERROR] [0mExpected `,` or `)` but found `{`
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:13 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2385 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m{[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249my[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m&[0m[38;5;249m&[0m[38;5;249m [0m(
+ [38;5;240m     │[0m                                     ┬  
+ [38;5;240m     │[0m                                     ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249m>[0m{[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m             ┬  
+ [38;5;240m     │[0m             ╰── `,` or `)` expected
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/peaksoft-security-platform-main/frontend/src/pages/ShapDashboardPage.tsx[39m
+      at transformWithOxc (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3339:19)
+      at TransformPluginContext.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3410:26)
+      at EnvironmentPluginContainer.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:30271:51)
+      at async loadAndTransform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24532:26)
+      at async viteTransformMiddleware (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24326:20)
+[2m18:50:30[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Failed to fetch dynamically imported module: http://localhost:5173/src/pages/ShapDashboardPage.tsx?t=1788976193126
+[39m
+[2m18:50:30[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in one of your React components.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m18:50:32[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 2 errors:
+
+[31m[PARSE_ERROR] [0mExpected corresponding closing tag for JSX fragment.
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:9 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2386 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m<>[38;5;249m{[0m[38;5;249m/[0m[38;5;249m*[0m[38;5;249m [0m[38;5;249mK[0m[38;5;249mP[0m[38;5;249mI[0m[38;5;249m [0m[38;5;249mC[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249md[0m[38;5;249ms[0m[38;5;249m [0m[38;5;249m*[0m[38;5;249m/[0m[38;5;249m}[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m           ─┬  
+ [38;5;240m     │[0m            ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0mdiv[38;5;249m>[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m         ─┬─  
+ [38;5;240m     │[0m          ╰─── Expected `</>`
+[38;5;246m──────╯[0m
+
+[31m[PARSE_ERROR] [0mExpected `,` or `)` but found `{`
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:13 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2385 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m{[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249my[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m&[0m[38;5;249m&[0m[38;5;249m [0m(
+ [38;5;240m     │[0m                                     ┬  
+ [38;5;240m     │[0m                                     ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249m>[0m{[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m             ┬  
+ [38;5;240m     │[0m             ╰── `,` or `)` expected
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/peaksoft-security-platform-main/frontend/src/pages/ShapDashboardPage.tsx[39m
+      at transformWithOxc (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3339:19)
+      at TransformPluginContext.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3410:26)
+      at EnvironmentPluginContainer.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:30271:51)
+      at async loadAndTransform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24532:26)
+      at async viteTransformMiddleware (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24326:20)
+[2m18:50:32[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Failed to fetch dynamically imported module: http://localhost:5173/src/pages/ShapDashboardPage.tsx?t=1788976193126
+[39m
+[2m18:50:32[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in one of your React components.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m18:50:39[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 2 errors:
+
+[31m[PARSE_ERROR] [0mExpected corresponding closing tag for JSX fragment.
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:9 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2386 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m<>[38;5;249m{[0m[38;5;249m/[0m[38;5;249m*[0m[38;5;249m [0m[38;5;249mK[0m[38;5;249mP[0m[38;5;249mI[0m[38;5;249m [0m[38;5;249mC[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249md[0m[38;5;249ms[0m[38;5;249m [0m[38;5;249m*[0m[38;5;249m/[0m[38;5;249m}[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m           ─┬  
+ [38;5;240m     │[0m            ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0mdiv[38;5;249m>[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m         ─┬─  
+ [38;5;240m     │[0m          ╰─── Expected `</>`
+[38;5;246m──────╯[0m
+
+[31m[PARSE_ERROR] [0mExpected `,` or `)` but found `{`
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:13 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2385 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m{[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249my[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m&[0m[38;5;249m&[0m[38;5;249m [0m(
+ [38;5;240m     │[0m                                     ┬  
+ [38;5;240m     │[0m                                     ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249m>[0m{[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m             ┬  
+ [38;5;240m     │[0m             ╰── `,` or `)` expected
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/peaksoft-security-platform-main/frontend/src/pages/ShapDashboardPage.tsx[39m
+      at transformWithOxc (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3339:19)
+      at TransformPluginContext.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3410:26)
+      at EnvironmentPluginContainer.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:30271:51)
+      at async loadAndTransform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24532:26)
+      at async viteTransformMiddleware (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24326:20)
+[2m18:50:39[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Failed to fetch dynamically imported module: http://localhost:5173/src/pages/ShapDashboardPage.tsx?t=1788976193126
+[39m
+[2m18:50:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in one of your React components.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m18:50:41[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 2 errors:
+
+[31m[PARSE_ERROR] [0mExpected corresponding closing tag for JSX fragment.
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:9 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2386 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m<>[38;5;249m{[0m[38;5;249m/[0m[38;5;249m*[0m[38;5;249m [0m[38;5;249mK[0m[38;5;249mP[0m[38;5;249mI[0m[38;5;249m [0m[38;5;249mC[0m[38;5;249ma[0m[38;5;249mr[0m[38;5;249md[0m[38;5;249ms[0m[38;5;249m [0m[38;5;249m*[0m[38;5;249m/[0m[38;5;249m}[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m           ─┬  
+ [38;5;240m     │[0m            ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0mdiv[38;5;249m>[0m[38;5;249m{[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m         ─┬─  
+ [38;5;240m     │[0m          ╰─── Expected `</>`
+[38;5;246m──────╯[0m
+
+[31m[PARSE_ERROR] [0mExpected `,` or `)` but found `{`
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/pages/ShapDashboardPage.tsx:3287:13 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m2385 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m{[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249my[0m[38;5;249ms[0m[38;5;249mi[0m[38;5;249ms[0m[38;5;249m'[0m[38;5;249m [0m[38;5;249m&[0m[38;5;249m&[0m[38;5;249m [0m(
+ [38;5;240m     │[0m                                     ┬  
+ [38;5;240m     │[0m                                     ╰── Opened here
+ [38;5;240m     │[0m 
+ [38;5;246m3287 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m<[0m[38;5;249m/[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mv[0m[38;5;249m>[0m{[38;5;249m'[0m[38;5;249m [0m[38;5;249m'[0m[38;5;249m}[0m
+ [38;5;240m     │[0m             ┬  
+ [38;5;240m     │[0m             ╰── `,` or `)` expected
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/peaksoft-security-platform-main/frontend/src/pages/ShapDashboardPage.tsx[39m
+      at transformWithOxc (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3339:19)
+      at TransformPluginContext.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:3410:26)
+      at EnvironmentPluginContainer.transform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:30271:51)
+      at async loadAndTransform (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24532:26)
+      at async viteTransformMiddleware (file:///C:/peaksoft-security-platform-main/frontend/node_modules/vite/dist/node/chunks/node.js:24326:20)
+[2m18:50:41[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Failed to fetch dynamically imported module: http://localhost:5173/src/pages/ShapDashboardPage.tsx?t=1788976193126
+[39m
+[2m18:50:41[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in one of your React components.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:22[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:24[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:26[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:26[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:26[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:26[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:54:39[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m18:59:03[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe final argument passed to useEffect changed size between renders. The order and size of this array must remain constant.
+
+Previous: [dataset, async () => {
+		setAttackLoading(true);
+		try {
+			const r = await fetch(buildAttackUrl());
+			if (r.ok) {
+				const data = await r.json();
+				setAttackData(data);
+			} else {
+				setAttackData(null);
+			}
+		} catch {
+			setAttackData(null);
+		}
+		setAttackLoading(false);
+	}]
+Incoming: [async () => {
+		setAttackLoading(true);
+		setAttackError(null);
+		try {
+			const r = await fetch(buildAttackUrl());
+			if (r.ok) {
+				const data = await r.json();
+				setAttackData(data);
+			} else if (r.status === 404) {
+				setAttackError("Endpoint du dataset indisponible — redémarrez le backend (port 8000)");
+				setAttackData(null);
+			} else {
+				setAttackError(`HTTP ${r.status}`);
+				setAttackData(null);
+			}
+		} catch {
+			setAttackError("Backend injoignable — lancez start_backend.bat (port 8000)");
+			setAttackData(null);
+		}
+		setAttackLoading(false);
+	}]
+[2m18:59:03[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled rejection] [1mReferenceError[22m: setAttackError is not defined
+[39m > src/pages/ShapDashboardPage.tsx:2024:4
+    2022 |    const fetchAttackData = useCallback(async () => {
+    2023 |      setAttackLoading(true);
+    2024 |      setAttackError(null);
+         |      ^
+    2025 |      try {
+    2026 |        const r = await fetch(buildAttackUrl());
+ > src/pages/ShapDashboardPage.tsx:2044:4
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:25989:19
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:871:29
+ > commitHookEffectListMount node_modules/react-dom/cjs/react-dom-client.development.js:13249:28
+ > commitHookPassiveMountEffects node_modules/react-dom/cjs/react-dom-client.development.js:13336:10
+ > commitPassiveMountOnFiber node_modules/react-dom/cjs/react-dom-client.development.js:15484:12
+ > recursivelyTraversePassiveMountEffects node_modules/react-dom/cjs/react-dom-client.development.js:15439:10
+ > commitPassiveMountOnFiber node_modules/react-dom/cjs/react-dom-client.development.js:15718:10
+ > recursivelyTraversePassiveMountEffects node_modules/react-dom/cjs/react-dom-client.development.js:15439:10
+
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:12[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:13[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:00:40[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+[2m19:01:20[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/shap/latest[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m19:01:23[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/phase2/attack-dataset?only_attacks=true&page=1&page_size=25[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m19:01:23[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/shap/yearly[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m19:01:23[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/phase2/attack-dataset?only_attacks=true&page=1&page_size=25[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m19:01:23[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/shap/yearly[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[2m19:04:53[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <table>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <Routes>
+      <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+        <ShapDashboardPage>
+          <div className="relative">
+            <BackgroundOrbs>
+            <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+              <div>
+              <div>
+              <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+                <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                  <div className="rounded-2x..." style={{...}} ref={function}>
+                    <div>
+                    <div>
+                    <div className="p-5">
+                      <p>
+                      <div>
+                      <div>
+                      <div className="overflow-x...">
+>                       <table className="w-full text-left text-[10px] border-collapse min-w-[760px]">
+>                         {" "}
+                          ...
+                        ...
+                      ...
+                      ...
+                    ...
+            ...
+
+[2m19:04:53[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <thead>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <Routes>
+      <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+        <ShapDashboardPage>
+          <div className="relative">
+            <BackgroundOrbs>
+            <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+              <div>
+              <div>
+              <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+                <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                  <div className="rounded-2x..." style={{...}} ref={function}>
+                    <div>
+                    <div>
+                    <div className="p-5">
+                      <p>
+                      <div>
+                      <div>
+                      <div className="overflow-x...">
+                        <table className="w-full tex...">
+>                         <thead>
+>                           {" "}
+                            ...
+                          ...
+                        ...
+                      ...
+                      ...
+                    ...
+            ...
+
+[2m19:04:53[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <tr>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+      <ShapDashboardPage>
+        <div className="relative">
+          <BackgroundOrbs>
+          <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+            <div>
+            <div>
+            <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+              <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                <div className="rounded-2x..." style={{...}} ref={function}>
+                  <div>
+                  <div>
+                  <div className="p-5">
+                    <p>
+                    <div>
+                    <div>
+                    <div className="overflow-x...">
+                      <table className="w-full tex...">
+                        <thead>
+>                         <tr style={{background:"rgba(0,255...",color:"#00FFA3"}}>
+>                           {" "}
+                            ...
+                          ...
+                        ...
+                      ...
+                    ...
+                    ...
+                  ...
+          ...
+
+[2m19:04:53[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <tbody>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <Routes>
+      <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+        <ShapDashboardPage>
+          <div className="relative">
+            <BackgroundOrbs>
+            <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+              <div>
+              <div>
+              <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+                <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                  <div className="rounded-2x..." style={{...}} ref={function}>
+                    <div>
+                    <div>
+                    <div className="p-5">
+                      <p>
+                      <div>
+                      <div>
+                      <div className="overflow-x...">
+                        <table className="w-full tex...">
+                          <thead>
+>                         <tbody>
+>                           {" "}
+                            ...
+                          ...
+                        ...
+                      ...
+                      ...
+                    ...
+            ...
+
+[2m19:05:09[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <table>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <Routes>
+      <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+        <ShapDashboardPage>
+          <div className="relative">
+            <BackgroundOrbs>
+            <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+              <div>
+              <div>
+              <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+                <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                  <div className="rounded-2x..." style={{...}} ref={function}>
+                    <div>
+                    <div>
+                    <div className="p-5">
+                      <p>
+                      <div>
+                      <div>
+                      <div className="overflow-x...">
+>                       <table className="w-full text-left text-[10px] border-collapse min-w-[760px]">
+>                         {" "}
+                          ...
+                        ...
+                      ...
+                      ...
+                    ...
+            ...
+
+[2m19:05:09[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <thead>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <Routes>
+      <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+        <ShapDashboardPage>
+          <div className="relative">
+            <BackgroundOrbs>
+            <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+              <div>
+              <div>
+              <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+                <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                  <div className="rounded-2x..." style={{...}} ref={function}>
+                    <div>
+                    <div>
+                    <div className="p-5">
+                      <p>
+                      <div>
+                      <div>
+                      <div className="overflow-x...">
+                        <table className="w-full tex...">
+>                         <thead>
+>                           {" "}
+                            ...
+                          ...
+                        ...
+                      ...
+                      ...
+                    ...
+            ...
+
+[2m19:05:09[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <tr>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+      <ShapDashboardPage>
+        <div className="relative">
+          <BackgroundOrbs>
+          <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+            <div>
+            <div>
+            <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+              <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                <div className="rounded-2x..." style={{...}} ref={function}>
+                  <div>
+                  <div>
+                  <div className="p-5">
+                    <p>
+                    <div>
+                    <div>
+                    <div className="overflow-x...">
+                      <table className="w-full tex...">
+                        <thead>
+>                         <tr style={{background:"rgba(0,255...",color:"#00FFA3"}}>
+>                           {" "}
+                            ...
+                          ...
+                        ...
+                      ...
+                    ...
+                    ...
+                  ...
+          ...
+
+[2m19:05:09[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, whitespace text nodes cannot be a child of <tbody>. Make sure you don't have any extra whitespace between tags on each line of your source code.
+This will cause a hydration error.
+
+  ...
+    <Routes>
+      <RenderedRoute match={{...}} routeContext={{outlet:null, ...}}>
+        <ShapDashboardPage>
+          <div className="relative">
+            <BackgroundOrbs>
+            <div id="shap-dashb..." className="relative s..." style={{zIndex:1}}>
+              <div>
+              <div>
+              <Section title="Contenu du..." desc="3088 point..." color="#00FFA3">
+                <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="rounded-2x..." style={{...}}>
+                  <div className="rounded-2x..." style={{...}} ref={function}>
+                    <div>
+                    <div>
+                    <div className="p-5">
+                      <p>
+                      <div>
+                      <div>
+                      <div className="overflow-x...">
+                        <table className="w-full tex...">
+                          <thead>
+>                         <tbody>
+>                           {" "}
+                            ...
+                          ...
+                        ...
+                      ...
+                      ...
+                    ...
+            ...
+

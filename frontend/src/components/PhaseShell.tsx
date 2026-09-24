@@ -6,6 +6,8 @@ interface PhaseShellProps {
   phase: PhaseItem;
   children: ReactNode;
   backgroundOrbs?: boolean;
+  hidePipeline?: boolean;
+  trained?: boolean;
   stats?: Array<{
     icon: ReactNode;
     label: string;
@@ -34,7 +36,7 @@ function BackgroundOrbs({ phaseColor }: { phaseColor: string }) {
   );
 }
 
-export function PhaseShell({ phase, children, backgroundOrbs = true, stats }: PhaseShellProps) {
+export function PhaseShell({ phase, children, backgroundOrbs = true, hidePipeline = false, trained, stats }: PhaseShellProps) {
   const phaseColors: Record<number, string> = {
     1: '#00F5FF',
     2: '#00FFA3',
@@ -55,7 +57,7 @@ export function PhaseShell({ phase, children, backgroundOrbs = true, stats }: Ph
             borderColor: `${color}18`,
             boxShadow: `0 0 40px ${glowColor}`,
           }}>
-          <PhasePipeline activePhase={phase.num} />
+          {!hidePipeline && <PhasePipeline activePhase={phase.num} />}
 
           <div className="px-4 sm:px-6 py-4 sm:py-5">
             <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -87,7 +89,9 @@ export function PhaseShell({ phase, children, backgroundOrbs = true, stats }: Ph
                         border: `1px solid ${color}25`,
                       }}>
                       <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
-                      {phase.status === 'completed' ? 'TERMINÉE' : phase.status === 'active' ? 'EN COURS' : 'PLANIFIÉE'}
+                      {trained !== undefined
+                        ? (trained ? 'TERMINÉE' : 'EN ATTENTE')
+                        : (phase.status === 'completed' ? 'TERMINÉE' : phase.status === 'active' ? 'EN COURS' : 'PLANIFIÉE')}
                     </span>
                   </div>
                   <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>

@@ -53,8 +53,8 @@ export const PHASES: PhaseData[] = [
     gradient: 'linear-gradient(135deg, #818cf8, #6366F1)',
     status: 'complete', progress: 100,
     route: '/dashboard/phase2',
-    description: '7 modèles ML · Isolation Forest · Autoencodeur PCA · GNN · LSTM',
-    highlights: ['7 modèles', 'F1 > 94%', '3 capteurs', '9 types d\'attaques'],
+    description: 'Modèles ML · One-Class SVM · Autoencodeur PCA · GNN · LSTM',
+    highlights: ['Modèles ML', 'F1 > 94%', '3 capteurs', '9 types d\'attaques'],
     metrics: [
       { label: 'Modèles', value: '7', color: '#818cf8' },
       { label: 'F1 Moyen', value: '94.7%', color: '#22C55E' },
@@ -68,7 +68,7 @@ export const PHASES: PhaseData[] = [
     color: '#F97316', glow: 'rgba(249,115,22,',
     gradient: 'linear-gradient(135deg, #F97316, #EA580C)',
     status: 'active', progress: 65,
-    route: '/dashboard/phase3',
+    route: '/dashboard/shap',
     description: 'Analyse de vulnérabilités · Score de risque prédictif · Intégration CVE · What-If',
     highlights: ['CVE Pipeline', 'Risk Scoring', 'What-If Analysis', 'IEC 62443'],
     metrics: [
@@ -656,7 +656,7 @@ export function PhaseTwoSection({ phases, overallProgress, mousePos, expandedInd
             </span>
           </h2>
           <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-            7 modèles ML · Isolation Forest · Autoencodeur PCA · GNN · LSTM
+            Modèles ML · One-Class SVM · Autoencodeur PCA · GNN · LSTM
           </p>
         </div>
       </div>
