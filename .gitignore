@@ -80,3 +80,6 @@ docker_config_bypass/
 # ===== TEMP / BUILD ARTIFACTS =====
 output.txt
 _DELETE_LATER/
+
+# ===== JUPYTER =====
+.ipynb_checkpoints/
