@@ -24,10 +24,14 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 │   │   └── services/        MQTT (agrégation 3 capteurs), Modbus, streaming WebSocket
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
-│   │   └── train_models.py  entraîne et compare les 4 modèles → models/
+│   │   ├── train_models.py  entraîne et compare les 4 modèles → models/
+│   │   ├── transmission_real.py    attaques de transmission sur les traces réelles (étude, 9 répétitions)
+│   │   ├── transmission_models.py  4 modèles candidats + SHAP sur ces traces → models/transmission_reel/
+│   │   └── transmission_study.py   même étude sur une année simulée (banc d'essai, hypothèses déclarées)
 │   └── tests/               pytest
 ├── frontend/                dashboard React 19 + Vite + TypeScript + Tailwind
 ├── notebook/Raw/            traces brutes TON_IoT (Normal + 9 types d'attaque)
+├── notebook/transmission/   4 notebooks : prétraitement, injection des attaques, 4 modèles, SHAP
 ├── data/                    généré (dataset_fusionne.csv, flux de démo, SQLite, journal DPI)
 ├── models/                  modèles entraînés + résultats JSON (versionnés)
 └── Soutenance/              notes de soutenance
@@ -66,6 +70,27 @@ OpenSearch/Wazuh.
 | GNN_Correlation | graphe de corrélations glissantes entre capteurs | 0.837 | 0.535 | 8.9 % |
 
 Détail par type d'attaque : `models/resultats_comparaison_final.json`.
+
+## Attaques de transmission (traces réelles)
+
+Volet « injection et MITM entre le capteur et le broker » sur les seules traces réelles
+TON_IoT (62 h fusionnées à 5 s), sans année simulée :
+
+- `notebook/transmission/01…04` : exploration et prétraitement, injection de 9 scénarios
+  (gel, rejeu, injection nominale, biais, dérive, sur le frigo et le thermostat), quatre
+  modèles candidats (Isolation Forest, One-Class SVM, Random Forest, XGBoost), SHAP.
+- `backend/scripts/transmission_models.py` : la même comparaison cumulée sur 9 répétitions
+  (chaque heure sert de test) → `models/transmission_reel/comparaison_modeles.json`.
+  Résultat : Random Forest F1 0,66 ; les petits biais (−0,5 / −1 °C) restent quasi invisibles
+  dans ce bruit (σ 3,4 °C par mesure).
+- Page **Transmission** du dashboard : entraînement des 4 modèles en direct (WebSocket
+  `/api/v1/transmission/train-ws`, courbe du Random Forest arbre par arbre), résultats,
+  détection par scénario, SHAP, et rapport de recommandation pour l'opérateur
+  (`GET /api/v1/transmission/report`, consigne par alerte via `POST`).
+
+```bash
+cd backend && .venv/bin/python scripts/transmission_models.py   # ~7 min (SHAP cumulé)
+```
 
 ## Tests
 

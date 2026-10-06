@@ -16,7 +16,7 @@ import {
 import {
   Activity, ShieldAlert, Users,
   Moon, Sun, ChevronDown, Cpu, RefreshCw, LogOut, User, Brain, Sparkles, LayoutDashboard,
-  Pill, LineChart, ScrollText,
+  Pill, LineChart, ScrollText, Radio,
 } from 'lucide-react';
 import type { NavItem, ThemeMode } from '../types';
 
@@ -31,10 +31,12 @@ const TableauDeBordPage = lazy(() => import('../pages/TableauDeBordPage'));
 const PharmaImpactPage = lazy(() => import('../pages/PharmaImpactPage'));
 const AdvancedAnalyticsPage = lazy(() => import('../pages/AdvancedAnalyticsPage'));
 const AuditLogsPage = lazy(() => import('../pages/AuditLogsPage'));
+const TransmissionPage = lazy(() => import('../pages/TransmissionPage'));
 const NAV_ITEMS: NavItem[] = [
   { label: 'Tableau de bord', path: '/dashboard/tableau-bord', icon: 'layout', roles: ['admin', 'operator'] },
   { label: 'Ingestion', path: '/dashboard/phase1', icon: 'cpu', roles: ['admin', 'operator'] },
   { label: 'ML & Anomalies', path: '/dashboard/phase2', icon: 'activity', roles: ['admin', 'operator'] },
+  { label: 'Transmission', path: '/dashboard/transmission', icon: 'radio', roles: ['admin', 'operator'] },
   { label: 'SHAP', path: '/dashboard/shap', icon: 'sparkles', roles: ['admin', 'operator'] },
   { label: 'Résultats', path: '/dashboard/results', icon: 'brain', roles: ['admin', 'operator'] },
   { label: 'Analyses', path: '/dashboard/analyses', icon: 'chart', roles: ['admin', 'operator'] },
@@ -47,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
 const PAGE_ROLES: Record<string, string[]> = {
   '/dashboard/phase1': ['admin', 'operator'],
   '/dashboard/phase2': ['admin', 'operator'],
+  '/dashboard/transmission': ['admin', 'operator'],
   '/dashboard/shap': ['admin', 'operator'],
   '/dashboard/results': ['admin', 'operator'],
   '/dashboard/tableau-bord': ['admin', 'operator'],
@@ -62,6 +65,7 @@ const PAGE_ROLES: Record<string, string[]> = {
 const NAV_ICONS: Record<string, React.ReactNode> = {
   '/dashboard/phase1': <Cpu className="w-4 h-4" />,
   '/dashboard/phase2': <Activity className="w-4 h-4" />,
+  '/dashboard/transmission': <Radio className="w-4 h-4" />,
   '/dashboard/shap': <Sparkles className="w-4 h-4" />,
   '/dashboard/results': <Brain className="w-4 h-4" />,
   '/dashboard/tableau-bord': <LayoutDashboard className="w-4 h-4" />,
@@ -211,6 +215,7 @@ export default function DashboardLayout() {
               <Route path="/dashboard" element={<Navigate to="/dashboard/tableau-bord" replace />} />
               <Route path="/dashboard/phase1" element={canAccess('/dashboard/phase1') ? <Phase1Page /> : <AccessDenied />} />
               <Route path="/dashboard/phase2" element={canAccess('/dashboard/phase2') ? <Phase2Page /> : <AccessDenied />} />
+              <Route path="/dashboard/transmission" element={canAccess('/dashboard/transmission') ? <TransmissionPage /> : <AccessDenied />} />
               <Route path="/dashboard/shap" element={canAccess('/dashboard/shap') ? <ShapDashboardPage /> : <AccessDenied />} />
               <Route path="/dashboard/shap/report" element={canAccess('/dashboard/shap') ? <ShapPointReportPage /> : <AccessDenied />} />
               <Route path="/dashboard/results" element={canAccess('/dashboard/results') ? <TrainingResultsPage /> : <AccessDenied />} />

@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.paths import SEASONAL_STREAM_CSV, ensure_dirs
 from app.db.seed import seed_defaults
 from app.db.session import init_db, close_db, get_session
-from app.api.v1 import devices, alerts, dpi, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, advanced_analytics
+from app.api.v1 import devices, alerts, dpi, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, advanced_analytics, transmission
 from app.services.mqtt_service import mqtt_service
 from app.services.modbus_service import modbus_service
 from app.services.realtime_service import manager
@@ -154,6 +154,7 @@ app.include_router(dataset_analytics.router, prefix=settings.API_V1_STR, tags=["
 app.include_router(fusion_insights.router, prefix=settings.API_V1_STR, tags=["fusion"])
 app.include_router(pharma_impact.router, prefix=settings.API_V1_STR, tags=["pharma"])
 app.include_router(advanced_analytics.router, prefix=settings.API_V1_STR, tags=["advanced-analytics"])
+app.include_router(transmission.router, prefix=settings.API_V1_STR, tags=["transmission"])
 
 @app.get("/")
 def root():
