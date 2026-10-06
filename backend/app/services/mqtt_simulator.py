@@ -26,7 +26,6 @@ Le format de chaque message :
 import asyncio
 import json
 import logging
-import random
 from datetime import datetime
 from pathlib import Path
 

@@ -10,24 +10,15 @@ import os, json, joblib, numpy as np, pandas as pd
 
 CHUNK_SIZE = 5000
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
-_PROJECT = os.path.dirname(_ROOT)
-_DATA = os.path.join(_PROJECT, "phase2", "Data", "Processed")
+from app.core.paths import CONCAT_CSV, INFERRED_OCSVM, MERGED_3_SENSORS, model_file
+
 
 def _find_model(name):
-    for candidate in [
-        os.path.join(_PROJECT, "models", name),
-        os.path.join(_ROOT, "models", name),
-        os.path.join(_DATA, "models", name),
-    ]:
-        if os.path.exists(candidate):
-            return candidate
-    return os.path.join(_DATA, "models", name)
+    return model_file(name)
 
 MV_MODEL_PATH = _find_model("ocsvm_multivarie.pkl")
 MV_SCALER_PATH = _find_model("scaler_ocsvm.pkl")
-MV_CACHE_PATH = os.path.join(_DATA, "multivarie_inferred_ocsvm.json")
+MV_CACHE_PATH = str(INFERRED_OCSVM)
 MV_THRESHOLD_PATH = _find_model("threshold_ocsvm.json")
 
 DEFAULT_THRESHOLD = 20.0
@@ -104,21 +95,21 @@ def _ensure_multivarie_cached():
             return json.load(f)
 
     print("[Multivarié] Chargement et merge des 3 CSV...")
-    mv_path = os.path.join(_DATA, "merged_3_sensors.csv")
+    mv_path = str(MERGED_3_SENSORS)
     if os.path.exists(mv_path):
         mv = pd.read_csv(mv_path, parse_dates=["datetime"])
     else:
         print("[Multivarie] merged_3_sensors.csv introuvable, fallback sur concat CSV...")
         weather = pd.read_csv(
-            os.path.join(_DATA, "weather_concat.csv"),
+            str(CONCAT_CSV["weather"]),
             parse_dates=["datetime"], usecols=["datetime", "temperature", "label"]
         )
         fridge = pd.read_csv(
-            os.path.join(_DATA, "fridge_concat.csv"),
+            str(CONCAT_CSV["fridge"]),
             parse_dates=["datetime"], usecols=["datetime", "fridge_temperature", "temp_condition", "label"]
         )
         thermostat = pd.read_csv(
-            os.path.join(_DATA, "thermostat_concat.csv"),
+            str(CONCAT_CSV["thermostat"]),
             parse_dates=["datetime"], usecols=["datetime", "current_temperature", "thermostat_status", "label"]
         )
         weather = weather.rename(columns={"temperature": "weather_temp", "label": "label_w"})
@@ -192,7 +183,7 @@ def _ensure_multivarie_cached():
             })
         print(f"[Multivarié] {min(start+CHUNK_SIZE, len(mv))}/{len(mv)}")
 
-    os.makedirs(_DATA, exist_ok=True)
+    os.makedirs(os.path.dirname(MV_CACHE_PATH), exist_ok=True)
     with open(MV_CACHE_PATH, "w", encoding="utf-8") as f:
         json.dump(all_records, f, ensure_ascii=False)
 
@@ -323,7 +314,7 @@ def generate_report(filters: dict) -> str:
     lines = [
         "# 📊 Rapport — One-Class SVM Multivarié",
         f"**Période :** {period_str}",
-        f"**Modèle :** One-Class SVM Multivarié (3 capteurs fusionnés)",
+        "**Modèle :** One-Class SVM Multivarié (3 capteurs fusionnés)",
         "",
     ]
 
@@ -501,8 +492,8 @@ def generate_report(filters: dict) -> str:
         f"| Anomalies détectées | {stats['n_pred_anomaly']} ({anomaly_pct:.1f}%) |",
         f"| Points normaux | {stats['n_pred_normal']} |",
         f"| Score anomalie moyen | {stats['avg_score']:.3f} |",
-        f"| Modèle | One-Class SVM Multivarié (21 features) |",
-        f"| Capteurs fusionnés | Météo, Frigo, Thermostat |", "",
+        "| Modèle | One-Class SVM Multivarié (21 features) |",
+        "| Capteurs fusionnés | Météo, Frigo, Thermostat |", "",
     ]
 
     lines += [

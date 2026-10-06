@@ -4,17 +4,18 @@ import numpy as np
 import pandas as pd
 from fastapi import APIRouter
 
+from app.core import paths
+
 router = APIRouter()
 
-BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-DATA_PATH = os.path.join(BASE, "Data", "Processed", "dataset_fusionne.csv")
+DATA_PATH = str(paths.DATASET_FUSIONNE)
 
 # ── Fichiers produits par l'entrainement reel (phase2) ────────────
-MODELS_DIR = os.path.join(BASE, "phase2", "Data", "Processed", "models")
-LIVE_RESULTS_PATH = os.path.join(MODELS_DIR, "live_trained_results.json")
-COMPLETS_RESULTS_PATH = os.path.join(MODELS_DIR, "resultats_complets.json")
-THRESHOLD_PATH = os.path.join(MODELS_DIR, "threshold_ocsvm.json")
-HYPERPARAMS_PATH = os.path.join(MODELS_DIR, "hyperparams_ocsvm.json")
+MODELS_DIR = str(paths.MODELS_DIR)
+LIVE_RESULTS_PATH = str(paths.LIVE_RESULTS)
+COMPLETS_RESULTS_PATH = str(paths.RESULTS_COMPLETS)
+THRESHOLD_PATH = str(paths.OCSVM_THRESHOLD)
+HYPERPARAMS_PATH = str(paths.OCSVM_HYPERPARAMS)
 
 _cached_payload: dict | None = None
 

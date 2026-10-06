@@ -16,11 +16,11 @@ import {
 import {
   Activity, ShieldAlert, Users,
   Moon, Sun, ChevronDown, Cpu, RefreshCw, LogOut, User, Brain, Sparkles, LayoutDashboard,
+  Pill, LineChart, ScrollText,
 } from 'lucide-react';
 import type { NavItem, ThemeMode } from '../types';
 
 const Phase1Page = lazy(() => import('../pages/Phase1Page'));
-const Phase1DpiDetailPage = lazy(() => import('../pages/Phase1DpiDetailPage'));
 const Phase2Page = lazy(() => import('../pages/Phase2Page'));
 const TrainingResultsPage = lazy(() => import('../pages/TrainingResultsPage'));
 const ShapDashboardPage = lazy(() => import('../pages/ShapDashboardPage'));
@@ -28,13 +28,19 @@ const ShapPointReportPage = lazy(() => import('../pages/ShapPointReportPage'));
 const AdminUsersPage = lazy(() => import('../pages/AdminUsersPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const TableauDeBordPage = lazy(() => import('../pages/TableauDeBordPage'));
+const PharmaImpactPage = lazy(() => import('../pages/PharmaImpactPage'));
+const AdvancedAnalyticsPage = lazy(() => import('../pages/AdvancedAnalyticsPage'));
+const AuditLogsPage = lazy(() => import('../pages/AuditLogsPage'));
 const NAV_ITEMS: NavItem[] = [
   { label: 'Tableau de bord', path: '/dashboard/tableau-bord', icon: 'layout', roles: ['admin', 'operator'] },
   { label: 'Ingestion', path: '/dashboard/phase1', icon: 'cpu', roles: ['admin', 'operator'] },
   { label: 'ML & Anomalies', path: '/dashboard/phase2', icon: 'activity', roles: ['admin', 'operator'] },
   { label: 'SHAP', path: '/dashboard/shap', icon: 'sparkles', roles: ['admin', 'operator'] },
   { label: 'Résultats', path: '/dashboard/results', icon: 'brain', roles: ['admin', 'operator'] },
+  { label: 'Analyses', path: '/dashboard/analyses', icon: 'chart', roles: ['admin', 'operator'] },
+  { label: 'Impact pharma', path: '/dashboard/pharma', icon: 'pill', roles: ['admin', 'operator'] },
   { label: 'Comptes', path: '/dashboard/admin-users', icon: 'layout', roles: ['admin'] },
+  { label: 'Audit', path: '/dashboard/audit', icon: 'scroll', roles: ['admin'] },
   { label: 'Mon profil', path: '/dashboard/profile', icon: 'layout', roles: ['admin', 'operator'] },
 ];
 
@@ -46,7 +52,10 @@ const PAGE_ROLES: Record<string, string[]> = {
   '/dashboard/tableau-bord': ['admin', 'operator'],
   '/dashboard/kpi': ['admin', 'operator'],
   '/dashboard/dataset': ['admin', 'operator'],
+  '/dashboard/analyses': ['admin', 'operator'],
+  '/dashboard/pharma': ['admin', 'operator'],
   '/dashboard/admin-users': ['admin'],
+  '/dashboard/audit': ['admin'],
   '/dashboard/profile': ['admin', 'operator'],
 };
 
@@ -56,7 +65,10 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/dashboard/shap': <Sparkles className="w-4 h-4" />,
   '/dashboard/results': <Brain className="w-4 h-4" />,
   '/dashboard/tableau-bord': <LayoutDashboard className="w-4 h-4" />,
+  '/dashboard/analyses': <LineChart className="w-4 h-4" />,
+  '/dashboard/pharma': <Pill className="w-4 h-4" />,
   '/dashboard/admin-users': <Users className="w-4 h-4" />,
+  '/dashboard/audit': <ScrollText className="w-4 h-4" />,
   '/dashboard/profile': <User className="w-4 h-4" />,
 };
 
@@ -198,7 +210,6 @@ export default function DashboardLayout() {
             <Routes>
               <Route path="/dashboard" element={<Navigate to="/dashboard/tableau-bord" replace />} />
               <Route path="/dashboard/phase1" element={canAccess('/dashboard/phase1') ? <Phase1Page /> : <AccessDenied />} />
-              <Route path="/dashboard/phase1/dpi/:id" element={canAccess('/dashboard/phase1') ? <Phase1DpiDetailPage /> : <AccessDenied />} />
               <Route path="/dashboard/phase2" element={canAccess('/dashboard/phase2') ? <Phase2Page /> : <AccessDenied />} />
               <Route path="/dashboard/shap" element={canAccess('/dashboard/shap') ? <ShapDashboardPage /> : <AccessDenied />} />
               <Route path="/dashboard/shap/report" element={canAccess('/dashboard/shap') ? <ShapPointReportPage /> : <AccessDenied />} />
@@ -208,7 +219,10 @@ export default function DashboardLayout() {
               <Route path="/dashboard/tableau-bord" element={canAccess('/dashboard/tableau-bord') ? <TableauDeBordPage /> : <AccessDenied />} />
               <Route path="/dashboard/kpi" element={<Navigate to="/dashboard/tableau-bord" replace />} />
               <Route path="/dashboard/dataset" element={<Navigate to="/dashboard/tableau-bord" replace />} />
+              <Route path="/dashboard/analyses" element={canAccess('/dashboard/analyses') ? <AdvancedAnalyticsPage /> : <AccessDenied />} />
+              <Route path="/dashboard/pharma" element={canAccess('/dashboard/pharma') ? <PharmaImpactPage /> : <AccessDenied />} />
               <Route path="/dashboard/admin-users" element={canAccess('/dashboard/admin-users') ? <AdminUsersPage /> : <AccessDenied />} />
+              <Route path="/dashboard/audit" element={canAccess('/dashboard/audit') ? <AuditLogsPage /> : <AccessDenied />} />
               <Route path="/dashboard/profile" element={canAccess('/dashboard/profile') ? <ProfilePage /> : <AccessDenied />} />
             </Routes>
           </Suspense>

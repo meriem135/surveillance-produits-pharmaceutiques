@@ -2,6 +2,22 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 
 const API_URL = '/api/v1';
 
+/** Échéance du JWT en millisecondes (null si illisible ou sans `exp`). */
+function tokenExpiry(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
 function readStoredUser(): User | null {
   try {
     const token = localStorage.getItem('token');
@@ -39,6 +55,7 @@ interface AuthState {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (patch: Partial<User>) => void;
   isAuthenticated: boolean;
 }
 
@@ -117,8 +134,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // Fin de session : déconnexion à l'expiration du JWT…
+  useEffect(() => {
+    if (!token) return;
+    const exp = tokenExpiry(token);
+    if (exp === null) return;
+    const delay = exp - Date.now();
+    const id = window.setTimeout(logout, Math.max(0, Math.min(delay, 2 ** 31 - 1)));
+    return () => window.clearTimeout(id);
+  }, [token, logout]);
+
+  // …ou dès qu'un appel authentifié à l'API est refusé (401 : jeton révoqué,
+  // secret changé au redémarrage du backend, compte désactivé).
+  useEffect(() => {
+    if (!token) return;
+    const originalFetch = window.fetch;
+    window.fetch = async (input, init) => {
+      const res = await originalFetch(input, init);
+      const url = requestUrl(input);
+      if (res.status === 401 && url.includes('/api/') && !url.includes('/auth/login')) {
+        logout();
+      }
+      return res;
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [token, logout]);
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, updateUser, isAuthenticated: !!user && !!token }}>
       {children}
     </AuthContext.Provider>
   );

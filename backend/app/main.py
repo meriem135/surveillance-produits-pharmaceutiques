@@ -9,6 +9,8 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.paths import SEASONAL_STREAM_CSV, ensure_dirs
+from app.db.seed import seed_defaults
 from app.db.session import init_db, close_db, get_session
 from app.api.v1 import devices, alerts, dpi, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, advanced_analytics
 from app.services.mqtt_service import mqtt_service
@@ -21,20 +23,37 @@ from app.domains.auth.service import require_any_role
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
+    ensure_dirs()
     await init_db()
-    
-    # Start background services
-    asyncio.create_task(mqtt_service.start())
-    asyncio.create_task(modbus_service.start())
+    await seed_defaults()
+
+    # Ingestion terrain : chaque service est désactivable (.env) quand le
+    # broker ou l'automate n'existe pas sur le poste.
+    if settings.ENABLE_MQTT:
+        asyncio.create_task(mqtt_service.start())
+    if settings.ENABLE_MODBUS:
+        asyncio.create_task(modbus_service.start())
+    edge_simulator = None
+    if settings.ENABLE_MQTT and settings.ENABLE_EDGE_SIMULATOR:
+        from app.services.mqtt_simulator import MqttSimulator
+
+        edge_simulator = MqttSimulator(
+            settings.MQTT_BROKER_URL, settings.MQTT_BROKER_PORT, SEASONAL_STREAM_CSV,
+            settings.MQTT_USERNAME, settings.MQTT_PASSWORD,
+        )
+        asyncio.create_task(edge_simulator.start())
     # La simulation backend tourne en continu : c'est le frontend qui démarre/arrête
     # sa propre réception (connexion WebSocket) via le bouton "COMMENCER".
     manager.set_simulation(True)
-    asyncio.create_task(manager.stream_loop())
-    
+
     yield
-    
-    await mqtt_service.stop()
-    await modbus_service.stop()
+
+    if edge_simulator is not None:
+        await edge_simulator.stop()
+    if settings.ENABLE_MQTT:
+        await mqtt_service.stop()
+    if settings.ENABLE_MODBUS:
+        await modbus_service.stop()
     await close_db()
 
 app = FastAPI(

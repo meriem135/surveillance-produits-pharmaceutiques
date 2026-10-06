@@ -10,7 +10,6 @@ Innovations :
 
 import json
 import logging
-import math
 import os
 import time
 import threading
@@ -19,8 +18,13 @@ from pathlib import Path
 from typing import Optional
 from collections import deque
 
+from app.core.paths import DPI_LOG_PATH, LOGS_DIR
+
 YAML_PATH = Path(__file__).parent / "dpi_rules.yaml"
-WAZUH_LOG_PATH = os.getenv("WAZUH_DPI_LOG_PATH", "/var/ossec/logs/mqtt_dpi_alerts.log")
+# Journal JSON-lines des alertes : data/logs/ par défaut, ou le chemin lu par
+# l'agent Wazuh (/var/ossec/logs/...) si WAZUH_DPI_LOG_PATH est défini.
+WAZUH_LOG_PATH = str(DPI_LOG_PATH)
+_LOCAL_LOG_PATH = str(LOGS_DIR / "mqtt_dpi_alerts.log")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -305,6 +309,7 @@ def _match_details(rule: dict, payload: dict, prev_payload: Optional[dict],
                                 "Thermostat": "Thermostat (ambiance)"}.get(lbl)
                 break
         return {
+            "kind": "delta", "field": field_name,
             "sensor": sensor_label or device_type,
             "cause": "Variation brutale de temperature sur le capteur",
             "value": best["value"], "threshold": best["threshold"],
@@ -403,11 +408,22 @@ RECOMMENDATIONS = {
 # (impact metier du capteur en industrie 4.0 : frigo = critique, meteo = faible).
 # Format : rule_id -> (champ, seuil_declenchement, marge_normalisation, poids_metier 0..1)
 _AMPLITUDE_RULES = {
-    "DPI-001": ("thermostat_temperature", 16.0, 3.0, 0.85),
     "DPI-002": ("fridge_temperature", 9.5, 2.0, 1.0),
-    "DPI-003": ("thermostat_diff_1", 2.5, 2.0, 0.75),
     "DPI-004": ("weather_roll_std_10", 2.2, 1.5, 0.50),
 }
+
+# Regles de variation (DPI-001, DPI-003) : l'amplitude est le saut mesure sur
+# le capteur qui a declenche (match_detail), rapporte a 25 % de son seuil, et
+# le poids metier est celui de CE capteur (et non une valeur absolue fixe).
+_SENSOR_IMPACT = {"fridge": 1.0, "thermostat": 0.75, "weather": 0.50}
+_DELTA_MARGIN_RATIO = 0.25
+
+
+def _field_sensor(field: str) -> str:
+    for sensor in _SENSOR_IMPACT:
+        if sensor in field:
+            return sensor
+    return ""
 
 
 def _risk_level(score: int) -> str:
@@ -438,14 +454,28 @@ def compute_risk_score(alert: dict, payload: dict, recurrences: int = 0) -> int:
         level = float(rule.get("level", 5))
         rule_id = rule.get("id", "")
 
-        # 1) Gravite operationnelle : severite x impact metier du capteur
+        data = alert.get("data", {}) if isinstance(alert, dict) else {}
+        detail = data.get("match_detail") or {}
         spec = _AMPLITUDE_RULES.get(rule_id)
-        impact = float(spec[3]) if spec else 0.7
+        delta_sensor = _field_sensor(str(detail.get("field", ""))) if detail.get("kind") == "delta" else ""
+
+        # 1) Gravite operationnelle : severite x impact metier du capteur
+        if delta_sensor:
+            impact = _SENSOR_IMPACT[delta_sensor]
+        else:
+            impact = float(spec[3]) if spec else 0.7
         severity_part = min(40.0, (level / 10.0) * 40.0 * impact)
 
         # 2) Amplitude normalisee par la marge du capteur
         amplitude_part = 0.0
-        if spec:
+        if delta_sensor:
+            try:
+                jump, threshold = float(detail["value"]), float(detail["threshold"])
+                margin = max(threshold * _DELTA_MARGIN_RATIO, 1e-6)
+                amplitude_part = min(30.0, max(0.0, (jump - threshold) / margin * 15.0))
+            except (KeyError, TypeError, ValueError):
+                amplitude_part = 0.0
+        elif spec:
             field, threshold, margin, _ = spec
             raw = payload.get(field)
             if raw is not None:
@@ -569,14 +599,18 @@ class MqttDPIService:
                 return True
         return False
 
-    def inspect_payload(self, payload: dict) -> Optional[dict]:
+    def inspect_payload(self, payload: dict, state: Optional[dict] = None) -> Optional[dict]:
+        """Inspecte une payload. `state` = historique propre au flux appelant
+        (payload precedente par device, pour les regles de variation) ; sans
+        lui, l'historique partage du service est utilise."""
         t0 = time.perf_counter()
         matched_alerts = []
         device_type = str(payload.get("device_type", "unknown")).lower()
         # Récupérer la payload précédente pour le calcul de delta (DPI-001)
+        prev_payloads = self._prev_payloads if state is None else state
         device_key = f"{device_type}_{payload.get('label', 'unknown')}"
-        prev_payload = self._prev_payloads.get(device_key)
-        self._prev_payloads[device_key] = payload
+        prev_payload = prev_payloads.get(device_key)
+        prev_payloads[device_key] = payload
 
         for rule in self._rules:
             if not rule.get("enabled", True):
@@ -657,13 +691,15 @@ class MqttDPIService:
             os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
             target = self.log_path
         except (PermissionError, OSError):
-            target = "mqtt_dpi_alerts.log"
+            # Chemin Wazuh non accessible (poste de dev) : journal local du projet
+            os.makedirs(os.path.dirname(_LOCAL_LOG_PATH), exist_ok=True)
+            target = _LOCAL_LOG_PATH
         with open(target, "a", encoding="utf-8") as f:
             f.write(json.dumps(alert) + "\n")
         logger.warning("DPI ALERT [%s] level=%d — %s", alert["rule"]["id"], alert["rule"]["level"], alert["rule"]["description"])
 
-    def process(self, payload: dict) -> Optional[dict]:
-        alert = self.inspect_payload(payload)
+    def process(self, payload: dict, state: Optional[dict] = None) -> Optional[dict]:
+        alert = self.inspect_payload(payload, state)
         if alert:
             self.send_to_wazuh(alert)
         return alert

@@ -1,8 +1,6 @@
-import asyncio
-import os
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from pymodbus.client import AsyncModbusTcpClient
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -23,7 +21,7 @@ class ModbusService:
         # Default simulator mapping for Day 6/7
         self.devices_to_poll = [
             {
-                "id": "dev-weather-01",
+                "id": "weather-01",
                 "host": settings.MODBUS_HOST,
                 "port": settings.MODBUS_PORT,
                 "unit": 1

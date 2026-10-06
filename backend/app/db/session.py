@@ -1,9 +1,16 @@
-import os
+import asyncio
+import logging
 import socket
+import threading
 from typing import AsyncGenerator
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlmodel import SQLModel
 from app.core.config import settings
+from app.core.paths import SQLITE_DB
+
+logger = logging.getLogger(__name__)
+
 
 def is_postgres_running(host="localhost", port=5432):
     try:
@@ -11,6 +18,33 @@ def is_postgres_running(host="localhost", port=5432):
             return True
     except OSError:
         return False
+
+
+def _postgres_usable(url: str, timeout: float = 4.0) -> tuple[bool, str]:
+    """Vérifie qu'on peut réellement se connecter (port ouvert ET identifiants /
+    base valides). Exécuté dans un thread dédié : fonctionne même si l'import
+    a lieu alors qu'une boucle asyncio tourne déjà (uvicorn)."""
+    outcome = {"ok": False, "err": "timeout"}
+
+    def probe():
+        async def _check():
+            eng = create_async_engine(url)
+            try:
+                async with eng.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+            finally:
+                await eng.dispose()
+        try:
+            asyncio.run(asyncio.wait_for(_check(), timeout))
+            outcome.update(ok=True, err="")
+        except Exception as e:  # noqa: BLE001
+            outcome["err"] = f"{type(e).__name__}: {e}"
+
+    t = threading.Thread(target=probe, daemon=True)
+    t.start()
+    t.join(timeout + 1)
+    return outcome["ok"], outcome["err"]
+
 
 database_url = settings.DATABASE_URL
 engine_kwargs = {}
@@ -29,21 +63,28 @@ if "@" in database_url:
     except Exception:
         pass
 
-# Check if PostgreSQL is specified but NOT running on host
-if "postgresql" in database_url and not is_postgres_running(db_host, db_port):
-    db_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "data", "processed")
-    os.makedirs(db_dir, exist_ok=True)
-    sqlite_db_path = os.path.join(db_dir, "iot_security.db")
-    database_url = f"sqlite+aiosqlite:///{sqlite_db_path}"
-    print(f"[!] PostgreSQL not running. DB path: {sqlite_db_path}")
-    print(f"[!] DB exists: {os.path.exists(sqlite_db_path)}")
-else:
-    engine_kwargs = {
-        "pool_size": 10,
-        "max_overflow": 20,
-        "pool_pre_ping": True,
-        "pool_recycle": 3600,
-    }
+# PostgreSQL demandé mais injoignable (port fermé, identifiants ou base
+# invalides) -> base SQLite locale, pour que le projet démarre partout.
+if "postgresql" in database_url:
+    reason = ""
+    if not is_postgres_running(db_host, db_port):
+        reason = f"aucun serveur sur {db_host}:{db_port}"
+    else:
+        ok, err = _postgres_usable(database_url)
+        if not ok:
+            reason = err
+    if reason:
+        SQLITE_DB.parent.mkdir(parents=True, exist_ok=True)
+        database_url = f"sqlite+aiosqlite:///{SQLITE_DB}"
+        logger.warning("PostgreSQL indisponible (%s) -> SQLite %s", reason, SQLITE_DB)
+        print(f"[!] PostgreSQL indisponible ({reason}) -> SQLite : {SQLITE_DB}")
+    else:
+        engine_kwargs = {
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_pre_ping": True,
+            "pool_recycle": 3600,
+        }
 
 # Create async engine with connection pooling or SQLite connection
 engine = create_async_engine(

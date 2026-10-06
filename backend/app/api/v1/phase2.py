@@ -1,15 +1,14 @@
 import json, os, io, asyncio, traceback
 from datetime import datetime
-from collections import defaultdict
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 import joblib
 import numpy as np
 import pandas as pd
+from app.core import paths
 from app.domains.auth.service import require_any_role
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.svm import OneClassSVM
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import (
     precision_score, recall_score, f1_score, roc_auc_score,
     average_precision_score, precision_recall_curve, confusion_matrix,
@@ -25,20 +24,7 @@ except ImportError:
 
 router = APIRouter()
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_BASE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_HERE))))
-def _find(*sub):
-    bases = [
-        os.path.join(_BASE_ROOT, "notebooks"),
-        _BASE_ROOT,
-    ]
-    for base in bases:
-        p = os.path.join(base, *sub)
-        if os.path.exists(p):
-            return p
-    return os.path.join(_BASE_ROOT, *sub)
-
-RESULTS_PATH = _find("phase2", "Data", "Processed", "models", "resultats_comparaison_final.json")
+RESULTS_PATH = str(paths.RESULTS_COMPARISON)
 
 FEATURE_COLS = [
     "weather_temp", "fridge_temp", "thermostat_temp",
@@ -197,22 +183,13 @@ def _load_uploaded_files(weather_file, fridge_file, thermostat_file) -> dict:
 
 def _load_disk_files() -> dict:
     files = {}
-    DATA_DIRS = [
-        _find("phase2", "Data", "Processed"),
-        os.path.join(_BASE_ROOT, "Data", "Processed"),
-    ]
-    for sensor, fname in [("weather", "weather_concat.csv"),
-                          ("fridge", "fridge_concat.csv"),
-                          ("thermostat", "thermostat_concat.csv")]:
-        for data_dir in DATA_DIRS:
-            path = os.path.join(data_dir, fname)
-            if os.path.exists(path):
-                df = pd.read_csv(path)
-                df["datetime"] = df["datetime"].astype(str).str.replace(r"^201-", "2019-", regex=True)
-                df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-                df = df.dropna(subset=["datetime"]).drop_duplicates(subset=["datetime"]).sort_values("datetime").reset_index(drop=True)
-                files[sensor] = df
-                break
+    for sensor, path in paths.CONCAT_CSV.items():
+        if path.exists():
+            df = pd.read_csv(path)
+            df["datetime"] = df["datetime"].astype(str).str.replace(r"^201-", "2019-", regex=True)
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+            df = df.dropna(subset=["datetime"]).drop_duplicates(subset=["datetime"]).sort_values("datetime").reset_index(drop=True)
+            files[sensor] = df
     return files
 
 
@@ -224,10 +201,7 @@ def _load_fusionne_dataset() -> pd.DataFrame | None:
     difference inter-capteurs differe (`w_f_diff` etc.) -> renommage pour
     correspondre a FEATURE_COLS.
     """
-    candidates = [
-        os.path.join(_BASE_ROOT, "Data", "Processed", "dataset_fusionne.csv"),
-        _find("phase2", "Data", "Processed", "dataset_fusionne.csv"),
-    ]
+    candidates = [str(paths.DATASET_FUSIONNE)]
     for path in candidates:
         if os.path.exists(path):
             df = pd.read_csv(path)
@@ -319,19 +293,28 @@ def _split_tvt(df: pd.DataFrame, train_ratio: float = 0.70, val_ratio: float = 0
     return train, val, test
 
 
-def _evaluate_pr(y_true, scores) -> dict:
-    """Metriques sur un test ; seuil optimal sur la courbe Precision-Rappel.
-
-    Copie de common_model.evaluate : score = -decision_function (plus grand =
-    plus anormal), anomalie si score >= threshold.
-    """
+def _best_f1_threshold(y_true, scores) -> float:
+    """Seuil qui maximise le F1 sur la courbe Precision-Rappel."""
     y = np.asarray(y_true)
     s = np.nan_to_num(np.asarray(scores), nan=0.0)
     prec, rec, thr = precision_recall_curve(y, s)
     with np.errstate(divide="ignore", invalid="ignore"):
         f1s = 2 * prec * rec / (prec + rec + 1e-12)
     best = int(np.argmax(f1s[:-1])) if len(f1s) > 1 else 0
-    t = thr[best] if len(thr) > best else 0.5
+    return float(thr[best]) if len(thr) > best else 0.5
+
+
+def _evaluate_pr(y_true, scores, threshold: float | None = None) -> dict:
+    """Metriques d'un detecteur : score plus grand = plus anormal, anomalie si
+    score >= seuil.
+
+    `threshold` doit venir de la VALIDATION (`_best_f1_threshold(y_val, s_val)`)
+    pour que les metriques du test restent honnetes ; sans lui, le seuil
+    max-F1 est cherche sur les donnees evaluees (optimiste, usage exploratoire).
+    """
+    y = np.asarray(y_true)
+    s = np.nan_to_num(np.asarray(scores), nan=0.0)
+    t = _best_f1_threshold(y, s) if threshold is None else float(threshold)
     pred = (s >= t).astype(int)
     cm = confusion_matrix(y, pred, labels=[0, 1])
     tn, fp = cm[0]
@@ -400,9 +383,8 @@ async def _run_training(
         n_attack = int(merged["label"].sum())
         await _emit("fusion", 22, f"Fusion: {n_total:,} lignes | {n_attack:,} attaques detectees")
 
-        DATA_PROC = _find("phase2", "Data", "Processed")
-        os.makedirs(DATA_PROC, exist_ok=True)
-        merged_path = os.path.join(DATA_PROC, "merged_3_sensors.csv")
+        paths.ensure_dirs()
+        merged_path = str(paths.MERGED_3_SENSORS)
         merged.to_csv(merged_path, index=False)
 
         # ── 3. Feature Engineering ───────────────────────────────────────────
@@ -506,7 +488,10 @@ async def _run_training(
         await _emit("training", 62, "Refit One-Class SVM sur train + validation...")
 
         final_params = {k: v for k, v in best_params.items()}
-        X_refit = np.vstack([X_tr_svm, X_val_s[:2000]])
+        # One-Class : on n'apprend que la normalite -> seules les lignes
+        # normales de la validation rejoignent le refit (pas d'attaques).
+        X_val_normal = X_val_s[y_val == 0]
+        X_refit = np.vstack([X_tr_svm, X_val_normal[:2000]])
         np.random.seed(SEED)
 
         def _refit_and_score():
@@ -523,9 +508,12 @@ async def _run_training(
         # ── 7. Evaluation sur le TEST (jamais utilise pendant le tuning) ────
         await _emit("evaluation", 72, "Evaluation sur le test (jamais vu)...")
 
+        # Seuil de decision choisi sur la VALIDATION (max F1), puis applique
+        # tel quel au test : le test ne sert a aucun reglage.
+        score_val = -(await asyncio.to_thread(final_model.decision_function, X_val_s))
+        threshold = _best_f1_threshold(y_val, score_val)
         score_test = -(await asyncio.to_thread(final_model.decision_function, X_test_s))
-        raw = _evaluate_pr(y_test, score_test)
-        threshold = raw["threshold"]
+        raw = _evaluate_pr(y_test, score_test, threshold)
 
         roc_auc = round(float(raw["roc_auc"]), 4)
         ap = round(float(raw["avg_precision"]), 4)
@@ -556,7 +544,7 @@ async def _run_training(
         y_pred = (scores_neg >= threshold).astype(int)
 
         # ── 8. Sauvegarde modele + scaler ───────────────────────────────────
-        MODEL_DIR = _find("phase2", "Data", "Processed", "models")
+        MODEL_DIR = str(paths.MODELS_DIR)
         os.makedirs(MODEL_DIR, exist_ok=True)
 
         model_path = os.path.join(MODEL_DIR, "ocsvm_multivarie.pkl")
@@ -752,8 +740,18 @@ async def _run_training(
                     row[k] = int(v)
 
         attack_metrics = []
-        for attack_id, db_name in ATTACK_DB_NAMES.items():
-            atk_rows = featured[featured["label"] == 1]
+        # Taux de detection par type d'attaque, mesure sur le TEST uniquement
+        # (la validation a servi a choisir les hyperparametres et le seuil).
+        is_attack = (featured["label"] == 1) & featured.index.isin(test.index)
+        if "attack_type" in featured.columns:
+            attack_groups = [
+                (t, t, featured[is_attack & (featured["attack_type"] == t)])
+                for t in sorted(featured.loc[is_attack, "attack_type"].dropna().astype(str).unique())
+            ]
+        else:
+            # Sans colonne de type, seul un agregat "toutes attaques" est mesurable
+            attack_groups = [("all", "all_attacks", featured[is_attack])]
+        for attack_id, db_name, atk_rows in attack_groups:
             if len(atk_rows) == 0:
                 continue
             atk_pred = atk_rows["prediction"].values
@@ -1095,17 +1093,22 @@ async def get_phase2_results():
 
 @router.get("/phase2/training-results")
 async def get_phase2_training_results():
-    if _last_completed_model_id is None:
-        return {"error": "Aucun entrainement effectue. Lancez l'entrainement d'abord depuis la page ML."}
     try:
         from app.db.session import AsyncSessionLocal
         from app.domains.ml.entities import MLModel
         from sqlalchemy import select
 
         async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(MLModel).where(MLModel.id == _last_completed_model_id)
-            )
+            if _last_completed_model_id is not None:
+                query = select(MLModel).where(MLModel.id == _last_completed_model_id)
+            else:
+                # Apres un redemarrage : dernier OCSVM entraine persiste en base
+                query = (
+                    select(MLModel)
+                    .where(MLModel.id.startswith("OCSVM_Multivarie"))
+                    .order_by(MLModel.trained_at.desc())
+                )
+            result = await db.execute(query)
             model = result.scalars().first()
 
         if model is None or not model.result_json:
@@ -1119,7 +1122,7 @@ async def get_phase2_training_results():
 async def download_model(_user=Depends(require_any_role("operator"))):
     path = None
 
-    model_dir = _find("phase2", "Data", "Processed", "models")
+    model_dir = str(paths.MODELS_DIR)
     for candidate in ["ocsvm_multivarie.pkl"]:
         p = os.path.join(model_dir, candidate)
         if os.path.exists(p):

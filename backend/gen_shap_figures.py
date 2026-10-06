@@ -14,11 +14,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import shap
 
+from app.core.paths import DATASET_FUSIONNE, PROJECT_ROOT
 from app.domains.intelligence.ml_service import (
     MV_MODEL_PATH, MV_SCALER_PATH, MV_FEATURE_COLS,
 )
 
-OUT_DIR = os.path.join("..", "rapport_latex", "Chapitre3", "figures")
+OUT_DIR = str(PROJECT_ROOT / "rapport_latex" / "Chapitre3" / "figures")
 os.makedirs(OUT_DIR, exist_ok=True)
 CACHE = "shap_cache.npz"
 
@@ -59,7 +60,7 @@ def compute_or_load():
     model = joblib.load(MV_MODEL_PATH)
     scaler = joblib.load(MV_SCALER_PATH)
 
-    df = pd.read_csv(os.path.join("..", "Data", "Processed", "dataset_fusionne.csv"))
+    df = pd.read_csv(DATASET_FUSIONNE)
     df = df.rename(columns={
         "w_f_diff": "weather_fridge_diff",
         "w_t_diff": "weather_thermostat_diff",

@@ -23,7 +23,6 @@ Trois briques, toutes issues des données réelles du projet :
    confidentialité) et l'empreinte mesurée sur les capteurs.
 """
 import os
-import json
 from datetime import datetime
 from typing import Optional
 
@@ -32,12 +31,13 @@ import pandas as pd
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.core import paths
+
 router = APIRouter()
 
-BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-DATA_PATH = os.path.join(BASE, "Data", "Processed", "dataset_fusionne.csv")
-NORMAL_DIR = os.path.join(BASE, "Data", "Raw", "Normal")
-ATTACK_DIR = os.path.join(BASE, "Data", "Raw", "Attaque")
+DATA_PATH = str(paths.DATASET_FUSIONNE)
+NORMAL_DIR = str(paths.RAW_NORMAL_DIR)
+ATTACK_DIR = str(paths.RAW_ATTACK_DIR)
 
 SENSOR_IDS = ["weather", "fridge", "thermostat"]
 SENSOR_FILE_KEY = {"weather": "weather", "fridge": "fridge", "thermostat": "thermostat"}

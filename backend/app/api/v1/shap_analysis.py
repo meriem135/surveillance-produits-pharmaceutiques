@@ -1,4 +1,4 @@
-import os, traceback, json
+import os, json
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Query
@@ -6,9 +6,7 @@ import joblib
 
 router = APIRouter(prefix="/api/shap", tags=["shap-analysis"])
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
-_PROJECT = os.path.dirname(_ROOT)
+from app.core import paths
 
 FEATURE_COLS = [
     "weather_temp", "fridge_temp", "thermostat_temp",
@@ -72,27 +70,13 @@ _cache = {"df": None, "model": None, "scaler": None, "model_kind": None,
 _result_cache = {}
 
 
-def _find_model_dir():
-    for candidate in [
-        os.path.join(_PROJECT, "phase2", "Data", "Processed", "models"),
-        os.path.join(_PROJECT, "models"),
-        os.path.join(_ROOT, "models"),
-    ]:
-        if os.path.isdir(candidate):
-            return candidate
-    return os.path.join(_PROJECT, "phase2", "Data", "Processed", "models")
-
-
-MODELS_DIR = _find_model_dir()
+MODELS_DIR = str(paths.MODELS_DIR)
 
 
 def _find_data_path():
-    """Donnees REClLLES du dernier entrainement temps reel : les 21 features
-    + label, deja construites par _run_training (merge + feature engineering)."""
-    candidates = [
-        os.path.join(_PROJECT, "phase2", "Data", "Processed", "merged_3_sensors.csv"),
-        os.path.join(_PROJECT, "Data", "Processed", "dataset_fusionne.csv"),
-    ]
+    """Donnees du dernier entrainement : les 21 features + label, construites
+    par _run_training (merged_3_sensors.csv), sinon le dataset fusionne."""
+    candidates = [str(paths.MERGED_3_SENSORS), str(paths.DATASET_FUSIONNE)]
     for p in candidates:
         if os.path.exists(p):
             return p

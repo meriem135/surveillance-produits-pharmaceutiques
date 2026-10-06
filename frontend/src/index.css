@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
 /* ══════════════════════════════════════════════════════════
    AURORA DEEP SPACE — Default Theme
@@ -182,10 +181,6 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--accent-primary); border-radius: 2px; opacity: 0.3; }
 ::-webkit-scrollbar-thumb:hover { opacity: 0.6; }
 
-.leaflet-container { background: var(--bg-base) !important; border-radius: 16px; border: 1px solid var(--border); }
-.leaflet-control-zoom a { background: var(--bg-panel) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
-.leaflet-popup-content-wrapper { background: var(--bg-panel) !important; color: var(--text-primary) !important; border: 1px solid var(--border) !important; border-radius: 12px !important; }
-.leaflet-popup-tip { background: var(--bg-panel) !important; }
 
 @keyframes float {
   0%, 100% { transform: translateY(0px); }

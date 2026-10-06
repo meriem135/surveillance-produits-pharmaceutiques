@@ -5,26 +5,13 @@ import os
 from datetime import datetime
 from collections import deque
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
-_NOTEBOOKS = os.path.join(os.path.dirname(_ROOT), "notebooks")
+from app.core.paths import model_file
+from app.services.realtime.feature_engineer import fridge_cond_encoding, thermo_status_encoding
 
-def _find_model(*sub):
-    """Cherche le modele dans models/ (racine), puis backend/models/, puis notebooks/
-    et surtout phase2/Data/Processed/models/ (racine canonique, voir shap_analysis)."""
-    root_models = os.path.join(os.path.dirname(_ROOT), "models", sub[-1])
-    if os.path.exists(root_models):
-        return root_models
-    prod_path = os.path.join(_ROOT, "models", sub[-1])
-    if os.path.exists(prod_path):
-        return prod_path
-    pb2_path = os.path.join(os.path.dirname(_ROOT), "phase2", "Data", "Processed", "models", sub[-1])
-    if os.path.exists(pb2_path):
-        return pb2_path
-    nb_path = os.path.join(_NOTEBOOKS, "phase2", "Data", "Processed", "models", sub[-1])
-    if os.path.exists(nb_path):
-        return nb_path
-    return pb2_path
+
+def _find_model(name: str) -> str:
+    """Chemin d'un fichier du dossier canonique des modeles (models/)."""
+    return model_file(name)
 
 MV_MODEL_PATH = _find_model("ocsvm_multivarie.pkl")
 MV_SCALER_PATH = _find_model("scaler_ocsvm.pkl")
@@ -101,8 +88,8 @@ class MultivariateBuffer:
         fts["season_sin"] = float(np.sin(2 * np.pi * doy / 365))
         fts["season_cos"] = float(np.cos(2 * np.pi * doy / 365))
 
-        fts["fridge_cond_enc"] = 0.0
-        fts["thermo_status"] = 1.0
+        fts["fridge_cond_enc"] = fridge_cond_encoding(fridge_temp)
+        fts["thermo_status"] = thermo_status_encoding(thermostat_temp)
 
         return fts
 

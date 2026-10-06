@@ -1,0 +1,176 @@
+{
+  "best_params": {
+    "kernel": "rbf",
+    "nu": 0.02,
+    "gamma": 0.1
+  },
+  "best_auc_val": 0.9358,
+  "n_training_samples": 70191,
+  "n_attack_samples": 4847,
+  "features": [
+    "weather_temp",
+    "fridge_temp",
+    "thermostat_temp",
+    "weather_diff_1",
+    "weather_roll_mean_10",
+    "weather_roll_std_10",
+    "fridge_diff_1",
+    "fridge_roll_mean_10",
+    "fridge_roll_std_10",
+    "thermostat_diff_1",
+    "thermostat_roll_mean_10",
+    "thermostat_roll_std_10",
+    "weather_fridge_diff",
+    "weather_thermostat_diff",
+    "fridge_thermostat_diff",
+    "hour_sin",
+    "hour_cos",
+    "season_sin",
+    "season_cos",
+    "fridge_cond_enc",
+    "thermo_status"
+  ],
+  "n_grid_configs": 12,
+  "grid_history": [
+    {
+      "config": 6,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.02,
+        "gamma": 0.1
+      },
+      "value": 0.9358
+    },
+    {
+      "config": 10,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.03,
+        "gamma": 0.1
+      },
+      "value": 0.935
+    },
+    {
+      "config": 2,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.01,
+        "gamma": 0.1
+      },
+      "value": 0.9346
+    },
+    {
+      "config": 5,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.02,
+        "gamma": "auto"
+      },
+      "value": 0.933
+    },
+    {
+      "config": 1,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.01,
+        "gamma": "auto"
+      },
+      "value": 0.9321
+    },
+    {
+      "config": 9,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.03,
+        "gamma": "auto"
+      },
+      "value": 0.9315
+    },
+    {
+      "config": 3,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.01,
+        "gamma": 0.01
+      },
+      "value": 0.9129
+    },
+    {
+      "config": 7,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.02,
+        "gamma": 0.01
+      },
+      "value": 0.9114
+    },
+    {
+      "config": 11,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.03,
+        "gamma": 0.01
+      },
+      "value": 0.9111
+    },
+    {
+      "config": 4,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.01,
+        "gamma": 0.001
+      },
+      "value": 0.9109
+    },
+    {
+      "config": 8,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.02,
+        "gamma": 0.001
+      },
+      "value": 0.9064
+    },
+    {
+      "config": 12,
+      "params": {
+        "kernel": "rbf",
+        "nu": 0.03,
+        "gamma": 0.001
+      },
+      "value": 0.9048
+    }
+  ],
+  "split": {
+    "method": "temporel 70/15/15 (identique notebook)",
+    "n_train": 70191,
+    "n_val": 17464,
+    "n_test": 17465,
+    "n_attack_val": 2423,
+    "n_attack_test": 2424
+  },
+  "threshold_pr": 5.970136700504159,
+  "test_metrics": {
+    "precision": 0.9984,
+    "recall": 0.7595,
+    "f1": 0.8627,
+    "roc_auc": 0.9206,
+    "average_precision": 0.8767,
+    "fpr": 0.0002,
+    "threshold": 5.9701,
+    "tp": 1841,
+    "fp": 3,
+    "fn": 583,
+    "tn": 15038,
+    "cv_roc_auc": 0.9358,
+    "score_mean": 1.8046,
+    "score_std": 0.8824,
+    "n_train": 70191,
+    "n_val": 17464,
+    "n_test": 17465,
+    "n_attack_test": 2424
+  },
+  "trained_at": "2026-09-24T22:06:22.395695",
+  "score_mean": 1.804624378809404,
+  "score_std": 0.8823853332306641
+}

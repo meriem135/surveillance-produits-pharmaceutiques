@@ -29,18 +29,18 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import OneClassSVM
 from sklearn.metrics import precision_recall_curve, confusion_matrix
 
+from app.core import paths
+
 router = APIRouter()
 
-BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-
-DATA_PATH = os.path.join(BASE, "Data", "Processed", "dataset_fusionne.csv")
-WEATHER_PATH = os.path.join(BASE, "Data", "Processed", "weather_concat.csv")
-FRIDGE_PATH = os.path.join(BASE, "Data", "Processed", "fridge_concat.csv")
-THERMO_PATH = os.path.join(BASE, "Data", "Processed", "thermostat_concat.csv")
-MODELS_DIR = os.path.join(BASE, "phase2", "Data", "Processed", "models")
-MODEL_PATH = os.path.join(MODELS_DIR, "ocsvm_multivarie.pkl")
-SCALER_PATH = os.path.join(MODELS_DIR, "scaler_ocsvm.pkl")
-COMPLET_PATH = os.path.join(MODELS_DIR, "resultats_complets.json")
+DATA_PATH = str(paths.DATASET_FUSIONNE)
+WEATHER_PATH = str(paths.CONCAT_CSV["weather"])
+FRIDGE_PATH = str(paths.CONCAT_CSV["fridge"])
+THERMO_PATH = str(paths.CONCAT_CSV["thermostat"])
+MODELS_DIR = str(paths.MODELS_DIR)
+MODEL_PATH = str(paths.OCSVM_MODEL)
+SCALER_PATH = str(paths.OCSVM_SCALER)
+COMPLET_PATH = str(paths.RESULTS_COMPLETS)
 
 SENSOR_COLS = {
     "weather": "weather_temp",

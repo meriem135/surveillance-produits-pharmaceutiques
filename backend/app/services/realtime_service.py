@@ -8,28 +8,31 @@ Service de streaming temps reel — Phase 1 v5
 - Diffuse les resultats (telemetrie + alertes DPI) via WebSocket
 
 Le flux est genere en amont par :
-    Code/generation_extraits_saisonniers.py
-qui lit Data/Processed/dataset_fusionne.csv (le dataset annuel d'entrainement)
-et produit data/generated/extraits_saisonniers_fusionne.csv.
+    backend/scripts/build_dataset.py
+qui construit data/processed/dataset_fusionne.csv (le dataset annuel d'entrainement)
+et en extrait data/generated/extraits_saisonniers_fusionne.csv.
 """
 
 import asyncio
 import csv
+import logging
 import random
 import pandas as pd
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import WebSocket, WebSocketDisconnect
 
+from app.core.paths import SEASONAL_STREAM_CSV
 from app.domains.intelligence.mqtt_dpi_service import dpi_service, compute_risk_score, _risk_level
 
 from app.db.session import AsyncSessionLocal
 from app.domains.devices.models import Telemetry
 from app.domains.devices.repository import TelemetryRepository
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-# Flux saisonnier genere depuis dataset_fusionne.csv (voir Code/generation_extraits_saisonniers.py)
-CSV_PATH = BASE_DIR.parent / "data" / "generated" / "extraits_saisonniers_fusionne.csv"
+logger = logging.getLogger(__name__)
+
+# Flux saisonnier genere depuis dataset_fusionne.csv (voir backend/scripts/build_dataset.py)
+CSV_PATH: Path = SEASONAL_STREAM_CSV
 
 
 def read_csv_sequential(path: Path):
@@ -198,18 +201,29 @@ class ConnectionManager:
 
     async def _stream_client(self, websocket: WebSocket):
         """Diffuse le flux saisonnier à UN client, en partant toujours de l'Hiver."""
+        if not CSV_PATH.exists():
+            logger.error("Flux de demo introuvable : %s (lancez backend/scripts/build_dataset.py)", CSV_PATH)
+            try:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Flux de démonstration introuvable : exécutez backend/scripts/build_dataset.py",
+                })
+            except Exception:
+                pass
+            return
         csv_generator = read_csv_sequential(CSV_PATH)
-        # État DPI isolé pour cette connexion (chaque client repart de l'Hiver)
-        saved_prev = dict(dpi_service._prev_payloads)
-        dpi_service._prev_payloads = {}
+        # État DPI propre à cette connexion (payload précédente pour les règles
+        # de variation) : deux onglets ouverts ne se perturbent plus.
+        dpi_state: dict[str, dict] = {}
         # Persistance : compteur de répétitions consécutives par règle (pour la composante persistance du risque)
         consecutive: dict[str, int] = {}
+        current_segment = None
         try:
             while True:
                 if not self._simulation_active:
                     # Simulation éteinte : on attend, puis on relit depuis le début
                     csv_generator = read_csv_sequential(CSV_PATH)
-                    dpi_service._prev_payloads = {}
+                    dpi_state.clear()
                     try:
                         await websocket.send_json({"type": "paused", "message": "Simulation en pause"})
                     except Exception:
@@ -224,15 +238,23 @@ class ConnectionManager:
                     # Fin du cycle : reprise depuis l'Hiver (le début du fichier)
                     await websocket.send_json({"type": "reset", "message": "Nouveau cycle — retour à l'Hiver"})
                     csv_generator = read_csv_sequential(CSV_PATH)
-                    dpi_service._prev_payloads = {}
+                    dpi_state.clear()
                     consecutive.clear()
                     await asyncio.sleep(0.5)
                     continue
 
+                # Le flux enchaîne plusieurs fenêtres (saisons) : à chaque nouvelle
+                # fenêtre, pas de « saut » artificiel avec la mesure précédente.
+                segment = row.get("segment")
+                if segment != current_segment:
+                    current_segment = segment
+                    dpi_state.clear()
+                    consecutive.clear()
+
                 payload = await build_payload(row)
 
                 # Verdict DPI : règles/gestion de seuils seules, aucun modèle ML, aucun label du dataset
-                dpi_alert = dpi_service.inspect_payload(payload)
+                dpi_alert = dpi_service.inspect_payload(payload, dpi_state)
 
                 attack_active = bool(dpi_alert)
                 payload["is_anomaly"] = attack_active
@@ -280,8 +302,6 @@ class ConnectionManager:
             pass
         except Exception as e:
             logger.error("Stream client error: %s", e)
-        finally:
-            dpi_service._prev_payloads = saved_prev
 
     async def broadcast(self, message: dict):
         dead = []
@@ -295,13 +315,6 @@ class ConnectionManager:
         for d in dead:
             self.disconnect(d)
 
-    async def stream_loop(self):
-        """Conservé pour compatibilité (déprécié : remplacé par le streaming par client)."""
-        await asyncio.sleep(1)
-
-
-import logging
-logger = logging.getLogger(__name__)
 
 DPI_ATTACK_INFO = {
     "DPI-001": {

@@ -1,0 +1,62 @@
+{
+  "seq_len": 12,
+  "hidden": 32,
+  "sensors": {
+    "weather": {
+      "inputs": [
+        "fridge_temp",
+        "thermostat_temp",
+        "fridge_diff_1",
+        "thermostat_diff_1",
+        "hour_sin",
+        "hour_cos",
+        "season_sin",
+        "season_cos"
+      ],
+      "val_mse": 0.02809,
+      "epochs": 3
+    },
+    "fridge": {
+      "inputs": [
+        "weather_temp",
+        "thermostat_temp",
+        "weather_diff_1",
+        "thermostat_diff_1",
+        "hour_sin",
+        "hour_cos",
+        "season_sin",
+        "season_cos"
+      ],
+      "val_mse": 0.39572,
+      "epochs": 7
+    },
+    "thermostat": {
+      "inputs": [
+        "weather_temp",
+        "fridge_temp",
+        "weather_diff_1",
+        "fridge_diff_1",
+        "hour_sin",
+        "hour_cos",
+        "season_sin",
+        "season_cos"
+      ],
+      "val_mse": 0.15237,
+      "epochs": 6
+    }
+  },
+  "residual_norm": {
+    "weather": {
+      "mean": 0.12672,
+      "std": 0.1097
+    },
+    "fridge": {
+      "mean": 0.50276,
+      "std": 0.37809
+    },
+    "thermostat": {
+      "mean": 0.31012,
+      "std": 0.23705
+    }
+  }
+}

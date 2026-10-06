@@ -11,17 +11,10 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Query
 
+from app.domains.intelligence.mqtt_dpi_service import WAZUH_LOG_PATH, _LOCAL_LOG_PATH as LOCAL_LOG_PATH
 from app.services.realtime_service import manager
 
 router = APIRouter()
-
-WAZUH_LOG_PATH = os.getenv(
-    "WAZUH_DPI_LOG_PATH",
-    "/var/ossec/logs/mqtt_dpi_alerts.log",
-)
-
-# Fallback for Windows dev environment
-LOCAL_LOG_PATH = "mqtt_dpi_alerts.log"
 
 
 def _read_alerts_since(start_iso: str) -> List[dict]:

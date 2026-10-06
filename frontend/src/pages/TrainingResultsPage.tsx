@@ -88,6 +88,8 @@ const ATTACK_META: Record<string, { label: string; color: string; severity: stri
   IoT_password_normal: { label: 'Password', color: '#F59E0B', severity: 'Moyen' },
   IoT_ransomware_normal: { label: 'Ransomware', color: '#991B1B', severity: 'Critique' },
   IoT_scanning_normal: { label: 'Scanning', color: '#06B6D4', severity: 'Faible' },
+  MITM_fridge_freeze: { label: 'MITM · frigo figé', color: '#0EA5E9', severity: 'Critique' },
+  Injection_fridge_plausible: { label: 'Injection plausible · frigo', color: '#A855F7', severity: 'Critique' },
 };
 
 const SEASON_LABELS: Record<string, { label: string; color: string }> = {

@@ -11,13 +11,12 @@ Toutes les valeurs proviennent des artefacts produits par l'entraînement réel
 """
 
 import asyncio
-import hashlib
 import json
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -26,6 +25,7 @@ from pydantic import BaseModel, Field
 from sklearn.metrics import precision_recall_curve, roc_curve
 from sqlalchemy import select
 
+from app.core import paths
 from app.domains.auth.service import require_any_role
 from app.domains.ml.entities import MLModel
 
@@ -35,17 +35,11 @@ router = APIRouter()
 #  Chemins des artefacts produits par l'entraînement réel (phase2)
 # ────────────────────────────────────────────────────────────────────────────
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_BASE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_HERE))))
-_PROJECT = _BASE_ROOT
-_PHASE2 = os.path.join(_PROJECT, "phase2", "Data", "Processed")
-_MODELS_DIR = os.path.join(_PHASE2, "models")
-
-INFERRED_PATH = os.path.join(_PHASE2, "multivarie_inferred_ocsvm.json")
-THRESHOLD_PATH = os.path.join(_MODELS_DIR, "threshold_ocsvm.json")
-HYPERPARAMS_PATH = os.path.join(_MODELS_DIR, "hyperparams_ocsvm.json")
-LIVE_RESULTS_PATH = os.path.join(_MODELS_DIR, "live_trained_results.json")
-TRIAGE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(_HERE))), "alert_triage.json")
+INFERRED_PATH = str(paths.INFERRED_OCSVM)
+THRESHOLD_PATH = str(paths.OCSVM_THRESHOLD)
+HYPERPARAMS_PATH = str(paths.OCSVM_HYPERPARAMS)
+LIVE_RESULTS_PATH = str(paths.LIVE_RESULTS)
+TRIAGE_PATH = str(paths.ALERT_TRIAGE)
 
 _executor = ThreadPoolExecutor(max_workers=1)
 _analysis_cache: dict | None = None

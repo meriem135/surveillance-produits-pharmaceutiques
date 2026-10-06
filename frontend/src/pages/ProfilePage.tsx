@@ -8,7 +8,7 @@ const ROLE_COLORS: Record<string, string> = { admin: '#ef4444', operator: '#3b82
 const ROLE_LABELS: Record<string, string> = { admin: 'Administrateur', operator: 'Opérateur' };
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [currentPwd, setCurrentPwd] = useState('');
@@ -28,8 +28,7 @@ export default function ProfilePage() {
       });
       if (!r.ok) { const d = await r.json().catch(() => ({})); setErr(d.detail || 'Erreur'); return; }
       const data = await r.json();
-      const stored = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...stored, full_name: data.full_name, email: data.email }));
+      updateUser({ full_name: data.full_name, email: data.email });
       flash('Profil mis à jour');
     } catch { setErr('Erreur réseau'); }
     finally { setSaving(false); }

@@ -23,8 +23,11 @@ dist/
 build/
 .vite/
 
-# ===== LOGS =====
+# ===== LOGS / PROCESS FILES =====
 *.log
+*.log.err
+*.err
+*.pid
 vite*.log
 
 # ===== IDE =====
@@ -34,10 +37,11 @@ vite*.log
 # ===== DOCKER =====
 docker_config_bypass/
 
-# ===== DATA =====
-/data/processed/iot_security.db
-/data/processed/iot_security.db-shm
-/data/processed/iot_security.db-wal
+# ===== DATA (régénérées par backend/scripts/build_dataset.py) =====
+/data/processed/
+/data/generated/
+/data/logs/
+/data/alert_triage.json
 /data/raw/
 /data/models/
 
@@ -50,15 +54,17 @@ docker_config_bypass/
 *.h5
 *.hdf5
 
-# Canonical models/ at project root — kept tracked
+# Canonical models/ at project root — kept tracked (backend/scripts/train_models.py)
 !models/*.pkl
 !models/*.json
+!models/*.pt
 
 # ===== NOTEBOOKS DATA (large files) =====
 /notebooks/**/Data/
 
 # ===== BACKEND =====
 /backend/static/
+/backend/shap_cache.npz
 /backend/.env
 /backend/app/models/cve_cache/
 /backend/app/models/risk_history/

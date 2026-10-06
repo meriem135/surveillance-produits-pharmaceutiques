@@ -24,6 +24,17 @@ MULTIVAR_FEATURE_COLS = [
     "fridge_cond_enc", "thermo_status",
 ]
 
+# Encodages categoriels identiques a ceux du dataset d'entrainement
+# (scripts/build_dataset.py : temp_condition = "high" si frigo > 8 °C, encode
+# par LabelEncoder -> high=0 / low=1 ; statut thermostat = 1 si |T - 24| > 1.5).
+def fridge_cond_encoding(fridge_temp: float) -> float:
+    return 0.0 if fridge_temp > 8.0 else 1.0
+
+
+def thermo_status_encoding(thermostat_temp: float) -> float:
+    return 1.0 if abs(thermostat_temp - 24.0) > 1.5 else 0.0
+
+
 _weather_buf: deque = deque(maxlen=WINDOW)
 _fridge_buf: deque = deque(maxlen=WINDOW)
 _thermostat_buf: deque = deque(maxlen=WINDOW)
@@ -98,8 +109,8 @@ def engineer_multivar_features(
     fts["season_sin"] = season_sin
     fts["season_cos"] = season_cos
 
-    fts["fridge_cond_enc"] = 0.0
-    fts["thermo_status"] = 1.0
+    fts["fridge_cond_enc"] = fridge_cond_encoding(fridge_temp)
+    fts["thermo_status"] = thermo_status_encoding(thermostat_temp)
 
     _weather_buf.append(weather_temp)
     _fridge_buf.append(fridge_temp)

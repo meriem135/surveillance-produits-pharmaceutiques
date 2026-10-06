@@ -4,13 +4,14 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, Query
 from typing import Optional
 
+from app.core import paths
+
 _executor = ThreadPoolExecutor(max_workers=2)
 
 router = APIRouter()
 
-BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-DATA_DIR = os.path.join(BASE, "phase2", "Data", "Processed")
-MODELS_ROOT = os.path.join(DATA_DIR, "models")
+DATA_DIR = str(paths.PROCESSED_DIR)
+MODELS_ROOT = str(paths.MODELS_DIR)
 
 _cache: dict = {}
 

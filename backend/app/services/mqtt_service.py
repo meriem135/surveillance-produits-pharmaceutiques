@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+import statistics
+from collections import OrderedDict, deque
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +19,70 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Champ de la payload multi-capteurs (celle qu'inspecte le DPI) par capteur edge
+_EDGE_FIELDS = {
+    "weather": "weather_temperature",
+    "fridge": "fridge_temperature",
+    "thermostat": "thermostat_temperature",
+}
+
+
+class StepAggregator:
+    """Regroupe les 3 mesures publiées séparément (un topic par capteur) pour
+    un même pas de temps, puis construit la payload multi-capteurs attendue
+    par les règles DPI (températures + dérivées + écart-type glissant météo).
+
+    Les pas incomplets sont abandonnés après `max_pending` pas plus récents
+    (message perdu), pour ne pas fuir de mémoire.
+    """
+
+    def __init__(self, max_pending: int = 50, window: int = 10):
+        self._pending: "OrderedDict[str, dict]" = OrderedDict()
+        self._max_pending = max_pending
+        self._prev: dict | None = None
+        self._weather_window: deque = deque(maxlen=window)
+
+    @staticmethod
+    def sensor_of(device: str) -> str | None:
+        name = str(device).lower()
+        return next((s for s in _EDGE_FIELDS if name.startswith(s)), None)
+
+    def add(self, message: dict) -> dict | None:
+        sensor = self.sensor_of(message.get("device", ""))
+        if sensor is None or message.get("value") is None:
+            return None
+        key = str(message.get("step", message.get("timestamp", "")))
+        step = self._pending.setdefault(key, {"meta": message})
+        try:
+            step[sensor] = float(message["value"])
+        except (TypeError, ValueError):
+            return None
+        while len(self._pending) > self._max_pending:
+            self._pending.popitem(last=False)
+        if not all(s in step for s in _EDGE_FIELDS):
+            return None
+        del self._pending[key]
+        return self._build(step)
+
+    def _build(self, step: dict) -> dict:
+        meta = step["meta"]
+        self._weather_window.append(step["weather"])
+        payload = {
+            "timestamp": meta.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+            "device_type": "multi-sensor",
+            "season": meta.get("season"),
+            "month": meta.get("month"),
+            **{field: step[s] for s, field in _EDGE_FIELDS.items()},
+            "weather_roll_std_10": (statistics.pstdev(self._weather_window)
+                                    if len(self._weather_window) > 1 else 0.0),
+        }
+        prev = self._prev
+        payload["fridge_diff_1"] = step["fridge"] - prev["fridge_temperature"] if prev else 0.0
+        payload["thermostat_diff_1"] = step["thermostat"] - prev["thermostat_temperature"] if prev else 0.0
+        self._prev = payload
+        return payload
+
+
 class MqttService:
     def __init__(self):
         self.client = None
@@ -28,6 +94,10 @@ class MqttService:
         self.password = settings.MQTT_PASSWORD
         self.keepalive = 60
         self.reconnect_delay = 5
+        self.aggregator = StepAggregator()
+        # Historique propre au flux MQTT pour les règles de variation du DPI
+        self._dpi_state: dict = {}
+        self.connected = False
 
     @staticmethod
     def _extract_device_id(topic: str) -> Optional[str]:
@@ -77,19 +147,26 @@ class MqttService:
         return metrics
 
     def on_connect(self, client, flags, rc, properties):
+        self.connected = True
         logger.info(f"✅ Connected to MQTT broker at {self.host}:{self.port}")
         # Subscribe to telemetry topics
         client.subscribe("factory/+/telemetry", qos=1)
         logger.info("📡 Subscribed to factory/+/telemetry")
 
     def on_message(self, client, topic, payload, qos, properties):
-        logger.info(f"📩 Received MQTT message on {topic}")
+        logger.debug(f"📩 Received MQTT message on {topic}")
         try:
             data = json.loads(payload.decode())
-            logger.info(f"📄 Payload: {data}")
+            logger.debug(f"📄 Payload: {data}")
 
             # --- Phase 1 : DPI inspection (synchrone, non-bloquant) ---
-            alert = dpi_service.process(data)
+            # Capteur edge (une mesure par topic) : on attend les 3 capteurs du
+            # même pas avant d'inspecter ; payload déjà complète : inspection directe.
+            if "device" in data and "value" in data:
+                payload = self.aggregator.add(data)
+            else:
+                payload = data
+            alert = dpi_service.process(payload, self._dpi_state) if payload else None
             if alert:
                 logger.warning(
                     f"🚨 DPI Alert [{alert['rule']['id']}] level={alert['rule']['level']} "
@@ -132,7 +209,14 @@ class MqttService:
                     "using server receive time instead"
                 )
 
-        metrics = self._extract_metrics(data)
+        if "device" in data and "value" in data:
+            # Message d'un capteur edge : une seule mesure de température
+            metrics = [{
+                "metric_key": "temperature",
+                "metric_value": {k: data.get(k) for k in ("value", "step", "month", "season")},
+            }]
+        else:
+            metrics = self._extract_metrics(data)
         if not metrics:
             logger.warning(f"⚠️ No metric fields found in payload for device '{device_id}', nothing to store")
             return
@@ -172,12 +256,12 @@ class MqttService:
                         new_state["status"] = data["status"]
                         
                     await device_repo.update(device, {"digital_twin_state": new_state, "last_seen": timestamp})
-                    logger.info(f"🔄 Synced Digital Twin state for device '{device_id}'")
+                    logger.debug(f"🔄 Synced Digital Twin state for device '{device_id}'")
                 else:
                     logger.warning(f"⚠️ Received telemetry for unknown device '{device_id}'")
 
                 await session.commit()
-                logger.info(
+                logger.debug(
                     f"💾 Stored {len(metrics)} telemetry metric(s) for device '{device_id}' "
                     f"from topic '{topic}'"
                 )
@@ -186,6 +270,7 @@ class MqttService:
                 logger.error(f"❌ Failed to process telemetry for device '{device_id}': {e}")
 
     def on_disconnect(self, client, packet, exc=None):
+        self.connected = False
         logger.warning("⚠️ Disconnected from MQTT broker")
 
     def on_subscribe(self, client, mid, qos, properties):
@@ -215,7 +300,7 @@ class MqttService:
                 timeout=5.0
             )
         except asyncio.TimeoutError:
-            logger.error(f"❌ MQTT Connection timed out after 5s")
+            logger.error("❌ MQTT Connection timed out after 5s")
         except Exception as e:
             logger.error(f"❌ MQTT Connection failed: {e}")
             # In a real app, we might want to implement a reconnect loop here
@@ -224,9 +309,12 @@ class MqttService:
 
     async def stop(self):
         """Gracefully stop the MQTT client"""
-        if self.client:
-            await self.client.disconnect()
-            logger.info("🔌 MQTT client disconnected")
+        if self.client and self.connected:
+            try:
+                await asyncio.wait_for(self.client.disconnect(), timeout=3.0)
+                logger.info("🔌 MQTT client disconnected")
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"MQTT disconnect: {e}")
 
 # Singleton instance
 mqtt_service = MqttService()
