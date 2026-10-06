@@ -1,0 +1,54 @@
+{
+  "lambda": 0.01,
+  "std_window": 12,
+  "hash_window": 24,
+  "capteurs": {
+    "fridge": {
+      "moyenne": 7.187287486654641,
+      "immobilite": {
+        "log_std_mean": 1.1110322285816168,
+        "log_std_std": 0.3107690518746751
+      },
+      "niveau": {
+        "ewma_mean": 7.185953889898166,
+        "ewma_std": 0.24921469473623373
+      },
+      "dispersion": {
+        "log_var_mean": 2.3880384961446155,
+        "log_var_std": 0.3486734338991228
+      }
+    },
+    "thermostat": {
+      "moyenne": 28.661391967013948,
+      "immobilite": {
+        "log_std_mean": 0.17732702779963475,
+        "log_std_std": 0.3999563710279916
+      },
+      "niveau": {
+        "ewma_mean": 28.650420948646136,
+        "ewma_std": 0.27971566400311415
+      },
+      "dispersion": {
+        "log_var_mean": 0.9963574066835881,
+        "log_var_std": 0.28224401674366933
+      }
+    },
+    "weather": {
+      "moyenne": 35.521516769134486,
+      "immobilite": {
+        "log_std_mean": -1.1921978462142506,
+        "log_std_std": 0.6292107689363133
+      },
+      "niveau": {
+        "ewma_mean": 35.58200214612212,
+        "ewma_std": 6.124430843358878
+      },
+      "dispersion": {
+        "log_var_mean": 3.1624888770974873,
+        "log_var_std": 1.1841366167287095
+      }
+    }
+  },
+  "seuil": 2.8485559781502148,
+  "note": "paramètres de la répétition 0"
+}

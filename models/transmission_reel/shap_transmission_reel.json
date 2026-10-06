@@ -1,0 +1,282 @@
+{
+  "modele": "RandomForest",
+  "n_lignes": 10854,
+  "global": [
+    {
+      "feature": "fridge_std_1min",
+      "importance": 0.0879
+    },
+    {
+      "feature": "fridge_ewma_10min",
+      "importance": 0.0622
+    },
+    {
+      "feature": "fridge_mean_5min",
+      "importance": 0.0534
+    },
+    {
+      "feature": "fridge_repeat_2min",
+      "importance": 0.0528
+    },
+    {
+      "feature": "fridge_std_5min",
+      "importance": 0.0477
+    },
+    {
+      "feature": "fridge_mean_15min",
+      "importance": 0.0413
+    },
+    {
+      "feature": "thermostat_std_1min",
+      "importance": 0.0371
+    },
+    {
+      "feature": "thermostat_ewma_10min",
+      "importance": 0.0283
+    },
+    {
+      "feature": "thermostat_mean_15min",
+      "importance": 0.0267
+    },
+    {
+      "feature": "weather_mean_15min",
+      "importance": 0.0258
+    }
+  ],
+  "par_scenario": {
+    "MITM_gel": [
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.2242
+      },
+      {
+        "feature": "fridge_std_5min",
+        "importance": 0.1024
+      },
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0789
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.0592
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0578
+      },
+      {
+        "feature": "fridge_std_15min",
+        "importance": 0.0222
+      }
+    ],
+    "MITM_rejeu": [
+      {
+        "feature": "fridge_repeat_2min",
+        "importance": 0.2902
+      },
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0344
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0332
+      },
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.0276
+      },
+      {
+        "feature": "thermostat_std_15min",
+        "importance": 0.0262
+      },
+      {
+        "feature": "weather_mean_15min",
+        "importance": 0.0233
+      }
+    ],
+    "Injection_nominale": [
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.3341
+      },
+      {
+        "feature": "fridge_std_5min",
+        "importance": 0.144
+      },
+      {
+        "feature": "fridge_std_15min",
+        "importance": 0.026
+      },
+      {
+        "feature": "thermostat_std_15min",
+        "importance": 0.0229
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0213
+      },
+      {
+        "feature": "weather_ewma_10min",
+        "importance": 0.0201
+      }
+    ],
+    "Injection_biais_0.5": [
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0472
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.047
+      },
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.0422
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.0391
+      },
+      {
+        "feature": "fridge_std_5min",
+        "importance": 0.0367
+      },
+      {
+        "feature": "weather_mean_15min",
+        "importance": 0.027
+      }
+    ],
+    "Injection_biais_1.0": [
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0782
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0728
+      },
+      {
+        "feature": "weather_ewma_10min",
+        "importance": 0.0537
+      },
+      {
+        "feature": "weather_mean_15min",
+        "importance": 0.0513
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.041
+      },
+      {
+        "feature": "weather_mean_5min",
+        "importance": 0.04
+      }
+    ],
+    "Injection_biais_2.0": [
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.147
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.1228
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.0848
+      },
+      {
+        "feature": "weather_mean_15min",
+        "importance": 0.0328
+      },
+      {
+        "feature": "weather_ewma_10min",
+        "importance": 0.0322
+      },
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.0307
+      }
+    ],
+    "Injection_derive": [
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.1046
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0804
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.0586
+      },
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.0295
+      },
+      {
+        "feature": "weather_mean_15min",
+        "importance": 0.0242
+      },
+      {
+        "feature": "fridge_std_15min",
+        "importance": 0.0228
+      }
+    ],
+    "MITM_gel_thermostat": [
+      {
+        "feature": "thermostat_std_1min",
+        "importance": 0.2282
+      },
+      {
+        "feature": "thermostat_std_5min",
+        "importance": 0.0893
+      },
+      {
+        "feature": "thermostat_mean_15min",
+        "importance": 0.0276
+      },
+      {
+        "feature": "thermostat_ewma_10min",
+        "importance": 0.0261
+      },
+      {
+        "feature": "thermostat_std_15min",
+        "importance": 0.0258
+      },
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0255
+      }
+    ],
+    "Injection_biais_thermostat": [
+      {
+        "feature": "thermostat_ewma_10min",
+        "importance": 0.1278
+      },
+      {
+        "feature": "thermostat_mean_5min",
+        "importance": 0.1044
+      },
+      {
+        "feature": "thermostat_mean_15min",
+        "importance": 0.0701
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.0368
+      },
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0304
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0279
+      }
+    ]
+  }
+}

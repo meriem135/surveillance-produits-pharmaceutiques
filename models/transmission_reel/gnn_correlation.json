@@ -1,0 +1,18 @@
+{
+  "window": 72,
+  "edges": [
+    "weather-fridge",
+    "weather-thermostat",
+    "fridge-thermostat"
+  ],
+  "edge_mean": {
+    "weather-fridge": 0.0078,
+    "weather-thermostat": 0.0054,
+    "fridge-thermostat": -0.0034
+  },
+  "edge_std": {
+    "weather-fridge": 0.1255,
+    "weather-thermostat": 0.2413,
+    "fridge-thermostat": 0.1263
+  }
+}

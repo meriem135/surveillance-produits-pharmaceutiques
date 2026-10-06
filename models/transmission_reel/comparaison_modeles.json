@@ -1,0 +1,899 @@
+{
+  "generated_at": "2026-10-06T11:30:37",
+  "dataset": "dataset_transmission_reel.csv",
+  "fusion": {
+    "pas": "5s",
+    "pas_grille": 65679,
+    "pas_conserves": 44443,
+    "debut": "2019-03-31 12:36:50",
+    "fin": "2019-04-04 07:50:00"
+  },
+  "features": [
+    "weather_temp",
+    "weather_diff_1",
+    "weather_mean_1min",
+    "weather_std_1min",
+    "weather_mean_5min",
+    "weather_std_5min",
+    "weather_mean_15min",
+    "weather_std_15min",
+    "weather_ewma_10min",
+    "weather_repeat_2min",
+    "fridge_temp",
+    "fridge_diff_1",
+    "fridge_mean_1min",
+    "fridge_std_1min",
+    "fridge_mean_5min",
+    "fridge_std_5min",
+    "fridge_mean_15min",
+    "fridge_std_15min",
+    "fridge_ewma_10min",
+    "fridge_repeat_2min",
+    "thermostat_temp",
+    "thermostat_diff_1",
+    "thermostat_mean_1min",
+    "thermostat_std_1min",
+    "thermostat_mean_5min",
+    "thermostat_std_5min",
+    "thermostat_mean_15min",
+    "thermostat_std_15min",
+    "thermostat_ewma_10min",
+    "thermostat_repeat_2min",
+    "fridge_thermostat_diff",
+    "weather_fridge_diff",
+    "weather_thermostat_diff",
+    "fridge_cond_enc",
+    "thermo_status"
+  ],
+  "protocole": {
+    "split": "blocs d'une heure entrelacés : 3 train / 1 val / 1 test, rôles tournant à chaque répétition",
+    "attaques": "un épisode de 12 à 20 min dans un bloc sur deux de chaque rôle",
+    "repetitions": 9,
+    "seuil": "max F1 sur la validation de chaque répétition, appliqué tel quel à son test",
+    "episodes_par_repetition": [
+      31,
+      31,
+      31,
+      31,
+      31,
+      31,
+      31,
+      31,
+      31
+    ]
+  },
+  "modeles": {
+    "IsolationForest": "Isolation Forest (non supervisé)",
+    "OCSVM": "One-Class SVM (non supervisé)",
+    "RandomForest": "Random Forest (supervisé)",
+    "XGBoost": "XGBoost (supervisé)",
+    "Statistique": "Réf. : statistique par capteur"
+  },
+  "classement_validation": [
+    "Statistique",
+    "RandomForest",
+    "XGBoost",
+    "OCSVM",
+    "IsolationForest"
+  ],
+  "meilleur_modele": "RandomForest",
+  "resultats": {
+    "IsolationForest": {
+      "precision": 0.4136,
+      "recall": 0.4358,
+      "f1": 0.4244,
+      "fpr": 0.10256,
+      "tp": 4730,
+      "fp": 6706,
+      "fn": 6124,
+      "tn": 58677,
+      "fausses_alarmes_evenements_par_heure": 17.17,
+      "episodes": 55,
+      "episodes_detectes": 52,
+      "delai_median_min": 2.8,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1281,
+          "detected": 1071,
+          "rate": 83.6
+        },
+        "MITM_rejeu": {
+          "n": 1410,
+          "detected": 219,
+          "rate": 15.5
+        },
+        "Injection_nominale": {
+          "n": 1232,
+          "detected": 646,
+          "rate": 52.4
+        },
+        "Injection_biais_0.5": {
+          "n": 1101,
+          "detected": 100,
+          "rate": 9.1
+        },
+        "Injection_biais_1.0": {
+          "n": 1061,
+          "detected": 129,
+          "rate": 12.2
+        },
+        "Injection_biais_2.0": {
+          "n": 1202,
+          "detected": 797,
+          "rate": 66.3
+        },
+        "Injection_derive": {
+          "n": 1229,
+          "detected": 248,
+          "rate": 20.2
+        },
+        "MITM_gel_thermostat": {
+          "n": 1231,
+          "detected": 886,
+          "rate": 72.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 1107,
+          "detected": 634,
+          "rate": 57.3
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 6
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 4
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Isolation Forest (non supervisé)",
+      "val_f1": 0.4425,
+      "roc_auc": 0.7509,
+      "avg_precision": 0.4032,
+      "hyperparameters": {
+        "n_estimators": 300,
+        "max_samples": 4096
+      }
+    },
+    "OCSVM": {
+      "precision": 0.5763,
+      "recall": 0.4842,
+      "f1": 0.5263,
+      "fpr": 0.05911,
+      "tp": 5256,
+      "fp": 3865,
+      "fn": 5598,
+      "tn": 61518,
+      "fausses_alarmes_evenements_par_heure": 8.97,
+      "episodes": 55,
+      "episodes_detectes": 48,
+      "delai_median_min": 2.4,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1281,
+          "detected": 1141,
+          "rate": 89.1
+        },
+        "MITM_rejeu": {
+          "n": 1410,
+          "detected": 26,
+          "rate": 1.8
+        },
+        "Injection_nominale": {
+          "n": 1232,
+          "detected": 993,
+          "rate": 80.6
+        },
+        "Injection_biais_0.5": {
+          "n": 1101,
+          "detected": 69,
+          "rate": 6.3
+        },
+        "Injection_biais_1.0": {
+          "n": 1061,
+          "detected": 243,
+          "rate": 22.9
+        },
+        "Injection_biais_2.0": {
+          "n": 1202,
+          "detected": 971,
+          "rate": 80.8
+        },
+        "Injection_derive": {
+          "n": 1229,
+          "detected": 139,
+          "rate": 11.3
+        },
+        "MITM_gel_thermostat": {
+          "n": 1231,
+          "detected": 993,
+          "rate": 80.7
+        },
+        "Injection_biais_thermostat": {
+          "n": 1107,
+          "detected": 681,
+          "rate": 61.5
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 5
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 4
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 4
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 5
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "One-Class SVM (non supervisé)",
+      "val_f1": 0.5569,
+      "roc_auc": 0.7866,
+      "avg_precision": 0.5497,
+      "hyperparameters": {
+        "nu": 0.01,
+        "gamma": 0.001,
+        "val_roc_auc": 0.7356
+      }
+    },
+    "RandomForest": {
+      "precision": 0.7504,
+      "recall": 0.5931,
+      "f1": 0.6625,
+      "fpr": 0.03275,
+      "tp": 6437,
+      "fp": 2141,
+      "fn": 4417,
+      "tn": 63242,
+      "fausses_alarmes_evenements_par_heure": 3.34,
+      "episodes": 55,
+      "episodes_detectes": 48,
+      "delai_median_min": 1.9,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1281,
+          "detected": 1172,
+          "rate": 91.5
+        },
+        "MITM_rejeu": {
+          "n": 1410,
+          "detected": 1058,
+          "rate": 75.0
+        },
+        "Injection_nominale": {
+          "n": 1232,
+          "detected": 1174,
+          "rate": 95.3
+        },
+        "Injection_biais_0.5": {
+          "n": 1101,
+          "detected": 87,
+          "rate": 7.9
+        },
+        "Injection_biais_1.0": {
+          "n": 1061,
+          "detected": 85,
+          "rate": 8.0
+        },
+        "Injection_biais_2.0": {
+          "n": 1202,
+          "detected": 732,
+          "rate": 60.9
+        },
+        "Injection_derive": {
+          "n": 1229,
+          "detected": 479,
+          "rate": 39.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 1231,
+          "detected": 937,
+          "rate": 76.1
+        },
+        "Injection_biais_thermostat": {
+          "n": 1107,
+          "detected": 713,
+          "rate": 64.4
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Random Forest (supervisé)",
+      "val_f1": 0.658,
+      "roc_auc": 0.8714,
+      "avg_precision": 0.7302,
+      "hyperparameters": {
+        "n_estimators": 300,
+        "min_samples_leaf": 5,
+        "class_weight": "balanced_subsample"
+      }
+    },
+    "XGBoost": {
+      "precision": 0.6674,
+      "recall": 0.5132,
+      "f1": 0.5802,
+      "fpr": 0.04246,
+      "tp": 5570,
+      "fp": 2776,
+      "fn": 5284,
+      "tn": 62607,
+      "fausses_alarmes_evenements_par_heure": 4.53,
+      "episodes": 55,
+      "episodes_detectes": 46,
+      "delai_median_min": 1.9,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1281,
+          "detected": 960,
+          "rate": 74.9
+        },
+        "MITM_rejeu": {
+          "n": 1410,
+          "detected": 912,
+          "rate": 64.7
+        },
+        "Injection_nominale": {
+          "n": 1232,
+          "detected": 1091,
+          "rate": 88.6
+        },
+        "Injection_biais_0.5": {
+          "n": 1101,
+          "detected": 74,
+          "rate": 6.7
+        },
+        "Injection_biais_1.0": {
+          "n": 1061,
+          "detected": 63,
+          "rate": 5.9
+        },
+        "Injection_biais_2.0": {
+          "n": 1202,
+          "detected": 684,
+          "rate": 56.9
+        },
+        "Injection_derive": {
+          "n": 1229,
+          "detected": 511,
+          "rate": 41.6
+        },
+        "MITM_gel_thermostat": {
+          "n": 1231,
+          "detected": 651,
+          "rate": 52.9
+        },
+        "Injection_biais_thermostat": {
+          "n": 1107,
+          "detected": 624,
+          "rate": 56.4
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 5
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "XGBoost (supervisé)",
+      "val_f1": 0.59,
+      "roc_auc": 0.8385,
+      "avg_precision": 0.6516,
+      "hyperparameters": {
+        "n_estimators": 400,
+        "max_depth": 6,
+        "learning_rate": 0.05,
+        "scale_pos_weight": 5.86
+      }
+    },
+    "Statistique": {
+      "precision": 0.7485,
+      "recall": 0.6178,
+      "f1": 0.6769,
+      "fpr": 0.03446,
+      "tp": 6706,
+      "fp": 2253,
+      "fn": 4148,
+      "tn": 63130,
+      "fausses_alarmes_evenements_par_heure": 2.46,
+      "episodes": 55,
+      "episodes_detectes": 49,
+      "delai_median_min": 1.9,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1281,
+          "detected": 1230,
+          "rate": 96.0
+        },
+        "MITM_rejeu": {
+          "n": 1410,
+          "detected": 1068,
+          "rate": 75.7
+        },
+        "Injection_nominale": {
+          "n": 1232,
+          "detected": 1181,
+          "rate": 95.9
+        },
+        "Injection_biais_0.5": {
+          "n": 1101,
+          "detected": 18,
+          "rate": 1.6
+        },
+        "Injection_biais_1.0": {
+          "n": 1061,
+          "detected": 251,
+          "rate": 23.7
+        },
+        "Injection_biais_2.0": {
+          "n": 1202,
+          "detected": 931,
+          "rate": 77.5
+        },
+        "Injection_derive": {
+          "n": 1229,
+          "detected": 256,
+          "rate": 20.8
+        },
+        "MITM_gel_thermostat": {
+          "n": 1231,
+          "detected": 1179,
+          "rate": 95.8
+        },
+        "Injection_biais_thermostat": {
+          "n": 1107,
+          "detected": 592,
+          "rate": 53.5
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 4
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 5
+        }
+      },
+      "nom": "Réf. : statistique par capteur",
+      "val_f1": 0.676,
+      "roc_auc": 0.8404,
+      "avg_precision": 0.7329,
+      "hyperparameters": null
+    }
+  },
+  "shap": {
+    "n_lignes": 10854,
+    "global": [
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.0879
+      },
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0622
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0534
+      },
+      {
+        "feature": "fridge_repeat_2min",
+        "importance": 0.0528
+      },
+      {
+        "feature": "fridge_std_5min",
+        "importance": 0.0477
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.0413
+      },
+      {
+        "feature": "thermostat_std_1min",
+        "importance": 0.0371
+      },
+      {
+        "feature": "thermostat_ewma_10min",
+        "importance": 0.0283
+      },
+      {
+        "feature": "thermostat_mean_15min",
+        "importance": 0.0267
+      },
+      {
+        "feature": "weather_mean_15min",
+        "importance": 0.0258
+      }
+    ],
+    "par_scenario": {
+      "MITM_gel": [
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.2242
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.1024
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0789
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0592
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0578
+        },
+        {
+          "feature": "fridge_std_15min",
+          "importance": 0.0222
+        }
+      ],
+      "MITM_rejeu": [
+        {
+          "feature": "fridge_repeat_2min",
+          "importance": 0.2902
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0344
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0332
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0276
+        },
+        {
+          "feature": "thermostat_std_15min",
+          "importance": 0.0262
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0233
+        }
+      ],
+      "Injection_nominale": [
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.3341
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.144
+        },
+        {
+          "feature": "fridge_std_15min",
+          "importance": 0.026
+        },
+        {
+          "feature": "thermostat_std_15min",
+          "importance": 0.0229
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0213
+        },
+        {
+          "feature": "weather_ewma_10min",
+          "importance": 0.0201
+        }
+      ],
+      "Injection_biais_0.5": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0472
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.047
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0422
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0391
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.0367
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.027
+        }
+      ],
+      "Injection_biais_1.0": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0782
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0728
+        },
+        {
+          "feature": "weather_ewma_10min",
+          "importance": 0.0537
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0513
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.041
+        },
+        {
+          "feature": "weather_mean_5min",
+          "importance": 0.04
+        }
+      ],
+      "Injection_biais_2.0": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.147
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.1228
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0848
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0328
+        },
+        {
+          "feature": "weather_ewma_10min",
+          "importance": 0.0322
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0307
+        }
+      ],
+      "Injection_derive": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.1046
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0804
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0586
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0295
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0242
+        },
+        {
+          "feature": "fridge_std_15min",
+          "importance": 0.0228
+        }
+      ],
+      "MITM_gel_thermostat": [
+        {
+          "feature": "thermostat_std_1min",
+          "importance": 0.2282
+        },
+        {
+          "feature": "thermostat_std_5min",
+          "importance": 0.0893
+        },
+        {
+          "feature": "thermostat_mean_15min",
+          "importance": 0.0276
+        },
+        {
+          "feature": "thermostat_ewma_10min",
+          "importance": 0.0261
+        },
+        {
+          "feature": "thermostat_std_15min",
+          "importance": 0.0258
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0255
+        }
+      ],
+      "Injection_biais_thermostat": [
+        {
+          "feature": "thermostat_ewma_10min",
+          "importance": 0.1278
+        },
+        {
+          "feature": "thermostat_mean_5min",
+          "importance": 0.1044
+        },
+        {
+          "feature": "thermostat_mean_15min",
+          "importance": 0.0701
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0368
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0304
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0279
+        }
+      ]
+    }
+  }
+}

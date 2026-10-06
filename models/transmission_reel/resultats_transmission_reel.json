@@ -1,0 +1,2517 @@
+{
+  "generated_at": "2026-10-06T10:26:59",
+  "dataset": "dataset_transmission_reel.csv",
+  "perimetre": "attaques de transmission (Injection + MITM) sur les traces réelles TON_IoT",
+  "fusion": {
+    "pas": "5s",
+    "pas_grille": 65679,
+    "pas_conserves": 44443,
+    "debut": "2019-03-31 12:36:50",
+    "fin": "2019-04-04 07:50:00"
+  },
+  "profil_traces": {
+    "weather": {
+      "moyenne": 34.79,
+      "ecart_type": 7.14,
+      "autocorr_5s": 0.997,
+      "autocorr_1min": 0.978
+    },
+    "fridge": {
+      "moyenne": 7.18,
+      "ecart_type": 3.4,
+      "autocorr_5s": 0.005,
+      "autocorr_1min": 0.008
+    },
+    "thermostat": {
+      "moyenne": 28.67,
+      "ecart_type": 1.68,
+      "autocorr_5s": 0.438,
+      "autocorr_1min": -0.007
+    },
+    "correlation_frigo_salle_meteo_fixee": 0.002
+  },
+  "protocole": {
+    "split": "blocs d'une heure entrelacés : 3 train / 1 val / 1 test, rôles tournant à chaque répétition",
+    "repetitions": 9,
+    "seuil": "max F1 sur la validation de chaque répétition, appliqué tel quel à son test",
+    "pas_secondes": 5,
+    "zone_de_garde_pas": 60,
+    "episodes_par_repetition": [
+      12,
+      12,
+      12,
+      13,
+      13,
+      12,
+      12,
+      12,
+      13
+    ]
+  },
+  "scenarios": [
+    {
+      "nom": "MITM_gel",
+      "capteur": "fridge",
+      "mecanisme": "gel",
+      "parametre": null
+    },
+    {
+      "nom": "MITM_rejeu",
+      "capteur": "fridge",
+      "mecanisme": "rejeu",
+      "parametre": null
+    },
+    {
+      "nom": "Injection_nominale",
+      "capteur": "fridge",
+      "mecanisme": "nominale",
+      "parametre": null
+    },
+    {
+      "nom": "Injection_biais_0.5",
+      "capteur": "fridge",
+      "mecanisme": "biais",
+      "parametre": -0.5
+    },
+    {
+      "nom": "Injection_biais_1.0",
+      "capteur": "fridge",
+      "mecanisme": "biais",
+      "parametre": -1.0
+    },
+    {
+      "nom": "Injection_biais_2.0",
+      "capteur": "fridge",
+      "mecanisme": "biais",
+      "parametre": -2.0
+    },
+    {
+      "nom": "Injection_derive",
+      "capteur": "fridge",
+      "mecanisme": "derive",
+      "parametre": -2.0
+    },
+    {
+      "nom": "MITM_gel_thermostat",
+      "capteur": "thermostat",
+      "mecanisme": "gel",
+      "parametre": null
+    },
+    {
+      "nom": "Injection_biais_thermostat",
+      "capteur": "thermostat",
+      "mecanisme": "biais",
+      "parametre": -1.5
+    }
+  ],
+  "classement_validation": [
+    "Statistique",
+    "Stat A+L+V",
+    "Canal L",
+    "Canal A",
+    "OCSVM",
+    "Canal V",
+    "PCA",
+    "GNN",
+    "LSTM",
+    "DPI",
+    "Canal R"
+  ],
+  "resultats": {
+    "DPI": {
+      "precision": 0.1267,
+      "recall": 0.4897,
+      "f1": 0.2013,
+      "fpr": 0.55117,
+      "tp": 5237,
+      "fp": 36103,
+      "fn": 5458,
+      "tn": 29400,
+      "fausses_alarmes_evenements_par_heure": 136.43,
+      "episodes": 55,
+      "episodes_detectes": 55,
+      "delai_median_min": 0.1,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 835,
+          "rate": 69.6
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 742,
+          "rate": 54.5
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 190,
+          "rate": 15.9
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 605,
+          "rate": 51.8
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 541,
+          "rate": 51.8
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 517,
+          "rate": 45.0
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 565,
+          "rate": 47.1
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 632,
+          "rate": 49.1
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 610,
+          "rate": 55.7
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Règles DPI (phase 1)",
+      "val_f1": 0.1969
+    },
+    "OCSVM": {
+      "precision": 0.3712,
+      "recall": 0.4042,
+      "f1": 0.387,
+      "fpr": 0.11178,
+      "tp": 4323,
+      "fp": 7322,
+      "fn": 6372,
+      "tn": 58181,
+      "fausses_alarmes_evenements_par_heure": 30.03,
+      "episodes": 55,
+      "episodes_detectes": 55,
+      "delai_median_min": 0.7,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 1084,
+          "rate": 90.4
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 209,
+          "rate": 15.3
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 1138,
+          "rate": 95.5
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 152,
+          "rate": 13.0
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 124,
+          "rate": 11.9
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 202,
+          "rate": 17.6
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 167,
+          "rate": 13.9
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 886,
+          "rate": 68.9
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 361,
+          "rate": 33.0
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "OCSVM_Multivarie",
+      "val_f1": 0.4032,
+      "roc_auc": 0.6852,
+      "avg_precision": 0.3374,
+      "thresholds": [
+        0.2442,
+        -0.3402,
+        -0.0691,
+        -0.3847,
+        -0.2923,
+        -3.1158,
+        -0.1002,
+        0.0003,
+        -0.2018
+      ]
+    },
+    "PCA": {
+      "precision": 0.1757,
+      "recall": 0.4522,
+      "f1": 0.2531,
+      "fpr": 0.3464,
+      "tp": 4836,
+      "fp": 22690,
+      "fn": 5859,
+      "tn": 42813,
+      "fausses_alarmes_evenements_par_heure": 117.5,
+      "episodes": 55,
+      "episodes_detectes": 55,
+      "delai_median_min": 0.1,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 469,
+          "rate": 39.1
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 747,
+          "rate": 54.8
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 656,
+          "rate": 55.0
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 480,
+          "rate": 41.1
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 431,
+          "rate": 41.2
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 588,
+          "rate": 51.1
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 544,
+          "rate": 45.4
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 601,
+          "rate": 46.7
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 320,
+          "rate": 29.2
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Autoencodeur_PCA",
+      "val_f1": 0.268,
+      "roc_auc": 0.5732,
+      "avg_precision": 0.2234,
+      "thresholds": [
+        0.0415,
+        0.051,
+        0.0128,
+        0.0202,
+        0.0594,
+        0.0702,
+        0.0652,
+        0.0629,
+        0.0728
+      ]
+    },
+    "GNN": {
+      "precision": 0.1665,
+      "recall": 0.5863,
+      "f1": 0.2593,
+      "fpr": 0.47925,
+      "tp": 6270,
+      "fp": 31392,
+      "fn": 4425,
+      "tn": 34111,
+      "fausses_alarmes_evenements_par_heure": 13.15,
+      "episodes": 55,
+      "episodes_detectes": 51,
+      "delai_median_min": 0.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 916,
+          "rate": 76.4
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 744,
+          "rate": 54.6
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 723,
+          "rate": 60.7
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 591,
+          "rate": 50.6
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 701,
+          "rate": 67.1
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 759,
+          "rate": 66.0
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 575,
+          "rate": 48.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 849,
+          "rate": 66.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 412,
+          "rate": 37.6
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 6
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 5
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 5
+        }
+      },
+      "nom": "GNN_Correlation",
+      "val_f1": 0.2669,
+      "roc_auc": 0.5516,
+      "avg_precision": 0.2851,
+      "thresholds": [
+        0.1493,
+        0.3602,
+        3.3726,
+        2.8887,
+        0.0395,
+        5.7761,
+        3.4009,
+        2.8341,
+        2.5932
+      ]
+    },
+    "LSTM": {
+      "precision": 0.1361,
+      "recall": 0.9152,
+      "f1": 0.2369,
+      "fpr": 0.94889,
+      "tp": 9788,
+      "fp": 62155,
+      "fn": 907,
+      "tn": 3348,
+      "fausses_alarmes_evenements_par_heure": 24.81,
+      "episodes": 55,
+      "episodes_detectes": 55,
+      "delai_median_min": 0.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 1066,
+          "rate": 88.9
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 1242,
+          "rate": 91.2
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 1097,
+          "rate": 92.0
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 1152,
+          "rate": 98.7
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 1030,
+          "rate": 98.6
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 1067,
+          "rate": 92.8
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 988,
+          "rate": 82.4
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 1109,
+          "rate": 86.2
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 1037,
+          "rate": 94.7
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Forecasting_LSTM",
+      "val_f1": 0.2524,
+      "roc_auc": 0.4278,
+      "avg_precision": 0.1182,
+      "thresholds": [
+        -4.1101,
+        -2.4178,
+        -4.1613,
+        -3.655,
+        -1.9777,
+        -1.172,
+        -3.9744,
+        -3.9159,
+        -4.0389
+      ]
+    },
+    "Canal A": {
+      "precision": 0.9909,
+      "recall": 0.3266,
+      "f1": 0.4913,
+      "fpr": 0.00049,
+      "tp": 3493,
+      "fp": 32,
+      "fn": 7202,
+      "tn": 65471,
+      "fausses_alarmes_evenements_par_heure": 0.12,
+      "episodes": 55,
+      "episodes_detectes": 21,
+      "delai_median_min": 0.8,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 1143,
+          "rate": 95.3
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 1111,
+          "rate": 93.2
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 6,
+          "rate": 0.5
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 3,
+          "rate": 0.3
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 1229,
+          "rate": 95.6
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 1,
+          "rate": 0.1
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 0
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 1
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 1
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 0
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 1
+        }
+      },
+      "nom": "Canal A seul (figé)",
+      "val_f1": 0.4854,
+      "roc_auc": 0.6694,
+      "avg_precision": 0.4915,
+      "thresholds": [
+        5.9261,
+        6.5394,
+        7.2745,
+        6.8111,
+        3.887,
+        7.0888,
+        6.5143,
+        5.3283,
+        4.3161
+      ]
+    },
+    "Canal L": {
+      "precision": 0.5372,
+      "recall": 0.3773,
+      "f1": 0.4433,
+      "fpr": 0.05307,
+      "tp": 4035,
+      "fp": 3476,
+      "fn": 6660,
+      "tn": 62027,
+      "fausses_alarmes_evenements_par_heure": 3.76,
+      "episodes": 55,
+      "episodes_detectes": 37,
+      "delai_median_min": 2.7,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 1048,
+          "rate": 87.4
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 26,
+          "rate": 1.9
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 76,
+          "rate": 6.5
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 201,
+          "rate": 19.2
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 885,
+          "rate": 77.0
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 511,
+          "rate": 42.6
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 534,
+          "rate": 41.5
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 754,
+          "rate": 68.9
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 2
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 0
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Canal L seul (niveau)",
+      "val_f1": 0.5374,
+      "roc_auc": 0.6562,
+      "avg_precision": 0.4711,
+      "thresholds": [
+        2.5345,
+        1.9681,
+        2.655,
+        2.3314,
+        2.6722,
+        2.7956,
+        1.9272,
+        2.3392,
+        2.9499
+      ]
+    },
+    "Canal V": {
+      "precision": 0.1743,
+      "recall": 0.4948,
+      "f1": 0.2577,
+      "fpr": 0.38284,
+      "tp": 5292,
+      "fp": 25077,
+      "fn": 5403,
+      "tn": 40426,
+      "fausses_alarmes_evenements_par_heure": 4.68,
+      "episodes": 55,
+      "episodes_detectes": 41,
+      "delai_median_min": 0.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 495,
+          "rate": 41.3
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 326,
+          "rate": 23.9
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 1007,
+          "rate": 84.5
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 659,
+          "rate": 56.5
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 469,
+          "rate": 44.9
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 631,
+          "rate": 54.9
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 363,
+          "rate": 30.3
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 839,
+          "rate": 65.2
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 503,
+          "rate": 45.9
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 4
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 3
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 4
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 3
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 5
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Canal V seul (dispersion)",
+      "val_f1": 0.3242,
+      "roc_auc": 0.6044,
+      "avg_precision": 0.3213,
+      "thresholds": [
+        1.1434,
+        2.9517,
+        1.4071,
+        0.0255,
+        1.9786,
+        1.7125,
+        2.1694,
+        1.1783,
+        1.5341
+      ]
+    },
+    "Canal R": {
+      "precision": 1.0,
+      "recall": 0.1123,
+      "f1": 0.2019,
+      "fpr": 0.0,
+      "tp": 1201,
+      "fp": 0,
+      "fn": 9494,
+      "tn": 65503,
+      "fausses_alarmes_evenements_par_heure": 0.0,
+      "episodes": 55,
+      "episodes_detectes": 7,
+      "delai_median_min": 1.9,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 1201,
+          "rate": 88.2
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 0,
+          "rate": 0.0
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 0
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 0
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 0
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 0
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 0
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 0
+        }
+      },
+      "nom": "Canal R seul (rejeu exact)",
+      "val_f1": 0.1767,
+      "roc_auc": 0.556,
+      "avg_precision": 0.2366,
+      "thresholds": [
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        500.0,
+        500.0
+      ]
+    },
+    "Stat A+L+V": {
+      "precision": 0.7626,
+      "recall": 0.4865,
+      "f1": 0.594,
+      "fpr": 0.02473,
+      "tp": 5203,
+      "fp": 1620,
+      "fn": 5492,
+      "tn": 63883,
+      "fausses_alarmes_evenements_par_heure": 1.7,
+      "episodes": 55,
+      "episodes_detectes": 43,
+      "delai_median_min": 3.3,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 1144,
+          "rate": 95.4
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 2,
+          "rate": 0.1
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 1150,
+          "rate": 96.5
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 35,
+          "rate": 3.0
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 48,
+          "rate": 4.6
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 779,
+          "rate": 67.7
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 268,
+          "rate": 22.4
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 1231,
+          "rate": 95.7
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 546,
+          "rate": 49.9
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 2
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 2
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Statistique A+L+V",
+      "val_f1": 0.6281,
+      "roc_auc": 0.7854,
+      "avg_precision": 0.6335,
+      "thresholds": [
+        2.7984,
+        2.9733,
+        4.3985,
+        3.3172,
+        2.865,
+        3.0247,
+        3.2722,
+        5.3283,
+        3.4952
+      ]
+    },
+    "Statistique": {
+      "precision": 0.8059,
+      "recall": 0.5923,
+      "f1": 0.6828,
+      "fpr": 0.0233,
+      "tp": 6335,
+      "fp": 1526,
+      "fn": 4360,
+      "tn": 63977,
+      "fausses_alarmes_evenements_par_heure": 1.57,
+      "episodes": 55,
+      "episodes_detectes": 48,
+      "delai_median_min": 1.9,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 1199,
+          "detected": 1144,
+          "rate": 95.4
+        },
+        "MITM_rejeu": {
+          "n": 1362,
+          "detected": 1201,
+          "rate": 88.2
+        },
+        "Injection_nominale": {
+          "n": 1192,
+          "detected": 1149,
+          "rate": 96.4
+        },
+        "Injection_biais_0.5": {
+          "n": 1167,
+          "detected": 35,
+          "rate": 3.0
+        },
+        "Injection_biais_1.0": {
+          "n": 1045,
+          "detected": 42,
+          "rate": 4.0
+        },
+        "Injection_biais_2.0": {
+          "n": 1150,
+          "detected": 778,
+          "rate": 67.7
+        },
+        "Injection_derive": {
+          "n": 1199,
+          "detected": 254,
+          "rate": 21.2
+        },
+        "MITM_gel_thermostat": {
+          "n": 1286,
+          "detected": 1231,
+          "rate": 95.7
+        },
+        "Injection_biais_thermostat": {
+          "n": 1095,
+          "detected": 501,
+          "rate": 45.8
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_rejeu": {
+          "n": 7,
+          "detected": 7
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 2
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 3
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6
+        }
+      },
+      "nom": "Statistique A+L+V+R",
+      "val_f1": 0.7032,
+      "roc_auc": 0.8448,
+      "avg_precision": 0.7309,
+      "thresholds": [
+        2.8486,
+        3.0141,
+        4.3985,
+        3.3172,
+        2.865,
+        3.0247,
+        3.6313,
+        5.3283,
+        3.5788
+      ]
+    }
+  },
+  "localisation": {
+    "MITM_gel": {
+      "n": 1144,
+      "exact": 100.0
+    },
+    "MITM_rejeu": {
+      "n": 1201,
+      "exact": 100.0
+    },
+    "Injection_nominale": {
+      "n": 1149,
+      "exact": 100.0
+    },
+    "Injection_biais_0.5": {
+      "n": 35,
+      "exact": 100.0
+    },
+    "Injection_biais_1.0": {
+      "n": 42,
+      "exact": 92.9
+    },
+    "Injection_biais_2.0": {
+      "n": 778,
+      "exact": 100.0
+    },
+    "Injection_derive": {
+      "n": 254,
+      "exact": 99.2
+    },
+    "MITM_gel_thermostat": {
+      "n": 1231,
+      "exact": 100.0
+    },
+    "Injection_biais_thermostat": {
+      "n": 501,
+      "exact": 99.8
+    },
+    "TOUTES": {
+      "n": 6335,
+      "exact": 99.9
+    }
+  },
+  "episodes": [
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 2311,
+      "end": 2474,
+      "split": "val",
+      "run": 0
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 3068,
+      "end": 3258,
+      "split": "test",
+      "run": 0
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 9601,
+      "end": 9781,
+      "split": "val",
+      "run": 0
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 10239,
+      "end": 10477,
+      "split": "test",
+      "run": 0
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 16911,
+      "end": 17079,
+      "split": "val",
+      "run": 0
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 17382,
+      "end": 17571,
+      "split": "test",
+      "run": 0
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 23823,
+      "end": 24014,
+      "split": "val",
+      "run": 0
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 24924,
+      "end": 25133,
+      "split": "test",
+      "run": 0
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 31190,
+      "end": 31402,
+      "split": "val",
+      "run": 0
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 32024,
+      "end": 32222,
+      "split": "test",
+      "run": 0
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 38595,
+      "end": 38825,
+      "split": "val",
+      "run": 0
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 38974,
+      "end": 39193,
+      "split": "test",
+      "run": 0
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 1469,
+      "end": 1661,
+      "split": "val",
+      "run": 1
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 2500,
+      "end": 2696,
+      "split": "test",
+      "run": 1
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 8964,
+      "end": 9192,
+      "split": "val",
+      "run": 1
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 9440,
+      "end": 9655,
+      "split": "test",
+      "run": 1
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 16073,
+      "end": 16253,
+      "split": "val",
+      "run": 1
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 16798,
+      "end": 17028,
+      "split": "test",
+      "run": 1
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 23308,
+      "end": 23505,
+      "split": "val",
+      "run": 1
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 24094,
+      "end": 24291,
+      "split": "test",
+      "run": 1
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 30671,
+      "end": 30886,
+      "split": "val",
+      "run": 1
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 31374,
+      "end": 31564,
+      "split": "test",
+      "run": 1
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 37821,
+      "end": 38048,
+      "split": "val",
+      "run": 1
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 38187,
+      "end": 38399,
+      "split": "test",
+      "run": 1
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 1077,
+      "end": 1295,
+      "split": "val",
+      "run": 2
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 1679,
+      "end": 1914,
+      "split": "test",
+      "run": 2
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 8234,
+      "end": 8437,
+      "split": "val",
+      "run": 2
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 8890,
+      "end": 9069,
+      "split": "test",
+      "run": 2
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 15408,
+      "end": 15614,
+      "split": "val",
+      "run": 2
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 16117,
+      "end": 16270,
+      "split": "test",
+      "run": 2
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 22454,
+      "end": 22626,
+      "split": "val",
+      "run": 2
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 23396,
+      "end": 23590,
+      "split": "test",
+      "run": 2
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 29558,
+      "end": 29735,
+      "split": "val",
+      "run": 2
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 30683,
+      "end": 30898,
+      "split": "test",
+      "run": 2
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 36877,
+      "end": 37111,
+      "split": "val",
+      "run": 2
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 37550,
+      "end": 37782,
+      "split": "test",
+      "run": 2
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 334,
+      "end": 506,
+      "split": "val",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 1073,
+      "end": 1231,
+      "split": "test",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 7297,
+      "end": 7502,
+      "split": "val",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 8359,
+      "end": 8514,
+      "split": "test",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 14441,
+      "end": 14651,
+      "split": "val",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 15528,
+      "end": 15746,
+      "split": "test",
+      "run": 3
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 21986,
+      "end": 22146,
+      "split": "val",
+      "run": 3
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 22590,
+      "end": 22743,
+      "split": "test",
+      "run": 3
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 28857,
+      "end": 29044,
+      "split": "val",
+      "run": 3
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 29929,
+      "end": 30168,
+      "split": "test",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 36186,
+      "end": 36424,
+      "split": "val",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 36733,
+      "end": 36906,
+      "split": "test",
+      "run": 3
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 43494,
+      "end": 43694,
+      "split": "val",
+      "run": 3
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 227,
+      "end": 385,
+      "split": "test",
+      "run": 4
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 2963,
+      "end": 3133,
+      "split": "val",
+      "run": 4
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 7348,
+      "end": 7508,
+      "split": "test",
+      "run": 4
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 10365,
+      "end": 10555,
+      "split": "val",
+      "run": 4
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 14528,
+      "end": 14741,
+      "split": "test",
+      "run": 4
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 17320,
+      "end": 17519,
+      "split": "val",
+      "run": 4
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 21729,
+      "end": 21948,
+      "split": "test",
+      "run": 4
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 24599,
+      "end": 24802,
+      "split": "val",
+      "run": 4
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 29005,
+      "end": 29236,
+      "split": "test",
+      "run": 4
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 31745,
+      "end": 31908,
+      "split": "val",
+      "run": 4
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 36102,
+      "end": 36297,
+      "split": "test",
+      "run": 4
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 39042,
+      "end": 39269,
+      "split": "val",
+      "run": 4
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 43322,
+      "end": 43488,
+      "split": "test",
+      "run": 4
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 2282,
+      "end": 2493,
+      "split": "val",
+      "run": 5
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 2934,
+      "end": 3103,
+      "split": "test",
+      "run": 5
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 9516,
+      "end": 9694,
+      "split": "val",
+      "run": 5
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 10506,
+      "end": 10728,
+      "split": "test",
+      "run": 5
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 16989,
+      "end": 17229,
+      "split": "val",
+      "run": 5
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 17327,
+      "end": 17489,
+      "split": "test",
+      "run": 5
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 24167,
+      "end": 24324,
+      "split": "val",
+      "run": 5
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 24567,
+      "end": 24733,
+      "split": "test",
+      "run": 5
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 31388,
+      "end": 31570,
+      "split": "val",
+      "run": 5
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 31812,
+      "end": 31977,
+      "split": "test",
+      "run": 5
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 38381,
+      "end": 38584,
+      "split": "val",
+      "run": 5
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 39256,
+      "end": 39462,
+      "split": "test",
+      "run": 5
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 1656,
+      "end": 1896,
+      "split": "val",
+      "run": 6
+    },
+    {
+      "name": "Injection_derive",
+      "sensor": "fridge",
+      "kind": "derive",
+      "param": -2.0,
+      "start": 2624,
+      "end": 2808,
+      "split": "test",
+      "run": 6
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 9086,
+      "end": 9311,
+      "split": "val",
+      "run": 6
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 9663,
+      "end": 9889,
+      "split": "test",
+      "run": 6
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 16201,
+      "end": 16439,
+      "split": "val",
+      "run": 6
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 16748,
+      "end": 16905,
+      "split": "test",
+      "run": 6
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 23259,
+      "end": 23437,
+      "split": "val",
+      "run": 6
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 23994,
+      "end": 24227,
+      "split": "test",
+      "run": 6
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 30692,
+      "end": 30903,
+      "split": "val",
+      "run": 6
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 31261,
+      "end": 31437,
+      "split": "test",
+      "run": 6
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 37458,
+      "end": 37643,
+      "split": "val",
+      "run": 6
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 38379,
+      "end": 38549,
+      "split": "test",
+      "run": 6
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 1120,
+      "end": 1286,
+      "split": "val",
+      "run": 7
+    },
+    {
+      "name": "MITM_gel_thermostat",
+      "sensor": "thermostat",
+      "kind": "gel",
+      "param": null,
+      "start": 1464,
+      "end": 1672,
+      "split": "test",
+      "run": 7
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 8098,
+      "end": 8290,
+      "split": "val",
+      "run": 7
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 8688,
+      "end": 8871,
+      "split": "test",
+      "run": 7
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 15425,
+      "end": 15607,
+      "split": "val",
+      "run": 7
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 16230,
+      "end": 16451,
+      "split": "test",
+      "run": 7
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 22653,
+      "end": 22885,
+      "split": "val",
+      "run": 7
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 23380,
+      "end": 23546,
+      "split": "test",
+      "run": 7
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 29923,
+      "end": 30132,
+      "split": "val",
+      "run": 7
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 30296,
+      "end": 30473,
+      "split": "test",
+      "run": 7
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 36807,
+      "end": 37044,
+      "split": "val",
+      "run": 7
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 37783,
+      "end": 38016,
+      "split": "test",
+      "run": 7
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 300,
+      "end": 450,
+      "split": "val",
+      "run": 8
+    },
+    {
+      "name": "Injection_biais_thermostat",
+      "sensor": "thermostat",
+      "kind": "biais",
+      "param": -1.5,
+      "start": 799,
+      "end": 984,
+      "split": "test",
+      "run": 8
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 7341,
+      "end": 7498,
+      "split": "val",
+      "run": 8
+    },
+    {
+      "name": "MITM_gel",
+      "sensor": "fridge",
+      "kind": "gel",
+      "param": null,
+      "start": 8149,
+      "end": 8344,
+      "split": "test",
+      "run": 8
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 14830,
+      "end": 15020,
+      "split": "val",
+      "run": 8
+    },
+    {
+      "name": "MITM_rejeu",
+      "sensor": "fridge",
+      "kind": "rejeu",
+      "param": null,
+      "start": 15443,
+      "end": 15657,
+      "split": "test",
+      "run": 8
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 21909,
+      "end": 22086,
+      "split": "val",
+      "run": 8
+    },
+    {
+      "name": "Injection_nominale",
+      "sensor": "fridge",
+      "kind": "nominale",
+      "param": null,
+      "start": 22388,
+      "end": 22594,
+      "split": "test",
+      "run": 8
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 29042,
+      "end": 29243,
+      "split": "val",
+      "run": 8
+    },
+    {
+      "name": "Injection_biais_0.5",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -0.5,
+      "start": 29582,
+      "end": 29740,
+      "split": "test",
+      "run": 8
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 36346,
+      "end": 36496,
+      "split": "val",
+      "run": 8
+    },
+    {
+      "name": "Injection_biais_1.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -1.0,
+      "start": 36980,
+      "end": 37164,
+      "split": "test",
+      "run": 8
+    },
+    {
+      "name": "Injection_biais_2.0",
+      "sensor": "fridge",
+      "kind": "biais",
+      "param": -2.0,
+      "start": 43541,
+      "end": 43772,
+      "split": "val",
+      "run": 8
+    }
+  ]
+}

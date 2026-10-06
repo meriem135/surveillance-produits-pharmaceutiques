@@ -57,6 +57,7 @@ from app.core import paths  # noqa: E402
 
 SEED = 2019
 STEPS_DAY = 288                 # pas de 5 min
+STEP_MINUTES = 5                # durée d'un pas, pour les délais de détection
 GUARD = 12                      # 1 h après chaque épisode exclue de l'évaluation (traîne des fenêtres glissantes)
 EP_MIN, EP_MAX = 24, 48         # durée d'un épisode : 2 h à 4 h
 FEATURES = phase2.FEATURE_COLS
@@ -399,7 +400,7 @@ def summarize(pred: np.ndarray, df: pd.DataFrame, idx: np.ndarray, episodes: lis
             seg = pred[ep["start"]:ep["end"]]
             if seg.any():
                 n_hit += 1
-                delays.append(int(np.argmax(seg)) * 5)
+                delays.append(int(np.argmax(seg)) * STEP_MINUTES)
         hits += n_hit
         delays_all += delays
         per_episode[name] = {"n": n_ep, "detected": n_hit,
