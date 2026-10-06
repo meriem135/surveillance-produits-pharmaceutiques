@@ -1,0 +1,48 @@
+{
+  "lambda": 0.2,
+  "std_window": 6,
+  "fit_window": 12,
+  "lambda_lent": 0.01,
+  "meteo": {
+    "fridge": {
+      "intercept": 5.824864062693702,
+      "pente": 0.04703256126959788
+    },
+    "thermostat": {
+      "intercept": 21.079312843187516,
+      "pente": 0.11687384026462755
+    }
+  },
+  "desaccord": {
+    "coef_fridge": -0.7635148303475662,
+    "coef_thermostat": 0.6457902940113975,
+    "pente_salle_par_frigo": 1.1822953014745852,
+    "ewma_mean": 4.044620942399679e-05,
+    "ewma_std": 0.09509751562554392
+  },
+  "historique": {
+    "fridge": {
+      "ecart_mean": 0.0013071395809319182,
+      "ecart_std": 0.45774506785192515
+    },
+    "thermostat": {
+      "ecart_mean": 0.001100851404616603,
+      "ecart_std": 0.533843320816439
+    }
+  },
+  "immobilite": {
+    "fridge": {
+      "log_std_mean": -1.1690671338109013,
+      "log_std_std": 0.3510779114071551
+    },
+    "thermostat": {
+      "log_std_mean": -1.716521104480389,
+      "log_std_std": 0.3963576618784348
+    },
+    "weather": {
+      "log_std_mean": -1.6044318818291534,
+      "log_std_std": 0.5248670558453692
+    }
+  },
+  "seuil": 3.645936980453177
+}

@@ -1,0 +1,1247 @@
+{
+  "generated_at": "2026-10-05T22:39:44",
+  "dataset": "dataset_transmission.csv",
+  "perimetre": "attaques de transmission (Injection + MITM)",
+  "couplage": {
+    "part_de_charge_commune": 1.0,
+    "correlation_frigo_salle_simulee": 0.793,
+    "traces_reelles": {
+      "source": "traces normales TON_IoT (notebook/Raw/Normal)",
+      "n_points": 745,
+      "correlation": -0.006
+    }
+  },
+  "protocole": {
+    "split": "semaines entrelacées : 3 train / 1 val / 1 test",
+    "seuil": "max F1 sur la validation, appliqué tel quel au test",
+    "zone_de_garde_pas": 12,
+    "n_train": 64800,
+    "n_val": 19440,
+    "n_test": 19440,
+    "n_attack_val": 2191,
+    "n_attack_test": 2209,
+    "episodes": 120,
+    "incidents_reels": 36
+  },
+  "modele_physique": {
+    "salle": "24.0 + 0.12*(meteo-25.0) + 0.6*charge + bruit(0.15)",
+    "frigo": "7.0 + 0.05*(meteo-25.0) + 0.5*charge + bruit(0.35)",
+    "charge": "AR(1) phi=0.97 sigma=1.0 + incidents (4.0, 7.0)"
+  },
+  "scenarios": [
+    {
+      "nom": "MITM_gel",
+      "capteur": "fridge",
+      "mecanisme": "gel",
+      "parametre": null
+    },
+    {
+      "nom": "MITM_rejeu",
+      "capteur": "fridge",
+      "mecanisme": "rejeu",
+      "parametre": null
+    },
+    {
+      "nom": "MITM_masquage",
+      "capteur": "fridge",
+      "mecanisme": "masquage",
+      "parametre": null
+    },
+    {
+      "nom": "Injection_nominale",
+      "capteur": "fridge",
+      "mecanisme": "nominale",
+      "parametre": null
+    },
+    {
+      "nom": "Injection_biais_0.5",
+      "capteur": "fridge",
+      "mecanisme": "biais",
+      "parametre": -0.5
+    },
+    {
+      "nom": "Injection_biais_1.0",
+      "capteur": "fridge",
+      "mecanisme": "biais",
+      "parametre": -1.0
+    },
+    {
+      "nom": "Injection_biais_2.0",
+      "capteur": "fridge",
+      "mecanisme": "biais",
+      "parametre": -2.0
+    },
+    {
+      "nom": "Injection_derive",
+      "capteur": "fridge",
+      "mecanisme": "derive",
+      "parametre": -2.0
+    },
+    {
+      "nom": "MITM_gel_thermostat",
+      "capteur": "thermostat",
+      "mecanisme": "gel",
+      "parametre": null
+    },
+    {
+      "nom": "Injection_biais_thermostat",
+      "capteur": "thermostat",
+      "mecanisme": "biais",
+      "parametre": -1.5
+    }
+  ],
+  "classement_validation": [
+    "Résiduel",
+    "Canal B",
+    "LSTM",
+    "OCSVM",
+    "PCA",
+    "Canal A",
+    "GNN",
+    "DPI"
+  ],
+  "resultats": {
+    "DPI": {
+      "precision": 0.1257,
+      "recall": 0.0208,
+      "f1": 0.0357,
+      "fpr": 0.01857,
+      "tp": 46,
+      "fp": 320,
+      "fn": 2163,
+      "tn": 16911,
+      "fp_nominal": 226,
+      "fp_incident": 94,
+      "fausses_alarmes_par_jour": 3.84,
+      "evenements_fausse_alarme_par_jour": 0.42,
+      "incidents_reels": 8,
+      "incidents_signales": 7,
+      "episodes": 60,
+      "episodes_detectes": 7,
+      "delai_median_min": 45.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 13,
+          "rate": 5.7
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 6,
+          "rate": 2.6
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 7,
+          "rate": 3.6
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 10,
+          "rate": 5.0
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 10,
+          "rate": 5.3
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 0,
+          "rate": 0.0
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 2,
+          "delai_median_min": 115.0
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 0,
+          "delai_median_min": null
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 2,
+          "delai_median_min": 17.5
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 0,
+          "delai_median_min": null
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 0.0
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 70.0
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 0,
+          "delai_median_min": null
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 105.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 0,
+          "delai_median_min": null
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 0,
+          "delai_median_min": null
+        }
+      },
+      "val_f1": 0.0325,
+      "nom": "Règles DPI (phase 1)"
+    },
+    "OCSVM": {
+      "precision": 0.6586,
+      "recall": 0.6428,
+      "f1": 0.6506,
+      "fpr": 0.04271,
+      "tp": 1420,
+      "fp": 736,
+      "fn": 789,
+      "tn": 16495,
+      "fp_nominal": 554,
+      "fp_incident": 182,
+      "fausses_alarmes_par_jour": 9.41,
+      "evenements_fausse_alarme_par_jour": 4.16,
+      "incidents_reels": 8,
+      "incidents_signales": 8,
+      "episodes": 60,
+      "episodes_detectes": 56,
+      "delai_median_min": 15.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 200,
+          "rate": 87.3
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 53,
+          "rate": 24.0
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 193,
+          "rate": 83.9
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 57,
+          "rate": 24.2
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 38,
+          "rate": 19.3
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 127,
+          "rate": 63.2
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 222,
+          "rate": 99.6
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 101,
+          "rate": 54.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 206,
+          "rate": 82.4
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 223,
+          "rate": 94.9
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 25.0
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 20.0
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 15.0
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 4,
+          "delai_median_min": 67.5
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 5.0
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 20.0
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 0.0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 55.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 35.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 0.0
+        }
+      },
+      "roc_auc": 0.8702,
+      "avg_precision": 0.6404,
+      "threshold": 0.026345233719738292,
+      "val_f1": 0.6423,
+      "hyperparameters": {
+        "nu": 0.01,
+        "gamma": 0.1,
+        "val_roc_auc": 0.8649
+      },
+      "nom": "OCSVM_Multivarie"
+    },
+    "PCA": {
+      "precision": 0.5086,
+      "recall": 0.5727,
+      "f1": 0.5388,
+      "fpr": 0.07092,
+      "tp": 1265,
+      "fp": 1222,
+      "fn": 944,
+      "tn": 16009,
+      "fp_nominal": 1139,
+      "fp_incident": 83,
+      "fausses_alarmes_par_jour": 19.35,
+      "evenements_fausse_alarme_par_jour": 12.96,
+      "incidents_reels": 8,
+      "incidents_signales": 8,
+      "episodes": 60,
+      "episodes_detectes": 56,
+      "delai_median_min": 5.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 52,
+          "rate": 22.7
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 91,
+          "rate": 41.2
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 206,
+          "rate": 89.6
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 71,
+          "rate": 30.1
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 50,
+          "rate": 25.4
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 175,
+          "rate": 87.1
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 219,
+          "rate": 98.2
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 115,
+          "rate": 61.5
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 56,
+          "rate": 22.4
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 230,
+          "rate": 97.9
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 4,
+          "delai_median_min": 12.5
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 5.0
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 10.0
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 35.0
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 12.5
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 5.0
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 5.0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 62.5
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 50.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 5.0
+        }
+      },
+      "roc_auc": 0.8434,
+      "avg_precision": 0.61,
+      "threshold": 0.12588634869861592,
+      "val_f1": 0.5419,
+      "hyperparameters": {
+        "n_components": 12,
+        "variance_kept": 0.95,
+        "explained_variance": 0.9545
+      },
+      "nom": "Autoencodeur_PCA"
+    },
+    "GNN": {
+      "precision": 0.1784,
+      "recall": 0.5052,
+      "f1": 0.2637,
+      "fpr": 0.2983,
+      "tp": 1116,
+      "fp": 5140,
+      "fn": 1093,
+      "tn": 12091,
+      "fp_nominal": 5077,
+      "fp_incident": 63,
+      "fausses_alarmes_par_jour": 86.24,
+      "evenements_fausse_alarme_par_jour": 4.14,
+      "incidents_reels": 8,
+      "incidents_signales": 5,
+      "episodes": 60,
+      "episodes_detectes": 49,
+      "delai_median_min": 35.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 59,
+          "rate": 25.8
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 162,
+          "rate": 73.3
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 185,
+          "rate": 80.4
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 100,
+          "rate": 42.4
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 77,
+          "rate": 39.1
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 120,
+          "rate": 59.7
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 141,
+          "rate": 63.2
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 89,
+          "rate": 47.6
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 15,
+          "rate": 6.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 168,
+          "rate": 71.5
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 4,
+          "delai_median_min": 67.5
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 0.0
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 17.5
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 115.0
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 4,
+          "delai_median_min": 10.0
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 45.0
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 20.0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 40.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 3,
+          "delai_median_min": 185.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 20.0
+        }
+      },
+      "roc_auc": 0.6164,
+      "avg_precision": 0.1772,
+      "threshold": 3.2395974244582515,
+      "val_f1": 0.2529,
+      "hyperparameters": {
+        "window_steps": 72,
+        "window_hours": 6.0,
+        "edge_mean": {
+          "weather-fridge": 0.1044,
+          "weather-thermostat": 0.2344,
+          "fridge-thermostat": 0.6216
+        }
+      },
+      "nom": "GNN_Correlation"
+    },
+    "LSTM": {
+      "precision": 0.8434,
+      "recall": 0.5971,
+      "f1": 0.6992,
+      "fpr": 0.01422,
+      "tp": 1319,
+      "fp": 245,
+      "fn": 890,
+      "tn": 16986,
+      "fp_nominal": 223,
+      "fp_incident": 22,
+      "fausses_alarmes_par_jour": 3.79,
+      "evenements_fausse_alarme_par_jour": 3.5,
+      "incidents_reels": 8,
+      "incidents_signales": 6,
+      "episodes": 60,
+      "episodes_detectes": 59,
+      "delai_median_min": 5.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 64,
+          "rate": 27.9
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 105,
+          "rate": 47.5
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 198,
+          "rate": 86.1
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 81,
+          "rate": 34.3
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 64,
+          "rate": 32.5
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 161,
+          "rate": 80.1
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 222,
+          "rate": 99.6
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 117,
+          "rate": 62.6
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 73,
+          "rate": 29.2
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 234,
+          "rate": 99.6
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 40.0
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 7.5
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 2.5
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 40.0
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 7.5
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 7.5
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 0.0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 52.5
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 45.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 0.0
+        }
+      },
+      "roc_auc": 0.85,
+      "avg_precision": 0.7088,
+      "threshold": 4.8460228784242645,
+      "val_f1": 0.6922,
+      "hyperparameters": {
+        "seq_len": 12,
+        "hidden": 32,
+        "per_sensor": {
+          "weather": {
+            "inputs": [
+              "fridge_temp",
+              "thermostat_temp",
+              "fridge_diff_1",
+              "thermostat_diff_1",
+              "hour_sin",
+              "hour_cos",
+              "season_sin",
+              "season_cos"
+            ],
+            "val_mse": 0.01771,
+            "epochs": 8
+          },
+          "fridge": {
+            "inputs": [
+              "weather_temp",
+              "thermostat_temp",
+              "weather_diff_1",
+              "thermostat_diff_1",
+              "hour_sin",
+              "hour_cos",
+              "season_sin",
+              "season_cos"
+            ],
+            "val_mse": 0.25575,
+            "epochs": 8
+          },
+          "thermostat": {
+            "inputs": [
+              "weather_temp",
+              "fridge_temp",
+              "weather_diff_1",
+              "fridge_diff_1",
+              "hour_sin",
+              "hour_cos",
+              "season_sin",
+              "season_cos"
+            ],
+            "val_mse": 0.07799,
+            "epochs": 8
+          }
+        }
+      },
+      "nom": "Forecasting_LSTM"
+    },
+    "Canal A": {
+      "precision": 0.846,
+      "recall": 0.2064,
+      "f1": 0.3319,
+      "fpr": 0.00482,
+      "tp": 456,
+      "fp": 83,
+      "fn": 1753,
+      "tn": 17148,
+      "fp_nominal": 82,
+      "fp_incident": 1,
+      "fausses_alarmes_par_jour": 1.39,
+      "evenements_fausse_alarme_par_jour": 1.1,
+      "incidents_reels": 8,
+      "incidents_signales": 1,
+      "episodes": 60,
+      "episodes_detectes": 21,
+      "delai_median_min": 20.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 212,
+          "rate": 92.6
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 2,
+          "rate": 0.9
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 3,
+          "rate": 1.3
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 0,
+          "rate": 0.0
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 2,
+          "rate": 1.0
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 1,
+          "rate": 0.5
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 2,
+          "rate": 0.9
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 1,
+          "rate": 0.5
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 232,
+          "rate": 92.8
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 1,
+          "rate": 0.4
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 20.0
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 105.0
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 2,
+          "delai_median_min": 80.0
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 0,
+          "delai_median_min": null
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 2,
+          "delai_median_min": 57.5
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 0.0
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 185.0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 85.0
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 15.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 1,
+          "delai_median_min": 55.0
+        }
+      },
+      "roc_auc": 0.598,
+      "avg_precision": 0.3438,
+      "threshold": 3.667630934823628,
+      "val_f1": 0.3147,
+      "nom": "Canal A seul (gel)"
+    },
+    "Canal B": {
+      "precision": 0.9441,
+      "recall": 0.7107,
+      "f1": 0.811,
+      "fpr": 0.0054,
+      "tp": 1570,
+      "fp": 93,
+      "fn": 639,
+      "tn": 17138,
+      "fp_nominal": 93,
+      "fp_incident": 0,
+      "fausses_alarmes_par_jour": 1.58,
+      "evenements_fausse_alarme_par_jour": 1.1,
+      "incidents_reels": 8,
+      "incidents_signales": 0,
+      "episodes": 60,
+      "episodes_detectes": 59,
+      "delai_median_min": 10.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 84,
+          "rate": 36.7
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 148,
+          "rate": 67.0
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 208,
+          "rate": 90.4
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 117,
+          "rate": 49.6
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 159,
+          "rate": 80.7
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 189,
+          "rate": 94.0
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 222,
+          "rate": 99.6
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 125,
+          "rate": 66.8
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 87,
+          "rate": 34.8
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 231,
+          "rate": 98.3
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 75.0
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 12.5
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 5.0
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 12.5
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 15.0
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 10.0
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 0.0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 52.5
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 90.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 5.0
+        }
+      },
+      "roc_auc": 0.9056,
+      "avg_precision": 0.8302,
+      "threshold": 2.7835745737774187,
+      "val_f1": 0.8088,
+      "nom": "Canal B seul (désaccord)"
+    },
+    "Résiduel": {
+      "precision": 0.9502,
+      "recall": 0.7859,
+      "f1": 0.8603,
+      "fpr": 0.00528,
+      "tp": 1736,
+      "fp": 91,
+      "fn": 473,
+      "tn": 17140,
+      "fp_nominal": 90,
+      "fp_incident": 1,
+      "fausses_alarmes_par_jour": 1.53,
+      "evenements_fausse_alarme_par_jour": 1.22,
+      "incidents_reels": 8,
+      "incidents_signales": 1,
+      "episodes": 60,
+      "episodes_detectes": 59,
+      "delai_median_min": 15.0,
+      "per_attack": {
+        "MITM_gel": {
+          "n": 229,
+          "detected": 216,
+          "rate": 94.3
+        },
+        "MITM_rejeu": {
+          "n": 221,
+          "detected": 131,
+          "rate": 59.3
+        },
+        "MITM_masquage": {
+          "n": 230,
+          "detected": 199,
+          "rate": 86.5
+        },
+        "Injection_nominale": {
+          "n": 236,
+          "detected": 94,
+          "rate": 39.8
+        },
+        "Injection_biais_0.5": {
+          "n": 197,
+          "detected": 120,
+          "rate": 60.9
+        },
+        "Injection_biais_1.0": {
+          "n": 201,
+          "detected": 184,
+          "rate": 91.5
+        },
+        "Injection_biais_2.0": {
+          "n": 223,
+          "detected": 218,
+          "rate": 97.8
+        },
+        "Injection_derive": {
+          "n": 187,
+          "detected": 117,
+          "rate": 62.6
+        },
+        "MITM_gel_thermostat": {
+          "n": 250,
+          "detected": 232,
+          "rate": 92.8
+        },
+        "Injection_biais_thermostat": {
+          "n": 235,
+          "detected": 225,
+          "rate": 95.7
+        }
+      },
+      "per_episode": {
+        "MITM_gel": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 10.0
+        },
+        "MITM_rejeu": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 17.5
+        },
+        "MITM_masquage": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 15.0
+        },
+        "Injection_nominale": {
+          "n": 6,
+          "detected": 5,
+          "delai_median_min": 20.0
+        },
+        "Injection_biais_0.5": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 32.5
+        },
+        "Injection_biais_1.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 12.5
+        },
+        "Injection_biais_2.0": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 5.0
+        },
+        "Injection_derive": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 62.5
+        },
+        "MITM_gel_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 15.0
+        },
+        "Injection_biais_thermostat": {
+          "n": 6,
+          "detected": 6,
+          "delai_median_min": 10.0
+        }
+      },
+      "roc_auc": 0.9422,
+      "avg_precision": 0.8909,
+      "threshold": 3.645936980453177,
+      "val_f1": 0.8454,
+      "nom": "Détecteur résiduel A+B"
+    }
+  },
+  "localisation": {
+    "MITM_gel": {
+      "n": 216,
+      "exact": 100.0
+    },
+    "MITM_rejeu": {
+      "n": 131,
+      "exact": 80.9
+    },
+    "MITM_masquage": {
+      "n": 199,
+      "exact": 12.6
+    },
+    "Injection_nominale": {
+      "n": 94,
+      "exact": 44.7
+    },
+    "Injection_biais_0.5": {
+      "n": 120,
+      "exact": 68.3
+    },
+    "Injection_biais_1.0": {
+      "n": 184,
+      "exact": 85.9
+    },
+    "Injection_biais_2.0": {
+      "n": 218,
+      "exact": 89.9
+    },
+    "Injection_derive": {
+      "n": 117,
+      "exact": 94.9
+    },
+    "MITM_gel_thermostat": {
+      "n": 232,
+      "exact": 100.0
+    },
+    "Injection_biais_thermostat": {
+      "n": 225,
+      "exact": 99.1
+    },
+    "TOUTES": {
+      "n": 1736,
+      "exact": 80.1
+    },
+    "canal_A": {
+      "n": 457,
+      "exact": 98.5
+    },
+    "canal_B": {
+      "n": 1279,
+      "exact": 73.6
+    }
+  }
+}
