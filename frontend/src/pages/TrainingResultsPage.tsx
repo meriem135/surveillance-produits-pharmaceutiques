@@ -107,19 +107,17 @@ export default function TrainingResultsPage() {
   const [expandedAttack, setExpandedAttack] = useState<string | null>(null);
 
   useEffect(() => {
-    const trained = sessionStorage.getItem('phase2_train_result');
-    if (!trained) {
-      setLoading(false);
-      return;
-    }
-
+    // Les résultats viennent toujours de l'API (dernier modèle enregistré en base) : ils restent
+    // visibles après une reconnexion ou depuis un autre poste, pas seulement dans l'onglet qui a entraîné.
     const fetchResults = async () => {
       try {
         const r = await fetch('/api/v1/phase2/training-results');
         const text = await r.text(); // read as text: gère les réponses 502/vides sans erreur "Unexpected end of JSON input"
         if (!text) throw new Error('Réponse vide du serveur (backend indisponible ?).');
         const data = JSON.parse(text);
-        if (data.error) setError(data.error);
+        const saved = sessionStorage.getItem('phase2_train_result');
+        if (data.error && saved) setResult(JSON.parse(saved));
+        else if (data.error) setError(data.error);
         else setResult(data);
       } catch (e: unknown) {
         // Repli : afficher le résultat déjà sauvegardé par l'entraînement (sessionStorage)
