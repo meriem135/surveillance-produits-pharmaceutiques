@@ -242,7 +242,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
 
   return (
     <div className="space-y-5">
-      {/* ── KPIs du dataset (valeurs réelles) ── */}
+      {/* ── KPIs du dataset (valeurs calculées sur dataset_fusionne.csv) ── */}
       <SectionTitle color="#818cf8">Dataset d'entrainement — {d.filename}</SectionTitle>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
         <KpiCard label="Échantillons" value={d.total.toLocaleString()} color="#818cf8" icon={<Database className="w-4 h-4" />} delay={0} />
@@ -293,24 +293,24 @@ function TabKpis({ data }: { data: KpiResponse }) {
           <div className="h-[220px] mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
+                {/* Pourcentages dans la légende : des étiquettes autour de l'anneau débordaient de la carte. */}
                 <Pie data={[
-                  { name: 'Normal', value: d.normal, color: '#22C55E' },
-                  { name: 'Attaque', value: d.attack, color: '#EF4444' },
-                ]} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={4} dataKey="value" nameKey="name"
-                  label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(1)}%`}
-                  labelLine={false}>
+                  { name: `Normal ${d.normal_pct.toFixed(1)} %`, value: d.normal, color: '#22C55E' },
+                  { name: `Attaque ${d.attack_pct.toFixed(1)} %`, value: d.attack, color: '#EF4444' },
+                ]} cx="50%" cy="45%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value" nameKey="name">
                   {[{ color: '#22C55E' }, { color: '#EF4444' }].map((c, i) => (
                     <Cell key={i} fill={c.color} />
                   ))}
                 </Pie>
                 <Tooltip content={<ChartTip />} />
+                <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card className="lg:col-span-2">
-          <SectionTitle color="#F59E0B">Attaques par mois (données réelles)</SectionTitle>
+          <SectionTitle color="#F59E0B">Attaques par mois (année simulée)</SectionTitle>
           <div className="h-[220px] mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={monthlyData} margin={{ top: 10, right: 30, left: -10, bottom: 0 }}>
@@ -544,7 +544,7 @@ export default function TableauDeBordPage() {
             Tableau de bord
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-            KPIs réels du dataset d'entrainement (dataset_fusionne.csv) et performance du modèle One-Class SVM
+            KPIs du jeu annuel 2019 (dataset_fusionne.csv), simulé à partir des traces réelles TON_IoT, et performance du modèle One-Class SVM
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -588,7 +588,7 @@ export default function TableauDeBordPage() {
             loading ? (
               <div className="flex flex-col items-center justify-center h-64 gap-3">
                 <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--accent-primary)' }} />
-                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Chargement des KPIs réels...</span>
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Chargement des KPIs...</span>
               </div>
             ) : error || !data ? (
               <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
