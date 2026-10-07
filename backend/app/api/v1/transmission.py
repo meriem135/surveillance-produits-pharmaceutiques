@@ -1,6 +1,7 @@
 """
 API « attaques de transmission » (traces réelles)
 =================================================
+  GET  /api/v1/transmission/kpis            chiffres publics de la page d'accueil (sans session)
   GET  /api/v1/transmission/summary         état du jeu de données, référence, dernier entraînement
   GET  /api/v1/transmission/scenarios       les 9 scénarios injectés
   POST /api/v1/transmission/train           entraîne les 4 modèles candidats en arrière-plan
@@ -47,6 +48,15 @@ class AlertContext(BaseModel):
     sensor: str | None = Field(None, examples=["fridge"])
     probability: float | None = Field(None, ge=0, le=1)
     top_features: list[str] = Field(default_factory=list)
+
+
+@router.get("/transmission/kpis")
+async def transmission_kpis():
+    """Agrégats publics des résultats de référence (aucune donnée de compte ni de session)."""
+    kpis = await asyncio.to_thread(service.public_kpis)
+    if kpis is None:
+        raise HTTPException(status_code=404, detail="Résultats de référence introuvables")
+    return kpis
 
 
 async def _latest_from_db(session: AsyncSession) -> dict | None:

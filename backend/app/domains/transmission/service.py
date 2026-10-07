@@ -211,6 +211,33 @@ def summary() -> dict:
     return out
 
 
+def public_kpis() -> dict | None:
+    """Chiffres de la page d'accueil (publics) : uniquement des agrégats des résultats de
+    référence sur les traces réelles (comparaison_modeles.json, 9 répétitions)."""
+    pooled = _load_json(POOLED_RESULTS)
+    if not pooled or not pooled.get("resultats"):
+        return None
+    fusion = pooled.get("fusion") or {}
+    best_id = pooled.get("meilleur_modele")
+    best = pooled["resultats"].get(best_id, {})
+    mesures = int(fusion.get("pas_conserves") or 0)
+    par_scenario = sorted(best.get("per_attack", {}).items(), key=lambda kv: -kv[1]["rate"])
+    return {
+        "generated_at": pooled.get("generated_at"),
+        "traces": {"debut": fusion.get("debut"), "fin": fusion.get("fin"), "pas": fusion.get("pas"),
+                   "mesures": mesures, "heures": round(mesures * 5 / 3600, 1)},
+        "capteurs": list(SENSOR_FR),
+        "repetitions": pooled.get("protocole", {}).get("repetitions"),
+        "scenarios": len(par_scenario),
+        "meilleur": {"id": best_id, "nom": best.get("nom"), "f1": best.get("f1"), "precision": best.get("precision"),
+                     "recall": best.get("recall"), "roc_auc": best.get("roc_auc"), "episodes": best.get("episodes"),
+                     "episodes_detectes": best.get("episodes_detectes"), "delai_median_min": best.get("delai_median_min")},
+        "modeles": [{"id": k, "nom": v.get("nom"), "f1": v.get("f1")} for k, v in pooled["resultats"].items()],
+        "detection_par_scenario": [{"scenario": k, "description": SCENARIOS_FR.get(k, k), "taux": v["rate"],
+                                    "points": v["n"], "detectes": v["detected"]} for k, v in par_scenario],
+    }
+
+
 # ── Entraînement ─────────────────────────────────────────────────────────────
 
 def _load_or_build_dataset(tr, tm) -> tuple[pd.DataFrame, list[str], list[dict], bool]:

@@ -44,3 +44,14 @@ def test_alert_recommendation():
     assert out["confiance"] == "élevée"
     assert out["indices"] == ["séquence de 2 min du frigo déjà transmise"]
     assert "contrôler la température sur place" in out["consigne"]
+
+
+def test_public_kpis_come_from_the_reference_results():
+    kpis = service.public_kpis()
+    assert kpis is not None, "models/transmission_reel/comparaison_modeles.json est versionné"
+    best = kpis["meilleur"]
+    assert best["id"] == "RandomForest" and 0 < best["f1"] < 1
+    assert kpis["traces"]["mesures"] > 40_000 and kpis["traces"]["pas"] == "5s"
+    assert kpis["scenarios"] == len(service.SCENARIOS_FR) == len(kpis["detection_par_scenario"])
+    taux = [s["taux"] for s in kpis["detection_par_scenario"]]
+    assert taux == sorted(taux, reverse=True)

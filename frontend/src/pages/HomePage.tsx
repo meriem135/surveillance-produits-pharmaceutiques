@@ -30,84 +30,84 @@ function useReducedMotion() {
 
 const API_BASE = '/api/v1';
 
-interface DatasetKpi {
-  dataset: {
-    total: number;
-    normal: number;
-    attack: number;
-    attack_pct: number;
-    duration_days: number;
-    sensors: string[];
+// Chiffres réels : résultats de référence sur les traces TON_IoT (GET /api/v1/transmission/kpis).
+interface TransmissionKpi {
+  generated_at: string;
+  traces: { debut: string; fin: string; pas: string; mesures: number; heures: number };
+  capteurs: string[];
+  repetitions: number;
+  scenarios: number;
+  meilleur: {
+    id: string; nom: string; f1: number; precision: number; recall: number; roc_auc: number;
+    episodes: number; episodes_detectes: number; delai_median_min: number;
   };
-  training: {
-    available?: boolean;
-    best_model?: string | null;
-    metrics?: {
-      precision?: number;
-      recall?: number;
-      f1?: number;
-      roc_auc?: number;
-      threshold?: number;
-    };
-    attack_detection?: {
-      attack_type: string;
-      n_total: number;
-      n_detected: number;
-      detection_rate: number;
-    }[];
-  };
+  modeles: { id: string; nom: string; f1: number }[];
+  detection_par_scenario: { scenario: string; description: string; taux: number; points: number; detectes: number }[];
 }
 
 const FEATURES = [
-  { icon: Database, title: 'Collecte & préparation des données', desc: 'J\'ai collecté 5 jours de mesures réelles des capteurs IoT (frigo, thermostat, météo), puis nettoyé, resamplé et généré un jeu annuel fidèle au climat tunisien pour couvrir stock, production et logistique.', color: '#00B8D9', tag: 'Data' },
-  { icon: Brain, title: 'Modélisation ML & explicabilité', desc: 'J\'ai entraîné et comparé One-Class SVM, Autoencodeur MLP, LSTM et IsolationForest avec recherche d\'hyperparamètres par grille (GridSearch), puis j\'ai interprété chaque détection à l\'aide de SHAP sur les 3 capteurs pharma.', color: '#A855F7', tag: 'Machine Learning' },
-  { icon: Rocket, title: 'Déploiement de la plateforme', desc: 'J\'ai construit l\'API FastAPI, le dashboard React temps réel et le moteur de surveillance, avec scoring de risque appliqué au stock, à la production et à la météo des produits pharmaceutiques.', color: '#00FFA3', tag: 'Déploiement' },
+  { icon: Database, title: 'Collecte & préparation des données', desc: 'J\'ai exploré et prétraité 5 jours de mesures réelles TON_IoT (frigo, thermostat, météo, du 31 mars au 4 avril 2019) : nettoyage, fusion des trois capteurs au pas de 5 s, puis injection d\'attaques de transmission (MITM et injection) sur ces traces.', color: '#00B8D9', tag: 'Data' },
+  { icon: Brain, title: 'Modélisation ML & explicabilité', desc: 'J\'ai entraîné et comparé quatre modèles candidats (Isolation Forest, One-Class SVM, Random Forest et XGBoost) sur 9 répétitions, retenu le meilleur, le Random Forest, puis expliqué chaque détection avec SHAP.', color: '#A855F7', tag: 'Machine Learning' },
+  { icon: Rocket, title: 'Déploiement de la plateforme', desc: 'J\'ai construit l\'API FastAPI, le dashboard React temps réel (entraînement en direct, SHAP, rapport de recommandation pour l\'opérateur) et une base PostgreSQL.', color: '#00FFA3', tag: 'Déploiement' },
 ];
+
+const SENSOR_FR: Record<string, string> = { fridge: 'frigo', thermostat: 'thermostat', weather: 'météo' };
+
+const SCENARIO_FR: Record<string, string> = {
+  MITM_gel: 'MITM · gel du frigo',
+  MITM_rejeu: 'MITM · rejeu du frigo',
+  Injection_nominale: 'Injection · valeurs nominales au frigo',
+  'Injection_biais_0.5': 'Injection · biais −0,5 °C au frigo',
+  'Injection_biais_1.0': 'Injection · biais −1 °C au frigo',
+  'Injection_biais_2.0': 'Injection · biais −2 °C au frigo',
+  Injection_derive: 'Injection · dérive lente du frigo',
+  MITM_gel_thermostat: 'MITM · gel du thermostat',
+  Injection_biais_thermostat: 'Injection · biais −1,5 °C au thermostat',
+};
 
 function formatInt(n: number): string {
   return (n || 0).toLocaleString('fr-FR');
 }
 
-function useDatasetKpi(): DatasetKpi | null {
-  const [data, setData] = useState<DatasetKpi | null>(null);
+const pct = (x: number) => `${(x * 100).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+const day = (iso: string) => new Date(iso.replace(' ', 'T')).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function useTransmissionKpi(): TransmissionKpi | null {
+  const [data, setData] = useState<TransmissionKpi | null>(null);
   useEffect(() => {
     let active = true;
-    fetch(`${API_BASE}/phase2/dataset-kpis`)
+    fetch(`${API_BASE}/transmission/kpis`)
       .then(r => (r.ok ? r.json() : null))
-      .then((json: DatasetKpi | null) => { if (active) setData(json); })
+      .then((json: TransmissionKpi | null) => { if (active) setData(json); })
       .catch(() => { if (active) setData(null); });
     return () => { active = false; };
   }, []);
   return data;
 }
 
-function buildStats(kpi: DatasetKpi | null) {
+function buildStats(kpi: TransmissionKpi | null) {
   if (!kpi) return [];
-  const d = kpi.dataset;
-  const t = kpi.training;
-  const f1 = t?.metrics?.f1 ? t.metrics.f1 * 100 : null;
+  const t = kpi.traces;
+  const m = kpi.meilleur;
+  const f1 = m.f1 * 100;
   return [
-    { value: d.total, display: formatInt(d.total), label: 'Échantillons', suffix: 'analysés', icon: Cpu, color: '#00F5FF', format: (n: number) => formatInt(Math.round(n)) },
-    { value: d.attack, display: formatInt(d.attack), label: 'Attaques', suffix: `${d.attack_pct}% du dataset`, icon: Shield, color: '#F97316', format: (n: number) => formatInt(Math.round(n)) },
-    { value: f1 ?? 0, display: f1 != null ? `${f1.toFixed(1)}%` : '—', label: 'F1 Score', suffix: t?.best_model || 'meilleur modèle ML', icon: Brain, color: '#22C55E', format: (n: number) => (f1 != null ? `${n.toFixed(1)}%` : '—') },
-    { value: d.sensors?.length || 0, display: String(d.sensors?.length || 0), label: 'Capteurs', suffix: (d.sensors || []).join(' · '), icon: Zap, color: '#818cf8', format: (n: number) => `${Math.round(n)}` },
+    { value: t.mesures, label: 'Mesures réelles', suffix: `pas de ${t.pas} · ${t.heures.toLocaleString('fr-FR')} h de traces`, icon: Cpu, color: '#00F5FF', format: (n: number) => formatInt(Math.round(n)) },
+    { value: kpi.scenarios, label: 'Scénarios d\'attaque', suffix: 'MITM et injection, frigo et thermostat', icon: Shield, color: '#F97316', format: (n: number) => `${Math.round(n)}` },
+    { value: f1, label: 'F1 Score', suffix: `${m.nom ?? m.id} · ${kpi.repetitions} répétitions`, icon: Brain, color: '#22C55E', format: (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %` },
+    { value: kpi.capteurs.length, label: 'Capteurs', suffix: kpi.capteurs.map(c => SENSOR_FR[c] ?? c).join(' · '), icon: Zap, color: '#818cf8', format: (n: number) => `${Math.round(n)}` },
   ];
 }
 
-function buildThreatFeed(kpi: DatasetKpi | null) {
+function buildThreatFeed(kpi: TransmissionKpi | null) {
   if (!kpi) return [];
-  const d = kpi.dataset;
-  const t = kpi.training;
+  const t = kpi.traces;
+  const m = kpi.meilleur;
   const items: { type: string; msg: string; color: string }[] = [];
-  items.push({ type: 'INFO', msg: `${formatInt(d.total)} échantillons analysés sur ${d.duration_days} jours`, color: '#818cf8' });
-  items.push({ type: 'ALERTE', msg: `${formatInt(d.attack)} attaques détectées — ${d.attack_pct}% du dataset`, color: '#F97316' });
-  items.push({ type: 'OK', msg: `${formatInt(d.normal)} échantillons normaux (baseline capteurs)`, color: '#22C55E' });
-  if (t?.metrics?.f1) {
-    items.push({ type: 'CRITIQUE', msg: `${t.best_model} — F1 ${(t.metrics.f1 * 100).toFixed(1)}% · Precision ${((t.metrics.precision ?? 0) * 100).toFixed(1)}%`, color: '#EF4444' });
-  }
-  (t?.attack_detection || []).slice(0, 3).forEach(a => {
-    const name = a.attack_type.replace(/IoT_/i, '').replace(/_normal/i, '').replace(/_/g, ' ');
-    items.push({ type: 'ALERTE', msg: `${name} détectée à ${a.detection_rate}% (${formatInt(a.n_detected)}/${formatInt(a.n_total)})`, color: '#F97316' });
+  items.push({ type: 'INFO', msg: `${formatInt(t.mesures)} mesures réelles du ${day(t.debut)} au ${day(t.fin)}`, color: '#818cf8' });
+  items.push({ type: 'CRITIQUE', msg: `${m.nom ?? m.id} — F1 ${pct(m.f1)} · précision ${pct(m.precision)}`, color: '#EF4444' });
+  items.push({ type: 'OK', msg: `${m.episodes_detectes}/${m.episodes} attaques détectées · délai médian ${m.delai_median_min.toLocaleString('fr-FR')} min`, color: '#22C55E' });
+  kpi.detection_par_scenario.slice(0, 3).forEach(a => {
+    items.push({ type: 'ALERTE', msg: `${SCENARIO_FR[a.scenario] ?? a.scenario} détectée à ${a.taux.toLocaleString('fr-FR')} %`, color: '#F97316' });
   });
   return items;
 }
@@ -131,7 +131,7 @@ const ARCH_STEPS = [
   { icon: Factory, title: 'Production — Usine', desc: 'Lignes de fabrication, salles blanches et conditionnement pilotés par thermostat', color: '#A855F7', step: '3' },
 ];
 
-const THREAT_FEED = (kpi: DatasetKpi | null) => buildThreatFeed(kpi);
+const THREAT_FEED = (kpi: TransmissionKpi | null) => buildThreatFeed(kpi);
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -283,7 +283,7 @@ function AnimatedCounter({ target, format }: { target: number; format?: (n: numb
 
 // ─── Live Threat Ticker ──────────────────────────────────────────────────────
 
-function ThreatTicker({ kpi }: { kpi: DatasetKpi | null }) {
+function ThreatTicker({ kpi }: { kpi: TransmissionKpi | null }) {
   const [index, setIndex] = useState(0);
   const items = THREAT_FEED(kpi);
   useEffect(() => {
@@ -294,7 +294,7 @@ function ThreatTicker({ kpi }: { kpi: DatasetKpi | null }) {
   if (items.length === 0) {
     return (
       <span className="text-xs font-mono truncate" style={{ color: 'var(--text-secondary)' }}>
-        Chargement des métriques du dataset…
+        Chargement des résultats…
       </span>
     );
   }
@@ -436,7 +436,7 @@ function Navbar() {
 
 // ─── Hero Section ────────────────────────────────────────────────────────────
 
-function HeroSection({ kpi }: { kpi: DatasetKpi | null }) {
+function HeroSection({ kpi }: { kpi: TransmissionKpi | null }) {
   const navigate = useNavigate();
   const [glitch, setGlitch] = useState(false);
   const [typedText, setTypedText] = useState('');
@@ -615,7 +615,7 @@ function HeroSection({ kpi }: { kpi: DatasetKpi | null }) {
 
 // ─── Stats Section ───────────────────────────────────────────────────────────
 
-function StatsSection({ kpi }: { kpi: DatasetKpi | null }) {
+function StatsSection({ kpi }: { kpi: TransmissionKpi | null }) {
   const stats = buildStats(kpi);
   return (
     <section className="relative py-20 px-6 overflow-hidden">
@@ -626,7 +626,7 @@ function StatsSection({ kpi }: { kpi: DatasetKpi | null }) {
         {/* Section header */}
         <motion.div className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
-          <span className="text-[10px] font-mono tracking-[0.25em] uppercase" style={{ color: 'var(--accent-primary)' }}>Métriques — Dataset Réel</span>
+          <span className="text-[10px] font-mono tracking-[0.25em] uppercase" style={{ color: 'var(--accent-primary)' }}>Métriques — Traces réelles TON_IoT</span>
         </motion.div>
 
         <motion.div
@@ -1061,7 +1061,7 @@ function Footer() {
 // ─── Main Export ─────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const kpi = useDatasetKpi();
+  const kpi = useTransmissionKpi();
   return (
     <div style={{ background: 'var(--bg-base)' }}>
       <Navbar />
