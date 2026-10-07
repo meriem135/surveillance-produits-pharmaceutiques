@@ -1,0 +1,18 @@
+# Contexte de construction Docker : uniquement ce que l'image utilise.
+.git
+.env
+docker-compose.override.yml
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+backend/.venv
+backend/.env
+backend/static
+frontend/node_modules
+frontend/dist
+data
+notebook/transmission
+Soutenance
+*.pdf
+*.log

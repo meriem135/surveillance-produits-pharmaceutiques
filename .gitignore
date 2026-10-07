@@ -62,6 +62,10 @@ docker_config_bypass/
 # ===== NOTEBOOKS DATA (large files) =====
 /notebooks/**/Data/
 
+# ===== DOCKER (secrets et réglages propres au serveur) =====
+/.env
+/docker-compose.override.yml
+
 # ===== BACKEND =====
 /backend/static/
 /backend/shap_cache.npz

@@ -1,0 +1,52 @@
+# VigiloChain avec Docker : PostgreSQL + l'application (API et dashboard sur un seul port).
+#
+#   cp backend/.env.example backend/.env   # JWT_SECRET_KEY, ADMIN_PASSWORD, CORS_ORIGINS…
+#   echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
+#   docker compose up -d --build
+#   → http://localhost:8000/dashboard   (VIGILO_PORT=8010 dans .env pour changer de port)
+#
+# Tests : docker compose exec app python -m pytest tests -q
+# Le port n'écoute que sur 127.0.0.1 : publier l'application derrière un proxy (Caddy, nginx)
+# qui laisse passer les WebSockets (/api/v1/phase2/train-ws, /api/v1/transmission/train-ws, /ws/stream).
+name: vigilochain
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vigilochain
+      POSTGRES_USER: vigilochain
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vigilochain}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vigilochain -d vigilochain"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    image: vigilochain:latest
+    restart: unless-stopped
+    env_file:
+      - path: backend/.env
+        required: false
+    environment:
+      # La base du conteneur db (sans elle, l'application se replierait sur SQLite)
+      DATABASE_URL: postgresql+asyncpg://vigilochain:${POSTGRES_PASSWORD:-vigilochain}@db:5432/vigilochain
+      API_BASE_URL: http://127.0.0.1:8000/api/v1
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${VIGILO_PORT:-8000}:8000"
+    volumes:
+      - data:/app/data
+      - models:/app/models
+
+volumes:
+  pgdata:
+  data:
+  models:

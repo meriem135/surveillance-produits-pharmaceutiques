@@ -60,6 +60,23 @@ broker Mosquitto (`ENABLE_MQTT`, `ENABLE_EDGE_SIMULATOR`), automate Modbus
 (`ENABLE_MODBUS`), Ollama pour l'analyste IA (sinon rapports par templates),
 OpenSearch/Wazuh.
 
+## Avec Docker
+
+Une image contient le dashboard compilé et l'API (un seul port) ; PostgreSQL tourne dans son
+propre conteneur. Au premier démarrage, le jeu de données est reconstruit depuis `notebook/Raw`.
+
+```bash
+cp backend/.env.example backend/.env       # JWT_SECRET_KEY, ADMIN_PASSWORD, CORS_ORIGINS, ENABLE_MQTT=false…
+echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env   # VIGILO_PORT=8010 pour changer de port
+docker compose up -d --build                # http://localhost:8000/dashboard
+docker compose exec app python -m pytest tests -q
+docker compose logs -f app
+```
+
+Le port n'écoute que sur `127.0.0.1` : en production, un proxy (Caddy, nginx) le publie et doit
+laisser passer les WebSockets. Les volumes `data`, `models` et `pgdata` gardent le jeu de données,
+les modèles réentraînés et la base entre deux reconstructions.
+
 ## Les 4 modèles (jeu de test, seuil choisi sur la validation)
 
 | Modèle | Principe | ROC-AUC | F1 | Faux positifs |
