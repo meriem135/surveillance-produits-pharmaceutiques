@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # API base URL (for internal self-calls)
     API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
 
+    # Origines autorisées par CORS, séparées par des virgules (lue depuis .env ou l'environnement)
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

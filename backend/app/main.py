@@ -127,12 +127,7 @@ async def simulation_status():
 
 # CORS : origines explicites (jamais "*" avec allow_credentials=True).
 # Configurable via CORS_ORIGINS="http://localhost:5173,https://mon-domaine.fr"
-_cors_origins = [
-    o.strip() for o in os.getenv(
-        "CORS_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",") if o.strip()
-]
+_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
