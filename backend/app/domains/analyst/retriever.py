@@ -91,18 +91,17 @@ QUERY_EXPANSION = {
     "faille": "cve vulnerability firmware",
     "firmware": "cve firmware update",
 
-    "dpi": "dpi regle rule seuil",
-    "regle": "dpi regle rule",
-    "règle": "dpi regle rule",
-    "seuil": "dpi threshold plage range",
-    "hors plage": "dpi-004 threshold plage range",
-    "plage": "dpi-004 threshold range",
-    "spike": "dpi-005 saisonnier pic",
-    "pic": "dpi-005 spike saisonnier",
+    "regle": "regle rule",
+    "règle": "regle rule",
+    "seuil": "threshold plage range",
+    "hors plage": "threshold plage range",
+    "plage": "threshold range",
+    "spike": "saisonnier pic",
+    "pic": "spike saisonnier",
     "saison": "saison saisonnier saisonniere saisonnalite",
     "saisonnier": "saison saisonnier saisonnalite",
-    "canicule": "ete dpi-005 spike chaleur",
-    "surchauffe": "ete dpi-005 chaleur incendie",
+    "canicule": "ete spike chaleur",
+    "surchauffe": "ete chaleur incendie",
 
     "anomalie": "anomalie anomaly anormal",
     "anormal": "anomalie anomaly suspect",
@@ -285,7 +284,7 @@ class RAGRetriever:
             query           : texte de la requête (alerte, question, description)
             top_k           : nombre maximum de documents à retourner
             min_score       : seuil minimum de similarité (0 à 1)
-            category_filter : limiter à une catégorie (attack, dpi, sensor...)
+            category_filter : limiter à une catégorie (attack, sensor...)
             hybrid_alpha    : poids du TF-IDF dans la fusion (1−α = poids BM25)
             mmr_lambda      : poids de la pertinence dans le MMR (1−λ = pénalité redondance)
 
@@ -381,7 +380,7 @@ class RAGRetriever:
         Construit une requête de recherche enrichie à partir d'une alerte IoT.
 
         On combine :
-          - le type de règle DPI déclenchée
+          - la règle ou la détection déclenchée
           - le type de device
           - le score de risque et sa sévérité
           - les facteurs de risque dominants
@@ -391,7 +390,7 @@ class RAGRetriever:
         """
         parts = []
 
-        # Règle DPI
+        # Règle / détection
         rule_id = alert_context.get("rule_id", "")
         rule_name = alert_context.get("rule_name", "")
         if rule_id:

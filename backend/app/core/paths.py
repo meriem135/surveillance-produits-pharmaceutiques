@@ -10,7 +10,6 @@ emplacement. Chaque dossier peut être surchargé par variable d'environnement.
       notebook/Raw/Attaques/Attaque/<t>/   traces TON_IoT d'attaque (brutes)
       data/processed/                      dataset_fusionne.csv, *_concat.csv, SQLite
       data/generated/                      flux de démonstration saisonnier
-      data/logs/                           journal des alertes DPI
       models/                              modèles entraînés + résultats JSON
 """
 
@@ -33,7 +32,6 @@ RAW_ATTACK_DIR = RAW_DIR / "Attaques" / "Attaque"
 DATA_DIR = _dir("DATA_DIR", PROJECT_ROOT / "data")
 PROCESSED_DIR = DATA_DIR / "processed"
 GENERATED_DIR = DATA_DIR / "generated"
-LOGS_DIR = DATA_DIR / "logs"
 
 MODELS_DIR = _dir("MODELS_DIR", PROJECT_ROOT / "models")
 
@@ -49,9 +47,6 @@ CONCAT_CSV = {
 SEASONAL_STREAM_CSV = GENERATED_DIR / "extraits_saisonniers_fusionne.csv"
 SQLITE_DB = PROCESSED_DIR / "iot_security.db"
 
-# ── Journal DPI (lu par /api/v1/alerts, lisible par un agent Wazuh) ────────
-DPI_LOG_PATH = Path(os.getenv("WAZUH_DPI_LOG_PATH", str(LOGS_DIR / "mqtt_dpi_alerts.log")))
-
 # ── Modèles et résultats ──────────────────────────────────────────────────
 OCSVM_MODEL = MODELS_DIR / "ocsvm_multivarie.pkl"
 OCSVM_SCALER = MODELS_DIR / "scaler_ocsvm.pkl"
@@ -61,7 +56,6 @@ SHAP_LIVE = MODELS_DIR / "shap_analysis_live.json"
 RESULTS_COMPARISON = MODELS_DIR / "resultats_comparaison_final.json"
 RESULTS_COMPLETS = MODELS_DIR / "resultats_complets.json"
 LIVE_RESULTS = MODELS_DIR / "live_trained_results.json"
-ALERT_TRIAGE = DATA_DIR / "alert_triage.json"
 
 
 def model_file(name: str) -> str:
@@ -70,5 +64,5 @@ def model_file(name: str) -> str:
 
 
 def ensure_dirs() -> None:
-    for d in (PROCESSED_DIR, GENERATED_DIR, LOGS_DIR, MODELS_DIR):
+    for d in (PROCESSED_DIR, GENERATED_DIR, MODELS_DIR):
         d.mkdir(parents=True, exist_ok=True)

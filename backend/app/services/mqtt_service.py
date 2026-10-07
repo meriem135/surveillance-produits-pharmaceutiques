@@ -12,14 +12,13 @@ from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.domains.devices.repository import DeviceRepository, TelemetryRepository
 from app.domains.devices.models import Telemetry
-from app.domains.intelligence.mqtt_dpi_service import dpi_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Champ de la payload multi-capteurs (celle qu'inspecte le DPI) par capteur edge
+# Champ de la payload multi-capteurs par capteur edge
 _EDGE_FIELDS = {
     "weather": "weather_temperature",
     "fridge": "fridge_temperature",
@@ -29,8 +28,8 @@ _EDGE_FIELDS = {
 
 class StepAggregator:
     """Regroupe les 3 mesures publiées séparément (un topic par capteur) pour
-    un même pas de temps, puis construit la payload multi-capteurs attendue
-    par les règles DPI (températures + dérivées + écart-type glissant météo).
+    un même pas de temps, puis construit la payload multi-capteurs
+    (températures + dérivées + écart-type glissant météo).
 
     Les pas incomplets sont abandonnés après `max_pending` pas plus récents
     (message perdu), pour ne pas fuir de mémoire.
@@ -95,8 +94,6 @@ class MqttService:
         self.keepalive = 60
         self.reconnect_delay = 5
         self.aggregator = StepAggregator()
-        # Historique propre au flux MQTT pour les règles de variation du DPI
-        self._dpi_state: dict = {}
         self.connected = False
 
     @staticmethod
@@ -159,19 +156,12 @@ class MqttService:
             data = json.loads(payload.decode())
             logger.debug(f"📄 Payload: {data}")
 
-            # --- Phase 1 : DPI inspection (synchrone, non-bloquant) ---
-            # Capteur edge (une mesure par topic) : on attend les 3 capteurs du
-            # même pas avant d'inspecter ; payload déjà complète : inspection directe.
+            # Capteur edge (une mesure par topic) : les 3 capteurs du même pas
+            # sont regroupés en une payload multi-capteurs.
             if "device" in data and "value" in data:
-                payload = self.aggregator.add(data)
-            else:
-                payload = data
-            alert = dpi_service.process(payload, self._dpi_state) if payload else None
-            if alert:
-                logger.warning(
-                    f"🚨 DPI Alert [{alert['rule']['id']}] level={alert['rule']['level']} "
-                    f"— {alert['rule']['description']}"
-                )
+                step = self.aggregator.add(data)
+                if step:
+                    logger.debug("📦 Pas complet (3 capteurs) : %s", step)
 
             # Schedule async processing to avoid blocking the MQTT callback
             asyncio.create_task(self._process_telemetry_message(topic, data))

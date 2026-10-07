@@ -10,10 +10,9 @@ Risk Factors (f_i) — weights aligned with Phase 2 model & SHAP:
   1. ML_Anomaly_Risk  (30%) — normalized One-Class SVM anomaly score
                                + local causes explaining WHY the anomaly
   2. CVE_Risk         (25%) — CVSS + EPSS from NVD matched to firmware
-  3. DPI_Alert_Risk   (15%) — frequency & severity of DPI rule violations
-  4. Criticality      (10%) — device type / location importance
-  5. Risk_Velocity    (10%) — first derivative of risk over time (trend)
-  6. Temporal_Decay   (10%) — recency weighting (recent events matter more)
+  3. Criticality      (10%) — device type / location importance
+  4. Risk_Velocity    (10%) — first derivative of risk over time (trend)
+  5. Temporal_Decay   (10%) — recency weighting (recent events matter more)
 
 The ML factor is the direct bridge to Phase 2: it consumes the SAME
 One-Class SVM model and SAME local explanations served by the
@@ -60,13 +59,10 @@ LOCATION_CRITICALITY = {
     "unassigned": 50,
 }
 
-# Default weights for risk factors (sum = 1.0)
-# Reference model: 5 factors (DPI excluded — weight 0)
-# DPI est volontairement exclu du calcul du score de risque.
+# Default weights for risk factors (sum = 1.0) — reference model: 5 factors
 DEFAULT_WEIGHTS = {
     "ml_anomaly": 0.35,   # Anomalie IA (One-Class SVM + explications locales)
     "cve":        0.29,   # Vulnerabilites CVE (NVD + EPSS)
-    "dpi_alert":  0.00,   # Alertes DPI temps reel — exclu du score
     "criticality": 0.12,  # Criticite de l'equipement
     "velocity":   0.12,   # Vitesse d'evolution du risque
     "temporal":   0.12,   # Score historique lisse (EWMA)
@@ -117,15 +113,6 @@ def _normalize_ml_score(anomaly_score: float) -> float:
     center = (_ML_NORM_CENTER + _ML_THRESHOLD) / 2.0
     scale = round(max((_ML_THRESHOLD - _ML_NORM_CENTER) / 6.0, 1.0), 4)
     return round(100.0 / (1.0 + math.exp(-(anomaly_score - center) / scale)), 1)
-
-
-def _dpi_alert_to_risk(dpi_alerts_count: int, max_severity: int, timeframe_hours: int = 1) -> float:
-    """Convert DPI alert activity to a risk score 0-100."""
-    if dpi_alerts_count == 0:
-        return 0
-    frequency_risk = _sigmoid(dpi_alerts_count, center=10, slope=0.3) * 50
-    severity_risk = (max_severity / 15.0) * 50
-    return min(100, frequency_risk + severity_risk)
 
 
 def _compute_criticality(device_type: str, location: str) -> float:
@@ -256,8 +243,8 @@ class RiskScore:
 class RiskScoringEngine:
     """Main predictive risk scoring engine.
 
-    Combines ML anomaly detection, CVE intelligence, DPI alerts,
-    and device context into a unified risk score with full explainability.
+    Combines ML anomaly detection, CVE intelligence and device context
+    into a unified risk score with full explainability.
     """
 
     def __init__(self, weights: Optional[dict[str, float]] = None):
@@ -272,9 +259,7 @@ class RiskScoringEngine:
     async def compute_risk(self, device_id: str, device_type: str,
                             firmware_version: Optional[str] = None,
                             location: str = "Unassigned",
-                            ml_telemetry: Optional[dict] = None,
-                            dpi_alerts_count: int = 0,
-                            dpi_max_severity: int = 0) -> RiskScore:
+                            ml_telemetry: Optional[dict] = None) -> RiskScore:
         """Compute full risk score with all factors."""
         history = self._get_history(device_id)
 
@@ -304,17 +289,14 @@ class RiskScoringEngine:
         except Exception as e:
             print(f"CVE fetch failed for {device_type}: {e}")
 
-        # 3. DPI Alert Risk
-        dpi_risk = _dpi_alert_to_risk(dpi_alerts_count, dpi_max_severity)
-
-        # 4. Criticality
+        # 3. Criticality
         criticality = _compute_criticality(device_type, location)
 
-        # 5. Risk Velocity (from history)
+        # 4. Risk Velocity (from history)
         velocity = history.compute_velocity()
         velocity_risk = _sigmoid(velocity, center=0, slope=0.05) * 100
 
-        # 6. Temporal decay (recent history weighted more)
+        # 5. Temporal decay (recent history weighted more)
         prev_risk = history.get_smoothed()
         temporal_risk = prev_risk if prev_risk is not None else 50
 
@@ -322,7 +304,6 @@ class RiskScoringEngine:
         factors = {
             "ml_anomaly":    round(ml_risk, 1),
             "cve":           round(cve_risk, 1),
-            "dpi_alert":     round(dpi_risk, 1),
             "criticality":   round(criticality, 1),
             "velocity":      round(velocity_risk, 1),
             "temporal":      round(temporal_risk, 1),
@@ -337,7 +318,6 @@ class RiskScoringEngine:
         for _ in range(n_simulations):
             noisy_weights = {k: max(0, v + rng.normal(0, 0.05))
                             for k, v in self.weights.items()}
-            noisy_weights["dpi_alert"] = 0  # DPI exclu du score
             total_w = sum(noisy_weights.values())
             noisy_weights = {k: v / total_w for k, v in noisy_weights.items()}
             sim = sum(factors[k] * noisy_weights.get(k, 0) for k in factors)
@@ -375,8 +355,6 @@ class RiskScoringEngine:
             status_parts.append("comportement anormal detecte par IA")
         if cve_risk > 70:
             status_parts.append(f"{cve_count} vulnerabilites critiques")
-        if dpi_risk > 50:
-            status_parts.append("alertes DPI frequentes")
         if velocity > 10:
             status_parts.append("risque en augmentation rapide")
         status = ", ".join(status_parts) if status_parts else "aucun risque majeur detecte"
@@ -401,7 +379,6 @@ class RiskScoringEngine:
         labels = {
             "ml_anomaly":    "Score d'anomalie IA (One-Class SVM + explications locales)",
             "cve":           "Vulnerabilites CVE (NVD + EPSS)",
-            "dpi_alert":     "Alertes DPI en temps reel",
             "criticality":   "Criticite de l'equipement",
             "velocity":      "Vitesse d'evolution du risque",
             "temporal":      "Historique du risque (EWMA)",

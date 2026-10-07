@@ -14,7 +14,7 @@ traces réseau TON_IoT (DDoS, scanning, ransomware…) sont hors périmètre.
 2. Découpage par semaines entrelacées (3 semaines train, 1 val, 1 test, en boucle) :
    chaque saison et chaque scénario figurent dans la validation ET dans le test.
 3. Comparaison, avec le même protocole (seuil = max F1 sur la validation) :
-   règles DPI de la phase 1, les 4 modèles de la phase 2, et un détecteur
+   les 4 modèles de la phase 2 et un détecteur
    résiduel à deux canaux (A : variance effondrée = gel ; B : désaccord salle↔frigo,
    ajusté par régression orthogonale et lissé par EWMA = injection / rejeu / masquage).
    Le capteur falsifié est désigné par le canal A (capteur figé) ou, pour un
@@ -227,26 +227,6 @@ def build_dataset(year: pd.DataFrame, rng: np.random.Generator,
 # ════════════════════════════════════════════════════════════════════════════
 # 2. Détecteurs
 # ════════════════════════════════════════════════════════════════════════════
-
-def dpi_predictions(df: pd.DataFrame) -> np.ndarray:
-    """Règles DPI de la phase 1, rejouées ligne par ligne (verdict binaire)."""
-    from app.domains.intelligence.mqtt_dpi_service import MqttDPIService
-
-    svc = MqttDPIService()
-    state: dict = {}
-    rows = df[["weather_temp", "fridge_temp", "thermostat_temp", "fridge_diff_1",
-               "thermostat_diff_1", "weather_roll_std_10"]].to_numpy(float)
-    out = np.zeros(len(df), dtype=bool)
-    for i, row in enumerate(rows):
-        payload = {
-            "device_type": "multi-sensor",
-            "weather_temperature": row[0], "fridge_temperature": row[1],
-            "thermostat_temperature": row[2], "fridge_diff_1": row[3],
-            "thermostat_diff_1": row[4], "weather_roll_std_10": row[5],
-        }
-        out[i] = svc.inspect_payload(payload, state) is not None
-    return out
-
 
 def ocsvm_scores(X_s: np.ndarray, y: np.ndarray, train_idx: np.ndarray,
                  val_idx: np.ndarray) -> tuple[np.ndarray, dict]:
@@ -591,12 +571,6 @@ def _run_study(real: dict[str, pd.DataFrame], couplage: float, out_dir: Path, da
             res["hyperparameters"] = params
         return res, pred
 
-    def dpi():
-        pred = dpi_predictions(df)
-        res = summarize(pred, df, test_idx, episodes, "test")
-        res["val_f1"] = summarize(pred, df, val_idx, episodes, "val")["f1"]
-        return res
-
     def ocsvm():
         s, p = ocsvm_scores(X_s, y, train_idx, val_idx)
         return from_scores(s, p)[0]
@@ -613,7 +587,6 @@ def _run_study(real: dict[str, pd.DataFrame], couplage: float, out_dir: Path, da
         s, p = tm.train_forecasting_lstm(df, X_s, train_idx, val_norm_idx, y == 1)
         return from_scores(s, p)[0]
 
-    run("DPI", "Règles DPI (phase 1)", dpi)
     run("OCSVM", "OCSVM_Multivarie", ocsvm)
     run("PCA", "Autoencodeur_PCA", pca)
     run("GNN", "GNN_Correlation", gnn)

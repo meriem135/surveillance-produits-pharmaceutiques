@@ -2,10 +2,10 @@
 
 Plateforme de **détection d'intrusions IoT** pour la chaîne du froid pharmaceutique
 (Industrie 4.0). Trois capteurs — frigo (le produit, 2–8 °C), thermostat (la salle)
-et météo (l'extérieur) — sont surveillés par deux couches :
+et météo (l'extérieur) — sont suivis en deux temps :
 
-- **Phase 1 — DPI temps réel** : 4 règles d'inspection sur chaque paquet MQTT, score de
-  risque 0–100 et consigne opérateur.
+- **Phase 1 — Ingestion temps réel** : les mesures des trois capteurs (MQTT ou rejeu du flux
+  saisonnier) sont diffusées en direct au dashboard par WebSocket.
 - **Phase 2 — Machine Learning** : 4 détecteurs non supervisés entraînés sur le seul
   comportement normal, expliqués par SHAP, traduits en impact pharma (GMP / Annexe 11).
 
@@ -17,10 +17,10 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 ├── backend/                 API FastAPI + ML + services
 │   ├── app/
 │   │   ├── main.py          point d'entrée (lifespan : BDD, seed, MQTT, Modbus)
-│   │   ├── api/v1/          routes REST (auth, dpi, phase2, shap, pharma, analyst…)
+│   │   ├── api/v1/          routes REST (auth, phase2, transmission, shap, pharma, analyst…)
 │   │   ├── core/            configuration (.env) et chemins canoniques (paths.py)
 │   │   ├── db/              session (PostgreSQL → repli SQLite), seed
-│   │   ├── domains/         auth, devices, intelligence (DPI, OCSVM, risque), analyst (RAG + LLM)
+│   │   ├── domains/         auth, devices, intelligence (OCSVM, risque), transmission, analyst (RAG + LLM)
 │   │   └── services/        MQTT (agrégation 3 capteurs), Modbus, streaming WebSocket
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
@@ -32,7 +32,7 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 ├── frontend/                dashboard React 19 + Vite + TypeScript + Tailwind
 ├── notebook/Raw/            traces brutes TON_IoT (Normal + 9 types d'attaque)
 ├── notebook/transmission/   4 notebooks : prétraitement, injection des attaques, 4 modèles, SHAP
-├── data/                    généré (dataset_fusionne.csv, flux de démo, SQLite, journal DPI)
+├── data/                    généré (dataset_fusionne.csv, flux de démo, SQLite)
 ├── models/                  modèles entraînés + résultats JSON (versionnés)
 └── Soutenance/              notes de soutenance
 ```

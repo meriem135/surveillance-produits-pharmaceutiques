@@ -3,9 +3,7 @@ Service de streaming temps reel — Phase 1 v5
 ============================================
 - Lit le CSV d'extraits saisonniers (genere depuis dataset_fusionne.csv) SEQUENTIELLEMENT
   (saison par saison : Hiver -> Printemps -> Ete -> Automne, ordre chronologique)
-- Applique UNIQUEMENT les regles DPI pour decider si chaque point est normal ou anomalie
-  (aucune utilisation du label d'attaque du dataset, aucun score de modele ML)
-- Diffuse les resultats (telemetrie + alertes DPI) via WebSocket
+- Diffuse la telemetrie des 3 capteurs (meteo, frigo, thermostat) via WebSocket
 
 Le flux est genere en amont par :
     backend/scripts/build_dataset.py
@@ -23,7 +21,6 @@ from pathlib import Path
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app.core.paths import SEASONAL_STREAM_CSV
-from app.domains.intelligence.mqtt_dpi_service import dpi_service, compute_risk_score, _risk_level
 
 from app.db.session import AsyncSessionLocal
 from app.domains.devices.models import Telemetry
@@ -81,8 +78,6 @@ async def build_payload(row: dict) -> dict:
     temp_w = float(row.get("weather_temp", row.get("temperature", 25)))
     temp_f = float(row.get("fridge_temp", row.get("fridge_temperature", 5)))
     temp_t = float(row.get("thermostat_temp", row.get("current_temperature", 25)))
-    # Le label d'attaque du dataset n'est AUCUNE influence sur la decision :
-    # la decision anomalie/normale est confiee uniquement aux regles DPI.
     season_num = _row_season(row)
     season_name = SEASON_NAMES.get(season_num, "Inconnu")
     month = None
@@ -100,15 +95,6 @@ async def build_payload(row: dict) -> dict:
             except Exception:
                 month = None
 
-    def _num(key, default=None):
-        try:
-            v = row.get(key)
-            if v is None or str(v).strip() in ("", "nan"):
-                return default
-            return float(v)
-        except (ValueError, TypeError):
-            return default
-
     payload = {
         "timestamp": datetime.now().isoformat(),
         "dataset_datetime": str(row.get("datetime", "")),
@@ -116,17 +102,9 @@ async def build_payload(row: dict) -> dict:
         "weather_temperature": temp_w,
         "fridge_temperature": temp_f,
         "thermostat_temperature": temp_t,
-        # Champs de derivee utilises par les regles DPI (variation, instabilite)
-        # — lus depuis le dataset mais sans jamais utiliser le label d'attaque.
-        "fridge_diff_1": _num("fridge_diff_1"),
-        "thermostat_diff_1": _num("thermostat_diff_1"),
-        "weather_roll_std_10": _num("weather_roll_std_10"),
         "season": season_name,
         "month": month,
-        "is_anomaly": False,
     }
-    # NB: le verdict anomalie/normale est determine dans la boucle de streaming
-    # par dpi_service.inspect_payload(payload) (regles DPI uniquement).
     return payload
 
 
@@ -160,7 +138,6 @@ class ConnectionManager:
         self.active_connections: list[WebSocket] = []
         self._attack_active = False
         self._simulation_active = False
-        self.simulation_started_at: str | None = None
         self._tasks: dict[WebSocket, asyncio.Task] = {}
 
     def set_attack(self, active: bool):
@@ -171,20 +148,9 @@ class ConnectionManager:
 
     def set_simulation(self, active: bool):
         self._simulation_active = active
-        if active:
-            self.simulation_started_at = datetime.now(timezone.utc).isoformat()
-        else:
-            self.simulation_started_at = None
 
     def get_simulation(self) -> bool:
         return self._simulation_active
-
-    def get_simulation_session(self) -> dict:
-        """Heure de début de la session de simulation en cours."""
-        return {
-            "active": self._simulation_active,
-            "started_at": self.simulation_started_at,
-        }
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -212,18 +178,11 @@ class ConnectionManager:
                 pass
             return
         csv_generator = read_csv_sequential(CSV_PATH)
-        # État DPI propre à cette connexion (payload précédente pour les règles
-        # de variation) : deux onglets ouverts ne se perturbent plus.
-        dpi_state: dict[str, dict] = {}
-        # Persistance : compteur de répétitions consécutives par règle (pour la composante persistance du risque)
-        consecutive: dict[str, int] = {}
-        current_segment = None
         try:
             while True:
                 if not self._simulation_active:
                     # Simulation éteinte : on attend, puis on relit depuis le début
                     csv_generator = read_csv_sequential(CSV_PATH)
-                    dpi_state.clear()
                     try:
                         await websocket.send_json({"type": "paused", "message": "Simulation en pause"})
                     except Exception:
@@ -238,64 +197,12 @@ class ConnectionManager:
                     # Fin du cycle : reprise depuis l'Hiver (le début du fichier)
                     await websocket.send_json({"type": "reset", "message": "Nouveau cycle — retour à l'Hiver"})
                     csv_generator = read_csv_sequential(CSV_PATH)
-                    dpi_state.clear()
-                    consecutive.clear()
                     await asyncio.sleep(0.5)
                     continue
 
-                # Le flux enchaîne plusieurs fenêtres (saisons) : à chaque nouvelle
-                # fenêtre, pas de « saut » artificiel avec la mesure précédente.
-                segment = row.get("segment")
-                if segment != current_segment:
-                    current_segment = segment
-                    dpi_state.clear()
-                    consecutive.clear()
-
                 payload = await build_payload(row)
-
-                # Verdict DPI : règles/gestion de seuils seules, aucun modèle ML, aucun label du dataset
-                dpi_alert = dpi_service.inspect_payload(payload, dpi_state)
-
-                attack_active = bool(dpi_alert)
-                payload["is_anomaly"] = attack_active
-                payload["normality_score"] = 30 if attack_active else 100
-                payload["attack_active"] = attack_active
-
-                risk_score = 0
-                if attack_active:
-                    rule_id = dpi_alert.get("rule", {}).get("id", "")
-                    consecutive[rule_id] = consecutive.get(rule_id, 0) + 1
-                    recurrences = max(0, consecutive[rule_id] - 1)
-                    risk_score = compute_risk_score(dpi_alert, payload, recurrences)
-                else:
-                    consecutive.clear()
-                payload["risk_score"] = risk_score
-                payload["risk_label"] = _risk_level(risk_score)
-
-                if dpi_alert:
-                    dpi_service.send_to_wazuh(dpi_alert)
-
-                if attack_active:
-                    rule_id = dpi_alert.get("rule", {}).get("id", "")
-                    info = DPI_ATTACK_INFO.get(rule_id, {})
-                    payload["attack_info"] = {
-                        "type": info.get("type", rule_id),
-                        "explanation": info.get("explanation", dpi_alert.get("rule", {}).get("description", "")),
-                    }
-                    payload["match_detail"] = dpi_alert.get("data", {}).get("match_detail", {})
-                    payload["recommendation"] = dpi_alert.get("data", {}).get("recommendation", {})
-                elif "attack_info" in payload:
-                    del payload["attack_info"]
-                    payload.pop("match_detail", None)
-                    payload.pop("recommendation", None)
-
-                point = {
-                    **payload,
-                    "dpi_alert": dpi_alert,
-                    "dpi_stats": dpi_service.stats.snapshot(),
-                }
-                await websocket.send_json(point)
-                asyncio.create_task(_persist_behavioral_twin(point))
+                await websocket.send_json(payload)
+                asyncio.create_task(_persist_behavioral_twin(payload))
                 await asyncio.sleep(random.uniform(0.3, 0.8))
 
         except asyncio.CancelledError:
@@ -315,29 +222,5 @@ class ConnectionManager:
         for d in dead:
             self.disconnect(d)
 
-
-DPI_ATTACK_INFO = {
-    "DPI-001": {
-        "type": "Variation brutale de temperature",
-        "explanation": "La temperature d'un capteur a change brutalement entre deux mesures. "
-                       "Seuil adapte a chaque capteur : weather (14C), frigo (5C), thermostat (16C). "
-                       "Cela peut indiquer un capteur defaillant, un incendie naissant, ou un attaquant qui modifie les donnees."
-    },
-    "DPI-002": {
-        "type": "Derive du frigo (chaine du froid)",
-        "explanation": "La temperature du frigo depasse 9.5°C alors qu'il doit rester stable autour de 7°C (σ≈0.5). "
-                       "Une sonde defaillante, une coupure du froid, ou une falsification massive de la mesure."
-    },
-    "DPI-003": {
-        "type": "Saut brutal du thermostat",
-        "explanation": "Le thermostat a effectue un saut superieur a 2.5°C en un pas (σ reel ≈0.6°C). "
-                       "Rampe d'attaque violente, cycle force du chauffage, ou injection de donnees."
-    },
-    "DPI-004": {
-        "type": "Instabilite meteo extreme",
-        "explanation": "L'ecart-type glissant (10 mesures) de la meteo depasse 2.2 alors qu'il vaut ~0.47 en normal. "
-                       "Dérive extremement brutale de la mesure exterieure, injection de valeurs aberrantes."
-    },
-}
 
 manager = ConnectionManager()

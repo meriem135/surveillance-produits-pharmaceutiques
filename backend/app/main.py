@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.paths import SEASONAL_STREAM_CSV, ensure_dirs
 from app.db.seed import seed_defaults
 from app.db.session import init_db, close_db, get_session
-from app.api.v1 import devices, alerts, dpi, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, advanced_analytics, transmission
+from app.api.v1 import devices, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, advanced_analytics, transmission
 from app.services.mqtt_service import mqtt_service
 from app.services.modbus_service import modbus_service
 from app.services.realtime_service import manager
@@ -138,8 +138,6 @@ app.add_middleware(
 
 app.include_router(analyst.router, prefix=f"{settings.API_V1_STR}/analyst", tags=["analyst-llm-rag"])
 app.include_router(devices.router, prefix=settings.API_V1_STR, tags=["devices"])
-app.include_router(alerts.router, prefix=settings.API_V1_STR, tags=["alerts"])
-app.include_router(dpi.router)
 app.include_router(risks.router, prefix=settings.API_V1_STR, tags=["risks"])
 app.include_router(phase2.router, prefix=settings.API_V1_STR, tags=["phase2"])
 app.include_router(phase2_timeline.router, prefix=settings.API_V1_STR, tags=["phase2"])

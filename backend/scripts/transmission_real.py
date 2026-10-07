@@ -14,7 +14,7 @@ Consigne : travailler uniquement sur les données disponibles (3 traces normales
    9 fois en faisant tourner les rôles des blocs et les scénarios, et les résultats
    sont cumulés (chaque heure sert de test, chaque scénario a ~5 épisodes de test).
 3. Même protocole que transmission_study.py (seuil = max F1 sur la validation de
-   chaque répétition) : règles DPI de la phase 1, les 4 modèles de la phase 2
+   chaque répétition) : les 4 modèles de la phase 2
    réentraînés, et un détecteur STATISTIQUE par capteur — A : capteur figé,
    L : niveau (EWMA), V : dispersion (EWMA du carré des écarts), R : séquence déjà
    vue (rejeu exact).
@@ -357,7 +357,7 @@ def print_tables(results: dict) -> None:
 # 4. Programme
 # ════════════════════════════════════════════════════════════════════════════
 
-DETECTORS = [("DPI", "Règles DPI (phase 1)"), ("OCSVM", "OCSVM_Multivarie"), ("PCA", "Autoencodeur_PCA"),
+DETECTORS = [("OCSVM", "OCSVM_Multivarie"), ("PCA", "Autoencodeur_PCA"),
              ("GNN", "GNN_Correlation"), ("LSTM", "Forecasting_LSTM"),
              ("Canal A", "Canal A seul (figé)"), ("Canal L", "Canal L seul (niveau)"),
              ("Canal V", "Canal V seul (dispersion)"), ("Canal R", "Canal R seul (rejeu exact)"),
@@ -389,7 +389,6 @@ def one_run(base: pd.DataFrame, run: int, quiet: bool) -> tuple[dict, list[dict]
             traceback.print_exc()
             log(f"  !! {key} : échec, ignoré (répétition {run})")
 
-    attempt("DPI", lambda: preds.__setitem__("DPI", ts.dpi_predictions(df)))
     attempt("OCSVM", lambda: scores.__setitem__("OCSVM", ts.ocsvm_scores(X_s, y, train_idx, val_idx)[0]))
     attempt("PCA", lambda: scores.__setitem__("PCA", tm.train_autoencoder_pca(X_s, train_idx)[0]))
     attempt("GNN", lambda: scores.__setitem__("GNN", tm.train_gnn_correlation(df, train_idx)[0]))

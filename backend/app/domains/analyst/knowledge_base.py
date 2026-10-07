@@ -3,7 +3,6 @@ Knowledge Base — Corpus de référence pour le RAG
 =================================================
 Contient tous les documents de connaissance du domaine IoT/ICS :
   - Fiches des 9 types d'attaques IoT détectées par les modèles
-  - Règles DPI et leur signification opérationnelle
   - Seuils des capteurs et comportements normaux
   - Procédures de remédiation par type d'attaque
   - Standards IEC 62443 / ETSI EN 303645 (extraits clés)
@@ -11,7 +10,7 @@ Contient tous les documents de connaissance du domaine IoT/ICS :
 Structure d'un document :
     {
         "id"       : identifiant unique
-        "category" : "attack" | "dpi" | "sensor" | "remediation" | "standard"
+        "category" : "attack" | "sensor" | "remediation" | "standard"
         "title"    : titre court
         "tags"     : liste de mots-clés pour le matching
         "content"  : texte complet (utilisé pour la vectorisation TF-IDF)
@@ -107,7 +106,6 @@ de gestion ou propager vers d'autres systèmes.
 INDICATEURS DÉTECTION :
   - Champs de données contenant des caractères spéciaux (<, >, script)
   - Valeurs numériques remplacées par des chaînes
-  - DPI-001 : label 'attack' ou label=1 présent
   - Capteur Weather : détection 100%
   - Capteur Fridge : détection 99.6%
 SCORE DE RISQUE ATTENDU : 60-80/100.
@@ -148,7 +146,7 @@ DESCRIPTION : L'attaquant injecte de fausses mesures dans le flux de données
 du capteur (ex: température de -50°C pour déclencher des alarmes, ou au
 contraire des valeurs normales pour masquer une anomalie réelle).
 INDICATEURS DÉTECTION :
-  - Valeurs hors plage physiquement possible : DPI-004 déclenché
+  - Valeurs hors plage physiquement possible pour le capteur
   - Transitions de valeurs physiquement impossibles (saut de 40°C en 1 seconde)
   - diff_1 (température différentielle) anormalement élevé
   - Capteur Weather : détection 99.4%
@@ -171,7 +169,6 @@ DESCRIPTION : L'attaquant tente de deviner le mot de passe du device IoT
 INDICATEURS DÉTECTION :
   - Multiples tentatives de connexion échouées en rafale
   - Trafic réseau vers port 22/23/80/8080 anormalement dense
-  - Alertes DPI de type 'behavioral' (DPI-002)
   - Capteur Weather : détection 100%
   - Capteur Fridge : détection 98.5%
 SCORE DE RISQUE ATTENDU : 55-75/100 (si le mot de passe est faible, 90+).
@@ -221,79 +218,6 @@ PARTICULARITÉ : C'est l'attaque la plus difficile à détecter avec Weather seu
 car le scan réseau n'affecte pas directement la température.
 SCORE DE RISQUE ATTENDU : 40-65/100 (précurseur d'attaque plus sévère).
 NORME : IEC 62443-4-2 SR 6.2 — Surveillance du trafic réseau.
-        """,
-    },
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # RÈGLES DPI — Documentation opérationnelle
-    # ══════════════════════════════════════════════════════════════════════════
-
-    {
-        "id": "DPI-DOC-001",
-        "category": "dpi",
-        "title": "Règle DPI-001 : Label attaque explicite",
-        "tags": ["dpi", "dpi-001", "label", "attack", "certain", "high", "severity"],
-        "content": """
-RÈGLE DPI-001 — Label attaque explicite
-SÉVÉRITÉ : 12/15 (critique)
-DÉCLENCHEMENT : Le champ 'label' du payload MQTT contient 'attack' ou label=1.
-SIGNIFICATION : Le capteur lui-même signale une attaque dans ses données.
-C'est le signal le plus fiable — probabilité d'attaque réelle > 99%.
-FAUX POSITIFS : Quasi nuls. Peut arriver si le firmware utilise 'attack'
-comme valeur de test lors du développement.
-ACTION IMMÉDIATE : Isoler le capteur du réseau. Investiguer la source.
-        """,
-    },
-
-    {
-        "id": "DPI-DOC-002",
-        "category": "dpi",
-        "title": "Règle DPI-002 : Bruit anormal (noise_factor > 0.04)",
-        "tags": ["dpi", "dpi-002", "noise", "bruit", "behavioral", "anomaly"],
-        "content": """
-RÈGLE DPI-002 — Bruit anormal
-SÉVÉRITÉ : 7/15 + boost corrélation +2
-DÉCLENCHEMENT : noise_factor > 0.04 dans le payload.
-SIGNIFICATION : Le signal du capteur contient plus de bruit que la normale.
-Peut indiquer une interférence électromagnétique, un capteur défaillant,
-ou une attaque de type injection de bruit pour perturber les mesures.
-FAUX POSITIFS : Interférences WiFi/Bluetooth proches. Vérifier l'environnement.
-CORRÉLATION : Si déclenché simultanément avec DPI-003, sévérité monte à 12.
-        """,
-    },
-
-    {
-        "id": "DPI-DOC-003",
-        "category": "dpi",
-        "title": "Règle DPI-003 : Perte de paquet (packet_loss_sim = 1)",
-        "tags": ["dpi", "dpi-003", "packet", "loss", "network", "drop"],
-        "content": """
-RÈGLE DPI-003 — Perte de paquet simulée
-SÉVÉRITÉ : 5/15 + boost corrélation +3
-DÉCLENCHEMENT : packet_loss_sim == 1 dans le payload.
-SIGNIFICATION : Le capteur rapporte une perte de paquets. Peut indiquer
-un réseau saturé (DoS/DDoS en cours) ou une attaque d'interférence réseau.
-CORRÉLATION : Le boost de +3 est le plus élevé — si combiné avec DPI-001,
-la sévérité peut atteindre 15/15 (maximum).
-        """,
-    },
-
-    {
-        "id": "DPI-DOC-004",
-        "category": "dpi",
-        "title": "Règle DPI-004 : Valeur capteur hors plage physique",
-        "tags": ["dpi", "dpi-004", "range", "threshold", "sensor", "physical", "plage"],
-        "content": """
-RÈGLE DPI-004 — Valeur capteur hors plage
-SÉVÉRITÉ : 9/15
-SEUILS PAR TYPE DE CAPTEUR :
-  - Fridge      : température [-30°C, +20°C]
-  - Thermostat  : température [+10°C, +45°C]
-  - Weather     : température [-20°C, +60°C], humidité [0%, 100%]
-  - GPS Tracker : latitude [-90, +90], longitude [-180, +180]
-SIGNIFICATION : Une valeur hors de ces plages est physiquement impossible
-pour ce type de capteur → injection de données falsifiées probable.
-EXEMPLE : Frigo à +25°C → soit panne grave, soit injection de données.
         """,
     },
 
@@ -410,7 +334,7 @@ PROCÉDURE ÉLEVÉE (Score 60-79) — Surveillance renforcée
 
 ÉTAPE 2 — VÉRIFICATION (< 1 heure) :
   - Vérifier les CVE et planifier le patch firmware
-  - Analyser les alertes DPI des dernières 24h
+  - Analyser les alertes des dernières 24h
   - Valider la cohérence des données capteur
 
 ÉTAPE 3 — PLANIFICATION :
@@ -530,7 +454,7 @@ def get_all_documents() -> list[dict]:
 
 
 def get_documents_by_category(category: str) -> list[dict]:
-    """Filtre par catégorie : attack, dpi, sensor, remediation, standard."""
+    """Filtre par catégorie : attack, sensor, remediation, standard."""
     return [d for d in KNOWLEDGE_DOCUMENTS if d["category"] == category]
 
 

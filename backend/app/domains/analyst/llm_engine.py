@@ -152,7 +152,7 @@ def _build_template_report(
     # ── Événement déclencheur ─────────────────────────────────────────────────
     lines += ["## 1. Événement Déclencheur", ""]
     if rule_id:
-        lines.append(f"**Règle DPI :** `{rule_id}` — {rule_name}")
+        lines.append(f"**Règle :** `{rule_id}` — {rule_name}")
     if rule_desc:
         lines.append(f"**Description :** {rule_desc}")
     if attack_type:
@@ -194,7 +194,6 @@ def _build_template_report(
         for doc in rag_documents[:3]:
             cat_label = {
                 "attack":      "⚔️  Attaque",
-                "dpi":         "🔍 Règle DPI",
                 "sensor":      "📡 Capteur",
                 "remediation": "🛠️  Remédiation",
                 "standard":    "📋 Standard",
@@ -226,60 +225,12 @@ def _build_template_report(
         lines.append("🟢 **OK — Aucune action urgente, surveillance normale.**")
     lines.append("")
 
-    # Recommandations spécifiques selon la règle DPI déclenchée
-    temp_info = ""
-    if weather_t is not None and fridge_t is not None and thermo_t is not None:
-        temp_info = f" (weather={weather_t}°C, frigo={fridge_t}°C, thermostat={thermo_t}°C)"
-
-    if rule_id == "DPI-001":
-        lines += [
-            "**🔍 Que s'est-il passé ?**",
-            f"Une **variation brutale de température** a été détectée sur le capteur **{sensor}**{temp_info}.",
-            "Cela peut être un capteur défaillant, un problème de câblage, ou une intrusion.",
-            "",
-            "**✅ À faire (par ordre) :**",
-            f"1. 👀 **Inspecter le capteur {sensor}** — Regarder si le câble est endommagé, si le boîtier est humide.",
-            f"2. 📊 **Vérifier l'historique** — Cette variation est-elle isolée ou répétée ? Si répétée → capteur à changer.",
-            f"3. 🔄 **Comparer** — Si un autre capteur proche donne la même valeur → le problème est réel.",
-            f"4. 📝 **Décision** — Capteur OK → fausse alerte. Problème confirmé → remplacer le capteur.",
-        ]
-    elif rule_id == "DPI-004":
-        season_advice = ""
-        if season == "Hiver":
-            season_advice = "En hiver, les températures basses sont normales, mais une valeur anormalement haute peut indiquer un défaut d'isolation ou un chauffage bloqué."
-        elif season == "Été":
-            season_advice = "En été, les températures hautes sont normales, mais une valeur anormalement basse peut indiquer un capteur en panne ou une climatisation en dysfonctionnement."
-
-        lines += [
-            "**📊 Que s'est-il passé ?**",
-            f"Une valeur **anormale pour la saison** a été détectée{temp_info}.",
-            season_advice,
-            "",
-            "**✅ À faire (par ordre) :**",
-            f"1. 👀 **Vérifier le capteur {sensor}** — Nettoyer, vérifier l'usure.",
-            f"2. 🌡️ **Contrôle croisé** — Les autres capteurs donnent-ils des valeurs cohérentes ?",
-            f"3. 📈 **Tendance** — La valeur dérive depuis longtemps (usure) ou a brutalement changé (panne) ?",
-            f"4. 📝 **Décision** — Usure → maintenance programmée. Rupture brutale → intervention rapide.",
-        ]
-    elif rule_id == "DPI-005":
-        lines += [
-            "**📈 Que s'est-il passé ?**",
-            f"Un **pic de température au-delà de la moyenne saisonnière + 3.5σ** a été détecté{temp_info}.",
-            "Le seuil s'adapte à la saison (~46°C l'été) : une canicule normale reste silencieuse, un vrai emballement alerte.",
-            "",
-            "**⚠️ RISQUE INCENDIE — Vérifier immédiatement :**",
-            f"1. 🔥 **Inspection visuelle** — Y a-t-il de la fumée, une odeur de brûlé ?",
-            f"2. 🔌 **Vérifier le capteur** — Court-circuit possible (câble endommagé, oxydation).",
-            f"3. 🌬️ **Environnement** — Source de chaleur proche ? Ventilation en panne ?",
-            f"4. 📝 **Décision** — Pas d'incendie → capteur défaillant à remplacer.",
-        ]
-    else:
-        lines += [
-            "**✅ À faire :**",
-            f"1. 👀 **Inspecter le capteur {sensor}** sur {device_name}.",
-            "2. 📊 **Consulter les alertes récentes** pour voir si un pattern se dégage.",
-            "3. 📝 **Documenter l'observation** dans le rapport de maintenance.",
-        ]
+    lines += [
+        "**✅ À faire :**",
+        f"1. 👀 **Inspecter le capteur {sensor}** sur {device_name}.",
+        "2. 📊 **Consulter les alertes récentes** pour voir si un pattern se dégage.",
+        "3. 📝 **Documenter l'observation** dans le rapport de maintenance.",
+    ]
 
     # ── Réponse à une question libre ─────────────────────────────────────────
     if question:
@@ -376,7 +327,7 @@ def _chat_response(
         all_text = " ".join(sorted_docs[0][1][1]).lower()
         if any(w in all_text for w in ["attaque", "ddos", "dos", "ransomware", "backdoor", "mitm"]):
             lines.append("Je vois qu'il s'agit d'une alerte de type attaque informatique. Voici ce que je sais :")
-        elif any(w in all_text for w in ["seuil", "hors plage", "dpi-004", "dpi-001", "règle"]):
+        elif any(w in all_text for w in ["seuil", "hors plage", "règle"]):
             lines.append("Cette alerte a été déclenchée par une règle de détection. Je vous explique la situation :")
         elif any(w in all_text for w in ["remédiation", "procédure", "action"]):
             lines.append("Voici la procédure à suivre dans ce cas :")
@@ -389,7 +340,7 @@ def _chat_response(
         for doc_title, (doc_score, doc_lines) in sorted_docs[:3]:
             for clean in doc_lines[:4]:
                 # Nettoyer les préfixes courants
-                for prefix in ["ATTAQUE :", "DESCRIPTION :", "SEUILS PAR TYPE DE CAPTEUR :", "RÈGLE DPI-004", "RÈGLE DPI-001", "RÈGLE DPI-002", "RÈGLE DPI-003"]:
+                for prefix in ["ATTAQUE :", "DESCRIPTION :", "SEUILS PAR TYPE DE CAPTEUR :"]:
                     if clean.upper().startswith(prefix.upper()):
                         clean = clean[len(prefix):].strip().lstrip("―-– ").strip()
                         break
@@ -399,7 +350,7 @@ def _chat_response(
                     lines.append(f"• {clean}")
 
         lines.append("")
-        lines.append("💡 *Pour aller plus loin, dites-moi quel capteur ou quelle règle DPI vous intéresse.*")
+        lines.append("💡 *Pour aller plus loin, dites-moi quel capteur ou quelle attaque vous intéresse.*")
     else:
         lines = []
         if device_type:
@@ -426,7 +377,7 @@ def _chat_response(
                 lines.append("• Consultez la base de connaissances Peaksoft pour les procédures standard.")
                 lines.append("• Contactez l'équipe de maintenance si le problème persiste.")
             lines.append("")
-            lines.append("💡 *Pour une réponse plus précise, précisez le capteur, la règle DPI ou le comportement observé.*")
+            lines.append("💡 *Pour une réponse plus précise, précisez le capteur ou le comportement observé.*")
         else:
             lines.append(
                 "Je n'ai pas trouvé d'information correspondant à votre question dans ma base de connaissances. "

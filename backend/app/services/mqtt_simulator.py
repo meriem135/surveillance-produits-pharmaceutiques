@@ -10,7 +10,7 @@ sur son propre topic MQTT, comme dans une usine réelle :
 
 Chaque "capteur" n'émet QUE sa propre mesure (et ses métadonnées) ;
 c'est le broker Mosquitto qui centralise, et le backend qui agrège
-les 3 lectures du même pas de temps avant l'inspection DPI.
+les 3 lectures du même pas de temps.
 
 Le format de chaque message :
     {

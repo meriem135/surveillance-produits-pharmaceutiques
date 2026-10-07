@@ -300,8 +300,7 @@ def finalize(df: pd.DataFrame) -> pd.DataFrame:
 def build_stream(data: pd.DataFrame, episodes: list[dict]) -> pd.DataFrame:
     """Flux de démo : pour chaque saison (Hiver → Automne), jusqu'à 3 fenêtres
     de 200 pas autour d'épisodes d'attaque de types différents : d'abord deux
-    rejeux TON_IoT (visibles par le DPI), puis une attaque furtive sur le frigo
-    (qui illustre la limite des règles)."""
+    rejeux TON_IoT, puis une attaque furtive sur le frigo."""
     names = {1: "Hiver", 2: "Printemps", 3: "Été", 4: "Automne"}
     stealth = {MITM_FREEZE, INJECTION_PLAUSIBLE}
     parts = []

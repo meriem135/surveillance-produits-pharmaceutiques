@@ -4,7 +4,7 @@ Analyst Service — Orchestrateur LLM/RAG
 Point d'entrée unique pour toute analyse de sécurité.
 
 Flux d'analyse :
-  1. Réception du contexte d'alerte (device, risk, DPI, cross-sensor)
+  1. Réception du contexte d'alerte (device, risk, cross-sensor)
   2. Construction de la requête RAG (build_query_from_alert)
   3. Récupération des documents pertinents (retriever.retrieve)
   4. Génération du rapport (llm_engine.generate_analysis)
@@ -174,7 +174,7 @@ class AnalystService:
         L'opérateur peut poser des questions comme :
           - "Quels sont les signes d'une attaque DDoS ?"
           - "Comment réagir si le frigo est compromis ?"
-          - "Que signifie la règle DPI-004 ?"
+          - "Que signifie une attaque MITM par rejeu ?"
           - "Quel standard s'applique pour les mots de passe ?"
 
         Args:
@@ -249,22 +249,19 @@ class AnalystService:
                     "4. Augmenter la redondance des alimentations électriques des capteurs critiques",
                     "5. Activer les alertes de dérive lente pour les thermostats (chauffage constant)",
                 ],
-                "dpi_rules_priority": ["DPI-004 (Anomalie saisonnière 3σ) — priorité haute en hiver", "DPI-001 (Variation brusque) — seuil adapté au froid"],
             },
             "printemps": {
                 "emoji": "🌱",
                 "risks": [
-                    "Grands écarts de température jour/nuit → fausses alertes DPI",
+                    "Grands écarts de température jour/nuit → fausses alertes",
                     "Humidité élevée affectant les circuits électroniques",
                     "Reprise d'activité industrielle → augmentation du trafic MQTT",
                 ],
                 "recommendations": [
-                    "1. Réétalonner les seuils DPI-004 pour la transition hiver→printemps",
-                    "2. Surveiller les pics de température diurne sur les capteurs weather",
-                    "3. Vérifier l'étanchéité des armoires électriques (remontée d'humidité)",
-                    "4. Mettre à jour les modèles ML avec les données de la nouvelle saison",
+                    "1. Surveiller les pics de température diurne sur les capteurs weather",
+                    "2. Vérifier l'étanchéité des armoires électriques (remontée d'humidité)",
+                    "3. Mettre à jour les modèles ML avec les données de la nouvelle saison",
                 ],
-                "dpi_rules_priority": ["DPI-005 (Spike saisonnier +3.5σ) — pas de faux positifs en coups de chaleur", "DPI-004 — réétalonnage des moyennes saisonnières"],
             },
             "ete": {
                 "emoji": "☀️",
@@ -272,16 +269,14 @@ class AnalystService:
                     "Surchauffe des équipements → risque d'incendie et de fausses mesures",
                     "Climatisation sollicitée → dérive des thermostats d'ambiance",
                     "Orages violents → perturbations réseau et pertes de paquets MQTT",
-                    "Températures extrêmes >40°C → suivi DPI-005 adaptatif (seuil saisonnier, pas de faux positifs)",
+                    "Températures extrêmes >40°C sur les capteurs extérieurs",
                 ],
                 "recommendations": [
-                    "1. Priorité absolue à la règle DPI-005 (Spike saisonnier moyenne + 3.5σ)",
-                    "2. Vérifier la ventilation des baies serveurs et armoires réseau",
-                    "3. Activer la redondance des liaisons MQTT (Mosquitto cluster)",
-                    "4. Planifier des audits de sécurité renforcés (été = saison des attaques)",
-                    "5. Surveiller la corrélation entre température ambiante et charge CPU des équipements",
+                    "1. Vérifier la ventilation des baies serveurs et armoires réseau",
+                    "2. Activer la redondance des liaisons MQTT (Mosquitto cluster)",
+                    "3. Planifier des audits de sécurité renforcés (été = saison des attaques)",
+                    "4. Surveiller la corrélation entre température ambiante et charge CPU des équipements",
                 ],
-                "dpi_rules_priority": ["DPI-005 (Spike saisonnier +3.5σ) — seuil ~46°C l'été, priorité emballement", "DPI-001 — seuil été adapté aux chaleurs", "DPI-004 — moyenne été ~31°C"],
             },
             "automne": {
                 "emoji": "🍂",
@@ -292,25 +287,22 @@ class AnalystService:
                 ],
                 "recommendations": [
                     "1. Nettoyer et inspecter tous les capteurs extérieurs avant l'hiver",
-                    "2. Réétalonner les seuils DPI-004 pour la transition été→automne",
-                    "3. Préparer les procédures de dégivrage des capteurs weather",
-                    "4. Vérifier l'isolation des câbles et connectiques exposés aux intempéries",
-                    "5. Planifier la maintenance hivernale (antigel, chaufferettes, etc.)",
+                    "2. Préparer les procédures de dégivrage des capteurs weather",
+                    "3. Vérifier l'isolation des câbles et connectiques exposés aux intempéries",
+                    "4. Planifier la maintenance hivernale (antigel, chaufferettes, etc.)",
                 ],
-                "dpi_rules_priority": ["DPI-004 — réétalonnage automnal des seuils 3σ", "DPI-001 — surveillance des variations climatiques"],
             },
         }
 
         sd = season_data.get(season_lower, season_data["printemps"])
         risks = "\n".join(f"- {r}" for r in sd["risks"])
         recs = "\n".join(f"{r}" for r in sd["recommendations"])
-        dpi_priority = "\n".join(f"- {r}" for r in sd["dpi_rules_priority"])
 
         template_report = f"""## Rapport de Recommandation Saisonnier — {sd['emoji']} {season}
 
 ### Période
 - **Saison** : {season}
-- **Contexte** : {context or 'Phase 1 — Ingestion MQTT & DPI'}
+- **Contexte** : {context or 'Phase 1 — Ingestion MQTT'}
 
 ### Risques Identifiés pour la Saison
 {risks}
@@ -318,12 +310,7 @@ class AnalystService:
 ### Recommandations de Sécurité
 {recs}
 
-### Priorités des Règles DPI
-{dpi_priority}
-
 ### Rappel
-Les seuils DPI sont adaptés automatiquement via l'algorithme de normalisation saisonnière (3σ adaptatif). 
-Pour la saison **{season}**, les moyennes historiques sont utilisées comme référence pour détecter les anomalies.
 En cas de doute, consultez la documentation technique ou posez une question à l'assistant IA.
 """
         # Ollama est disponible (phi:2.7b) mais lent sur CPU.

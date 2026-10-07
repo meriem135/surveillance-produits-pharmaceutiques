@@ -35,25 +35,6 @@ export interface Device {
   registered_at?: string;
 }
 
-/* Format Wazuh réellement renvoyé par GET /api/v1/alerts :
-   { id, rule: { id, level, description }, data: { device }, timestamp } */
-export interface Alert {
-  id?: number | string;
-  rule?: {
-    id: string | number;
-    level: number;
-    description: string;
-  };
-  data?: {
-    device?: string;
-    [key: string]: unknown;
-  };
-  level?: number;
-  description?: string;
-  device?: string;
-  timestamp?: string;
-}
-
 export type AttackType = 'recon' | 'mitm' | 'ddos' | 'ransom';
 export type ThemeMode = 'dark' | 'cyberpunk' | 'matrix' | 'light';
 
@@ -192,59 +173,17 @@ export interface ModelMetric {
 
 /* ---- Flux temps réel (/ws/stream) ---- */
 
-export interface LiveDpiStats {
-  total_messages?: number;
-  total_alerts?: number;
-  messages_per_second?: number;
-  alerts_per_minute?: number;
-  avg_latency_us?: number;
-  uptime_seconds?: number;
-  rule_match_counts?: Record<string, number>;
-  active_rules?: number;
-  attack_count?: number;
-}
-
-export interface LiveDpiAlert {
-  rule?: { id?: string; name?: string; level?: number; description?: string };
-  data?: { [k: string]: unknown };
-}
-
 export interface LivePoint {
   type?: string;
+  message?: string;
   timestamp?: string;
   dataset_datetime?: string;
   device_type?: string;
   weather_temperature?: number;
   fridge_temperature?: number;
   thermostat_temperature?: number;
-  fridge_diff_1?: number | null;
-  thermostat_diff_1?: number | null;
-  weather_roll_std_10?: number | null;
   season?: string;
   month?: number | null;
-  is_anomaly?: boolean;
-  normality_score?: number;
-  attack_active?: boolean;
-  risk_score?: number;
-  risk_label?: string;
-  attack_info?: { type?: string; explanation?: string };
-  match_detail?: { [k: string]: unknown };
-  recommendation?: { consigne?: string; steps?: string[] };
-  dpi_alert?: LiveDpiAlert | null;
-  dpi_stats?: LiveDpiStats | null;
-}
-
-export interface LiveAlertEvent {
-  timestamp: string;
-  rule_id: string;
-  rule_name: string;
-  severity: number;
-  description: string;
-  attack_type: string;
-  attack_explanation: string;
-  risk_score: number;
-  season?: string;
-  recommendation?: { consigne?: string; steps?: string[] };
 }
 
 /* ---- Advanced Analytics (/api/v1/advanced-analytics) ---- */

@@ -2,8 +2,8 @@
 
 Ce module expose des ANALYSES qui n'existent pas ailleurs dans la plateforme
 (gauche d'exploration des courbes de performance, distribution des scores,
-réseau de corrélation inter-capteurs, historique d'entraînement, recherche
-globale transverse et triage des alertes). Il ne duplique volontairement
+réseau de corrélation inter-capteurs, historique d'entraînement et recherche
+globale transverse). Il ne duplique volontairement
 aucun endpoint existant (fusion_insights, dataset_analytics, phase2...).
 
 Toutes les valeurs proviennent des artefacts produits par l'entraînement réel
@@ -20,8 +20,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Body, Depends, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Query
 from sklearn.metrics import precision_recall_curve, roc_curve
 from sqlalchemy import select
 
@@ -39,12 +38,10 @@ INFERRED_PATH = str(paths.INFERRED_OCSVM)
 THRESHOLD_PATH = str(paths.OCSVM_THRESHOLD)
 HYPERPARAMS_PATH = str(paths.OCSVM_HYPERPARAMS)
 LIVE_RESULTS_PATH = str(paths.LIVE_RESULTS)
-TRIAGE_PATH = str(paths.ALERT_TRIAGE)
 
 _executor = ThreadPoolExecutor(max_workers=1)
 _analysis_cache: dict | None = None
 _analysis_lock = threading.Lock()
-_triage_lock = threading.Lock()
 
 CURVE_MAX_POINTS = 180
 DIST_BINS = 40
@@ -340,20 +337,13 @@ async def get_metrics_history(_user=Depends(require_any_role())):
 #  Recherche globale transverse
 # ────────────────────────────────────────────────────────────────────────────
 
-def _alert_text_fields(a: dict) -> str:
-    parts = [str(a.get("rule", {}).get("id", "")), str(a.get("rule", {}).get("name", "")),
-             str(a.get("rule", {}).get("description", "")), str(a.get("data", {}).get("device", "")),
-             str(a.get("timestamp", ""))]
-    return " ".join(parts).lower()
-
-
 @router.get("/advanced-analytics/global-search")
 async def global_search(
     q: str = Query(..., min_length=1, max_length=100),
     limit: int = Query(8, ge=1, le=25),
     _user=Depends(require_any_role()),
 ):
-    """Recherche globale transverse : alertes DPI, équipements IoT, modèles ML."""
+    """Recherche globale transverse : équipements IoT, modèles ML."""
     query = q.strip().lower()
     if len(query) < 2:
         return {"query": q, "total": 0, "groups": []}
@@ -365,30 +355,7 @@ async def global_search(
 
     groups = []
 
-    # ── 1. Alertes DPI (fichier log Wazuh-compatible) ─────────────
-    try:
-        from app.api.v1 import alerts as alerts_api
-        alert_rows = alerts_api._read_alerts()
-        matched = [a for a in alert_rows if query in _alert_text_fields(a)]
-        matched = sorted(matched, key=lambda a: a.get("timestamp", ""), reverse=True)[:limit]
-        if matched:
-            items = []
-            for a in matched:
-                rule = a.get("rule", {}) or {}
-                dev = (a.get("data", {}) or {}).get("device") or "inconnu"
-                items.append({
-                    "key": f"{a.get('timestamp', '')}|{rule.get('id', '')}|{dev}",
-                    "title": rule.get("description") or rule.get("name") or "Alerte",
-                    "subtitle": f"{rule.get('id', 'N/A')} · {dev}",
-                    "meta": f"LVL {rule.get('level', '?')}",
-                    "level": rule.get("level"),
-                    "href": "/dashboard/phase1",
-                })
-            groups.append({"key": "alerts", "label": "Alertes DPI", "items": items})
-    except Exception:
-        pass
-
-    # ── 2. Équipements IoT (PostgreSQL / SQLite) ───────────────────
+    # ── 1. Équipements IoT (PostgreSQL / SQLite) ───────────────────
     try:
         from app.db.session import AsyncSessionLocal
         from app.domains.devices.repository import DeviceRepository
@@ -417,7 +384,7 @@ async def global_search(
     except Exception:
         pass
 
-    # ── 3. Modèles ML (PostgreSQL / SQLite) ────────────────────────
+    # ── 2. Modèles ML (PostgreSQL / SQLite) ────────────────────────
     try:
         from app.db.session import AsyncSessionLocal
         async with AsyncSessionLocal() as db:
@@ -446,68 +413,3 @@ async def global_search(
     total = sum(len(g["items"]) for g in groups)
     return {"query": q, "total": total, "groups": groups}
 
-
-# ────────────────────────────────────────────────────────────────────────────
-#  Triage des alertes (acknowledge / résolu / faux positif)
-# ────────────────────────────────────────────────────────────────────────────
-
-VALID_STATUSES = {"open", "acknowledged", "resolved", "false_positive"}
-
-
-def alert_key(alert: dict) -> str:
-    """Clé stable d'une alerte (timestamp | rule.id | device)."""
-    ts = alert.get("timestamp", "")
-    rid = (alert.get("rule", {}) or {}).get("id", "")
-    dev = (alert.get("data", {}) or {}).get("device", "")
-    return f"{ts}|{rid}|{dev}"
-
-
-def _read_triage() -> dict:
-    try:
-        if os.path.exists(TRIAGE_PATH):
-            with open(TRIAGE_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data if isinstance(data, dict) else {}
-    except Exception:
-        pass
-    return {}
-
-
-def _write_triage(data: dict):
-    os.makedirs(os.path.dirname(TRIAGE_PATH) or ".", exist_ok=True)
-    tmp = TRIAGE_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, TRIAGE_PATH)
-
-
-class TriageBody(BaseModel):
-    key: str = Field(..., min_length=3, max_length=300)
-    status: str = "open"
-    note: str = Field("", max_length=500)
-
-
-@router.get("/advanced-analytics/alerts/triage")
-async def get_alert_triage(_user=Depends(require_any_role())):
-    """Cartographie des statuts de triage (acknowledged / resolved / false_positive)."""
-    return _read_triage()
-
-
-@router.post("/advanced-analytics/alerts/triage")
-async def set_alert_triage(
-    body: TriageBody = Body(...),
-    _user=Depends(require_any_role("operator")),
-):
-    """Change le statut de triage d'une alerte (ou réinitialise à 'open')."""
-    status = body.status.lower()
-    if status not in VALID_STATUSES:
-        return {"ok": False, "error": f"Statut invalide: {status}"}
-    with _triage_lock:
-        data = _read_triage()
-        data[body.key] = {
-            "status": status,
-            "note": (body.note or "").strip(),
-            "updated_at": datetime.now().isoformat(timespec="seconds"),
-        }
-        _write_triage(data)
-    return {"ok": True, "key": body.key, "status": status}

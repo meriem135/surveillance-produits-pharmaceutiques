@@ -142,7 +142,7 @@ PHARMA_CATALOG = {
         "stock_effect": "Exfiltration des niveaux de stock, des prix, des recettes ; manipulation silencieuse des seuils.",
         "production_effect": "Modification discrète des setpoints de procédé → lots non conformes non détectés.",
         "regulatory": ["KI/KD (sécurité des infrastructures critiques)", "EU GMP Annexe 11 §3.4 (audit trail)", "NIS2 (secteur santé)"],
-        "mitigation": ["Cloisonnement réseau (ségrégation OT)", "Surveillance des flux sortants (DPI)", "Rotation des credentials & durcissement"],
+        "mitigation": ["Cloisonnement réseau (ségrégation OT)", "Surveillance et inspection des flux sortants", "Rotation des credentials & durcissement"],
     },
     "ransomware": {
         "name": "Ransomware / extorsion",

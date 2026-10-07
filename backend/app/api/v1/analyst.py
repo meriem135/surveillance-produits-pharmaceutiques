@@ -30,8 +30,8 @@ class AlertAnalysisRequest(BaseModel):
     """Contexte d'alerte pour l'analyse LLM/RAG."""
 
     device_id:    str   = Field(...,  description="ID du device concerné")
-    rule_id:      str   = Field("",   description="ID de la règle DPI déclenchée")
-    rule_name:    str   = Field("",   description="Nom de la règle DPI")
+    rule_id:      str   = Field("",   description="Identifiant de la règle ou de la détection")
+    rule_name:    str   = Field("",   description="Nom de la règle ou de la détection")
     rule_description: str = Field("", description="Description de l'événement")
     attack_type:  str   = Field("",   description="Type d'attaque suspecté")
     risk_score:   int   = Field(0,    ge=0, le=100, description="Score de risque 0-100")
@@ -52,9 +52,9 @@ class AlertAnalysisRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "device_id":    "dev-fridge-01",
-                "rule_id":      "DPI-001",
-                "rule_name":    "Label attaque explicite",
-                "rule_description": "payload contient label=attack",
+                "rule_id":      "MITM_gel",
+                "rule_name":    "Mesure du frigo répétée en boucle",
+                "rule_description": "la dernière mesure du frigo est retransmise à l'identique",
                 "attack_type":  "IoT_DDoS",
                 "risk_score":   87,
                 "severity":     "CRITICAL",
@@ -81,7 +81,7 @@ class QuestionRequest(BaseModel):
 class RecommendationRequest(BaseModel):
     """Demande de rapport de recommandation saisonnier."""
     season: str = Field(..., description="Saison (Hiver/Printemps/Été/Automne)")
-    context: str = Field("phase1_dpi", description="Contexte de la recommandation")
+    context: str = Field("phase1_ingestion", description="Contexte de la recommandation")
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ async def analyze_alert(
     Génère un rapport de sécurité complet pour une alerte IoT.
 
     Le moteur RAG récupère automatiquement les documents pertinents
-    (fiches d'attaques, règles DPI, procédures de remédiation) et
+    (fiches d'attaques, capteurs, procédures de remédiation) et
     les injecte dans le contexte du LLM (Ollama si disponible,
     sinon moteur template intelligent).
 
@@ -312,7 +312,7 @@ async def ask_question(
     Exemples de questions :
     - "Quels sont les signes d'une attaque DDoS sur un capteur weather ?"
     - "Comment réagir si le score de risque est critique ?"
-    - "Que signifie la règle DPI-004 ?"
+    - "Que signifie une attaque MITM par rejeu ?"
     - "Quelles CVE affectent les passerelles IoT ?"
     - "Quel standard s'applique pour les mots de passe par défaut ?"
     """

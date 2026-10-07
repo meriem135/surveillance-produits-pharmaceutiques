@@ -10,7 +10,7 @@ export interface PhaseItem {
 
 export const PHASE_CONFIG: PhaseItem[] = [
   {
-    num: 1, label: 'Deep Packet Inspection', subtitle: 'Filtrage MQTT · 6 règles DPI',
+    num: 1, label: 'Ingestion IoT', subtitle: 'MQTT · flux temps réel des 3 capteurs',
     icon: '\u{1F4E5}', color: '#00F5FF', status: 'completed', progress: 100,
   },
   {
@@ -18,7 +18,7 @@ export const PHASE_CONFIG: PhaseItem[] = [
     icon: '\u{1F9E0}', color: '#00FFA3', status: 'completed', progress: 100,
   },
   {
-    num: 3, label: 'Risk Scoring Prédictif', subtitle: 'CVE + 6 facteurs · Score 0-100',
+    num: 3, label: 'Risk Scoring Prédictif', subtitle: 'CVE + 5 facteurs · Score 0-100',
     icon: '\u{1F6E1}\uFE0F', color: '#FF2D78', status: 'active', progress: 65,
   },
   {

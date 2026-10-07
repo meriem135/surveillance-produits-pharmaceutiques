@@ -45,8 +45,6 @@ async def get_risk_correlation(payload: dict):
 @router.get("/risks/{device_id}")
 async def get_device_risk(
     device_id: str,
-    dpi_alerts: int = Query(0, description="Nombre d'alertes DPI recentes"),
-    dpi_severity: int = Query(0, description="Severite max des alertes DPI"),
     service: DeviceService = Depends(get_device_service)
 ):
     """Calcule le risk score predictif pour un device (Phase 3)."""
@@ -60,8 +58,6 @@ async def get_device_risk(
         firmware_version=device.firmware_version,
         location=device.location,
         ml_telemetry=device.digital_twin_state,
-        dpi_alerts_count=dpi_alerts,
-        dpi_max_severity=dpi_severity,
     )
 
     return risk.to_dict()
