@@ -236,7 +236,7 @@ def _load_or_build_dataset(tr, tm) -> tuple[pd.DataFrame, list[str], list[dict],
 
 
 def _compact(r: dict) -> dict:
-    keys = ("nom", "type", "precision", "recall", "f1", "val_f1", "roc_auc", "avg_precision",
+    keys = ("nom", "type", "precision", "recall", "f1", "fpr", "val_f1", "roc_auc", "avg_precision",
             "fausses_alarmes_evenements_par_heure", "episodes", "episodes_detectes", "delai_median_min",
             "threshold", "per_attack", "per_episode", "hyperparameters")
     return {k: r[k] for k in keys if k in r}

@@ -46,6 +46,10 @@ interface Report {
   modele: { nom: string; type: string; precision: number; recall: number; f1: number; fausses_alertes_par_heure: number; episodes: string; lecture: string } | null;
   scenarios: ReportScenario[]; regles_generales: string[];
 }
+interface HistoryRun {
+  id: number; debut: string; fin: string | null; statut: string; lance_par: string | null; duree_s: number | null;
+  lignes: number; meilleur_modele: string | null; meilleur_f1: number | null; erreur: string | null;
+}
 interface ProgressMsg {
   step: string; progress: number; message: string; model?: string;
   result?: ModelResult; curve_point?: CurvePoint; results?: WebResults; dataset?: WebResults['dataset'];
@@ -83,6 +87,7 @@ async function getJson<T>(url: string): Promise<T | null> {
 export default function TransmissionPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [history, setHistory] = useState<HistoryRun[]>([]);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<ProgressMsg | null>(null);
   const [log, setLog] = useState<ProgressMsg[]>([]);
@@ -92,8 +97,11 @@ export default function TransmissionPage() {
   const wsRef = useRef<WebSocket | null>(null);
 
   const load = useCallback(async () => {
-    const [s, r] = await Promise.all([getJson<Summary>('/api/v1/transmission/summary'), getJson<Report>('/api/v1/transmission/report')]);
-    setSummary(s); setReport(r);
+    const [s, r, h] = await Promise.all([
+      getJson<Summary>('/api/v1/transmission/summary'), getJson<Report>('/api/v1/transmission/report'),
+      getJson<{ runs: HistoryRun[] }>('/api/v1/transmission/history?limit=10'),
+    ]);
+    setSummary(s); setReport(r); setHistory(h?.runs ?? []);
     if (s && !s.web && s.reference) setView('reference');
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -328,6 +336,35 @@ export default function TransmissionPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Historique (entraînements enregistrés en base) ── */}
+      <Card className="glass glass-border">
+        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Database className="w-4 h-4" style={{ color: '#38BDF8' }} />Historique des entraînements</CardTitle></CardHeader>
+        <CardContent>
+          {history.length === 0 ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Aucun entraînement enregistré en base pour l’instant.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
+                  <th className="py-1.5 pr-3">Date</th><th className="pr-3">Lancé par</th><th className="pr-3">Statut</th>
+                  <th className="pr-3">Durée</th><th className="pr-3">Meilleur modèle</th><th>F1 (test)</th>
+                </tr></thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr key={h.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }} title={h.erreur ?? undefined}>
+                      <td className="py-1.5 pr-3 whitespace-nowrap">{new Date(`${h.debut}Z`).toLocaleString('fr-FR')}</td>
+                      <td className="pr-3">{h.lance_par ?? '—'}</td>
+                      <td className="pr-3"><Badge variant={h.statut === 'termine' ? 'default' : h.statut === 'en_cours' ? 'secondary' : 'destructive'}>{h.statut.replace('_', ' ')}</Badge></td>
+                      <td className="pr-3">{h.duree_s != null ? `${Math.round(h.duree_s)} s` : '—'}</td>
+                      <td className="pr-3">{h.meilleur_modele ? MODEL_LABEL[h.meilleur_modele] ?? h.meilleur_modele : '—'}</td>
+                      <td>{pct(h.meilleur_f1)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Rapport opérateur ── */}
       <Card className="glass glass-border">
