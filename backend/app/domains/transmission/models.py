@@ -49,9 +49,9 @@ class TransmissionModelResult(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     run_id: int = Field(foreign_key="transmission_runs.id", index=True)
-    model_key: str = Field(description="IsolationForest | OCSVM | RandomForest | XGBoost")
+    model_key: str = Field(description="RandomForest | XGBoost | Logistique | MLP")
     nom: str = Field(default="")
-    model_type: str = Field(default="", description="supervisé | non supervisé")
+    model_type: str = Field(default="", description="supervisé")
     is_best: bool = Field(default=False)
 
     f1: Optional[float] = Field(default=None)

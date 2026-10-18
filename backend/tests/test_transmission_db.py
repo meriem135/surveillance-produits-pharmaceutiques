@@ -15,10 +15,10 @@ from app.domains.transmission import repository
 
 OUT = {
     "generated_at": "2026-10-07T18:00:00", "duree_s": 31.5, "meilleur": "RandomForest",
-    "classement_validation": ["RandomForest", "IsolationForest"],
+    "classement_validation": ["RandomForest", "Logistique"],
     "dataset": {"lignes": 44443, "features": 49, "episodes": 31},
     "modeles": {
-        "IsolationForest": {"nom": "Isolation Forest", "type": "non supervisé", "f1": 0.42, "precision": 0.41,
+        "Logistique": {"nom": "Régression Logistique", "type": "supervisé", "f1": 0.42, "precision": 0.41,
                             "recall": 0.44, "fpr": 0.1, "val_f1": 0.44, "episodes": 6, "episodes_detectes": 5,
                             "per_attack": {"MITM_gel": {"n": 10, "detected": 8, "rate": 80.0}}},
         "RandomForest": {"nom": "Random Forest", "type": "supervisé", "f1": 0.66, "precision": 0.75, "recall": 0.59,

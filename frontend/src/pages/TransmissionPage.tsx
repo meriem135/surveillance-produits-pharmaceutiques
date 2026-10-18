@@ -55,9 +55,9 @@ interface ProgressMsg {
   result?: ModelResult; curve_point?: CurvePoint; results?: WebResults; dataset?: WebResults['dataset'];
 }
 
-const MODEL_ORDER = ['IsolationForest', 'OCSVM', 'RandomForest', 'XGBoost'];
+const MODEL_ORDER = ['RandomForest', 'XGBoost', 'Logistique', 'MLP'];
 const MODEL_LABEL: Record<string, string> = {
-  IsolationForest: 'Isolation Forest', OCSVM: 'One-Class SVM', RandomForest: 'Random Forest', XGBoost: 'XGBoost', Statistique: 'Réf. statistique',
+  RandomForest: 'Random Forest', XGBoost: 'XGBoost', Logistique: 'Régression Logistique', MLP: 'MLP',
 };
 const SCENARIO_LABEL: Record<string, string> = {
   MITM_gel: 'Gel', MITM_rejeu: 'Rejeu', Injection_nominale: 'Injection nominale', 'Injection_biais_0.5': 'Biais −0,5 °C',
@@ -172,7 +172,7 @@ export default function TransmissionPage() {
       {/* ── Entraînement en temps réel ── */}
       <Card className="glass glass-border">
         <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
-          <CardTitle className="text-sm flex items-center gap-2"><Radio className="w-4 h-4" style={{ color: '#00FFA3' }} />Entraînement en temps réel des 4 modèles candidats</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><Radio className="w-4 h-4" style={{ color: '#00FFA3' }} />Entraînement en temps réel des 4 modèles supervisés</CardTitle>
           <Button size="sm" onClick={startTraining} disabled={running}>
             {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
             {running ? 'Entraînement en cours…' : 'Lancer l’entraînement'}
@@ -180,8 +180,8 @@ export default function TransmissionPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Jeu : traces réelles TON_IoT avec attaques de transmission injectées (répétition 0). Les non-supervisés apprennent le normal seul ;
-            les supervisés apprennent sur les attaques étiquetées. Seuil choisi sur la validation, résultat mesuré sur le test.
+            Jeu : traces réelles TON_IoT avec attaques de transmission injectées (répétition 0). Les quatre modèles sont supervisés :
+            ils apprennent sur les attaques étiquetées des blocs d’entraînement. Seuil choisi sur la validation, résultat mesuré sur le test.
           </p>
           <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
             <div className="h-full transition-all duration-500" style={{ width: `${progress?.progress ?? (summary?.web ? 100 : 0)}%`, background: 'linear-gradient(90deg,#00FFA3,#00F5FF)' }} />
@@ -260,12 +260,12 @@ export default function TransmissionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...MODEL_ORDER, 'Statistique'].filter((k) => models[k]).map((k) => {
+                  {MODEL_ORDER.filter((k) => models[k]).map((k) => {
                     const r = models[k]; const best = k === bestKey;
                     return (
                       <tr key={k} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)', background: best ? 'rgba(0,255,163,0.06)' : undefined }}>
                         <td className="py-2 pr-3 font-bold">{MODEL_LABEL[k] ?? r.nom} {best && <Badge className="ml-1" variant="secondary">retenu</Badge>}</td>
-                        <td className="pr-3">{r.type ?? (k === 'Statistique' ? 'règles' : '')}</td>
+                        <td className="pr-3">{r.type ?? 'supervisé'}</td>
                         <td className="pr-3 font-mono">{pct(r.precision)}</td><td className="pr-3 font-mono">{pct(r.recall)}</td>
                         <td className="pr-3 font-mono font-bold">{num(r.f1)}</td><td className="pr-3 font-mono">{num(r.roc_auc)}</td>
                         <td className="pr-3 font-mono">{num(r.fausses_alarmes_evenements_par_heure, 1)}</td>

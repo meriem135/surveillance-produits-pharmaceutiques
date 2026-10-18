@@ -47,7 +47,7 @@ interface TransmissionKpi {
 
 const FEATURES = [
   { icon: Database, title: 'Collecte & préparation des données', desc: 'J\'ai exploré et prétraité 5 jours de mesures réelles TON_IoT (frigo, thermostat, météo, du 31 mars au 4 avril 2019) : nettoyage, fusion des trois capteurs au pas de 5 s, puis injection d\'attaques de transmission (MITM et injection) sur ces traces.', color: '#00B8D9', tag: 'Data' },
-  { icon: Brain, title: 'Modélisation ML & explicabilité', desc: 'J\'ai entraîné et comparé quatre modèles candidats (Isolation Forest, One-Class SVM, Random Forest et XGBoost) sur 9 répétitions, retenu le meilleur, le Random Forest, puis expliqué chaque détection avec SHAP.', color: '#A855F7', tag: 'Machine Learning' },
+  { icon: Brain, title: 'Modélisation ML & explicabilité', desc: 'J\'ai entraîné et comparé quatre modèles supervisés (Random Forest, XGBoost, Régression Logistique et MLP) sur 9 répétitions, retenu le meilleur, le Random Forest, puis expliqué chaque détection avec SHAP.', color: '#A855F7', tag: 'Machine Learning' },
   { icon: Rocket, title: 'Déploiement de la plateforme', desc: 'J\'ai construit l\'API FastAPI, le dashboard React temps réel (entraînement en direct, SHAP, rapport de recommandation pour l\'opérateur) et une base PostgreSQL.', color: '#00FFA3', tag: 'Déploiement' },
 ];
 

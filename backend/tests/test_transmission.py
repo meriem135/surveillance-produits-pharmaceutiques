@@ -21,7 +21,7 @@ def test_operator_report_from_results():
                          "val_f1": 0.66, "fausses_alarmes_evenements_par_heure": 3.3, "delai_median_min": 1.9,
                          "episodes": 55, "episodes_detectes": 48,
                          "per_attack": {"MITM_gel": {"n": 100, "detected": 92, "rate": 92.0},
-                                        "Injection_biais_0.5": {"n": 100, "detected": 8, "rate": 8.0}},
+                                        "Injection_derive": {"n": 100, "detected": 8, "rate": 8.0}},
                          "per_episode": {"MITM_gel": {"n": 6, "detected": 6}}},
         "XGBoost": {"nom": "XGBoost", "type": "supervisé", "precision": 0.67, "recall": 0.51, "f1": 0.58, "val_f1": 0.59,
                     "fausses_alarmes_evenements_par_heure": 4.5, "episodes": 55, "episodes_detectes": 46},
@@ -32,10 +32,10 @@ def test_operator_report_from_results():
     gel = next(s for s in report["scenarios"] if s["scenario"] == "MITM_gel")
     assert gel["niveau"] == "bien détecté"
     assert gel["ce_que_le_modele_regarde"] == ["écart-type sur 1 min du frigo"]
-    biais = next(s for s in report["scenarios"] if s["scenario"] == "Injection_biais_0.5")
+    biais = next(s for s in report["scenarios"] if s["scenario"] == "Injection_derive")
     assert "vérification humaine" in biais["niveau"]
     assert "## Consignes par type d'attaque" in report["markdown"]
-    assert len(report["scenarios"]) == 9
+    assert len(report["scenarios"]) == len(service.scenarios())
 
 
 def test_alert_recommendation():
@@ -52,6 +52,6 @@ def test_public_kpis_come_from_the_reference_results():
     best = kpis["meilleur"]
     assert best["id"] == "RandomForest" and 0 < best["f1"] < 1
     assert kpis["traces"]["mesures"] > 40_000 and kpis["traces"]["pas"] == "5s"
-    assert kpis["scenarios"] == len(service.SCENARIOS_FR) == len(kpis["detection_par_scenario"])
+    assert kpis["scenarios"] == len(service.scenarios()) == len(kpis["detection_par_scenario"])
     taux = [s["taux"] for s in kpis["detection_par_scenario"]]
     assert taux == sorted(taux, reverse=True)

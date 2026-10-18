@@ -3,8 +3,8 @@ API « attaques de transmission » (traces réelles)
 =================================================
   GET  /api/v1/transmission/kpis            chiffres publics de la page d'accueil (sans session)
   GET  /api/v1/transmission/summary         état du jeu de données, référence, dernier entraînement
-  GET  /api/v1/transmission/scenarios       les 9 scénarios injectés
-  POST /api/v1/transmission/train           entraîne les 4 modèles candidats en arrière-plan
+  GET  /api/v1/transmission/scenarios       les scénarios injectés
+  POST /api/v1/transmission/train           entraîne les 4 modèles supervisés en arrière-plan
   WS   /api/v1/transmission/train-ws        progression en direct (courbe du Random Forest incluse)
   GET  /api/v1/transmission/training-status
   GET  /api/v1/transmission/results         résultats du dernier entraînement web
@@ -84,7 +84,7 @@ async def transmission_scenarios(_user=Depends(require_any_role("operator"))):
 
 @router.post("/transmission/train")
 async def transmission_train(user=Depends(require_any_role())):
-    """Lance l'entraînement des 4 modèles candidats ; progression sur /transmission/train-ws.
+    """Lance l'entraînement des 4 modèles supervisés ; progression sur /transmission/train-ws.
     L'entraînement et les métriques de chaque modèle sont enregistrés en base."""
     global _training_task
     if _training_task and not _training_task.done():

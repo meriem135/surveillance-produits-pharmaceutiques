@@ -5,7 +5,8 @@ Réutilise les scripts d'étude (backend/scripts/transmission_real.py et
 transmission_models.py) : même jeu de données, mêmes features, même protocole.
 
 - summary()            : état du jeu de données, résultats de référence, dernier entraînement web
-- train(emit)          : entraîne les 4 modèles candidats en diffusant la progression
+- train(emit)          : entraîne les 4 modèles supervisés (Random Forest, XGBoost,
+                         Régression Logistique, MLP) en diffusant la progression
                          (le Random Forest est entraîné par paliers d'arbres pour tracer
                          sa courbe en direct), puis SHAP du meilleur et sauvegarde
 - operator_report()    : rapport de recommandation pour l'opérateur (JSON + Markdown)
@@ -189,7 +190,9 @@ def summary() -> dict:
     out: dict[str, Any] = {"dataset": None, "traces": None, "reference": None,
                            "shap_reference": None, "web": _load_json(WEB_RESULTS)}
     if DATASET_PATH.exists() and EPISODES_PATH.exists():
-        cols = pd.read_csv(DATASET_PATH, usecols=["split", "label", "attack_type"], keep_default_na=False)
+        tr, _ = _scripts()
+        cols = pd.read_csv(DATASET_PATH, usecols=["label", "attack_type"], keep_default_na=False)
+        cols["split"] = tr.block_split(len(cols), 0)   # le découpage n'est plus stocké dans le CSV
         episodes = _load_json(EPISODES_PATH) or []
         out["dataset"] = {
             "fichier": DATASET_PATH.name, "lignes": int(len(cols)), "attaques": int(cols["label"].sum()),
@@ -271,9 +274,8 @@ def _compact(r: dict) -> dict:
 
 async def train(emit: Emit) -> dict:
     tr, tm = _scripts()
-    import transmission_study as ts  # noqa: PLC0415
     from app.api.v1 import phase2  # noqa: PLC0415
-    from sklearn.ensemble import IsolationForest, RandomForestClassifier  # noqa: PLC0415
+    from sklearn.ensemble import RandomForestClassifier  # noqa: PLC0415
     from sklearn.metrics import average_precision_score, roc_auc_score  # noqa: PLC0415
     from sklearn.preprocessing import StandardScaler  # noqa: PLC0415
 
@@ -281,7 +283,7 @@ async def train(emit: Emit) -> dict:
     await emit("dataset", 3, "Chargement des traces réelles avec attaques de transmission…")
     df, feats, episodes, built = await asyncio.to_thread(_load_or_build_dataset, tr, tm)
     y = df["label"].to_numpy().astype(int)
-    split = df["split"].to_numpy()
+    split = tr.block_split(len(df), 0)     # découpage 70/15/15 recalculé (non stocké dans le CSV)
     garde = df["garde"].to_numpy().astype(bool)
     train_all = np.where((split == "train") & ~garde)[0]
     train_norm = train_all[y[train_all] == 0]
@@ -314,23 +316,8 @@ async def train(emit: Emit) -> dict:
         results[key] = r
         return r
 
-    # 1. Isolation Forest
-    await emit("IsolationForest", 14, "Isolation Forest : apprentissage sur les lignes normales…", model="IsolationForest")
-    iso = IsolationForest(n_estimators=300, max_samples=min(4096, len(train_norm)), contamination="auto",
-                          random_state=tr.SEED, n_jobs=-1)
-    s_if = await asyncio.to_thread(lambda: -iso.fit(X_s[train_norm]).score_samples(X_s))
-    r = evaluate("IsolationForest", "Isolation Forest", "non supervisé", s_if, {"n_estimators": 300})
-    await emit("IsolationForest", 24, f"Isolation Forest : F1 {r['f1']:.2f} sur le test", model="IsolationForest",
-               result=_compact(r))
-
-    # 2. One-Class SVM
-    await emit("OCSVM", 27, "One-Class SVM : 12 configurations (ν × γ) comparées sur la validation…", model="OCSVM")
-    s_oc, p_oc = await asyncio.to_thread(ts.ocsvm_scores, X_s, y, train_norm, val_idx)
-    r = evaluate("OCSVM", "One-Class SVM", "non supervisé", s_oc, p_oc)
-    await emit("OCSVM", 40, f"One-Class SVM : F1 {r['f1']:.2f} sur le test", model="OCSVM", result=_compact(r))
-
-    # 3. Random Forest, par paliers d'arbres : la courbe se trace en direct
-    await emit("RandomForest", 42, "Random Forest : apprentissage par paliers de 30 arbres…", model="RandomForest")
+    # 1. Random Forest, par paliers d'arbres : la courbe se trace en direct
+    await emit("RandomForest", 12, "Random Forest : apprentissage par paliers de 30 arbres…", model="RandomForest")
     rf = RandomForestClassifier(n_estimators=30, min_samples_leaf=5, class_weight="balanced_subsample",
                                 warm_start=True, random_state=tr.SEED, n_jobs=-1)
     curve = []
@@ -345,24 +332,24 @@ async def train(emit: Emit) -> dict:
         point = {"arbres": n_trees, "f1_validation": round(2 * tp / max(1, 2 * tp + fp + fn), 4),
                  "auc_validation": round(float(roc_auc_score(y[val_idx], p_val)), 4)}
         curve.append(point)
-        await emit("RandomForest", 42 + int(24 * n_trees / 300),
+        await emit("RandomForest", 12 + int(38 * n_trees / 300),
                    f"Random Forest : {n_trees} arbres, F1 validation {point['f1_validation']:.2f}",
                    model="RandomForest", curve_point=point)
     s_rf = await asyncio.to_thread(lambda: rf.predict_proba(X)[:, 1])
     r = evaluate("RandomForest", "Random Forest", "supervisé", s_rf,
                  {"n_estimators": 300, "min_samples_leaf": 5, "class_weight": "balanced_subsample"})
-    await emit("RandomForest", 68, f"Random Forest : F1 {r['f1']:.2f} sur le test", model="RandomForest",
+    await emit("RandomForest", 52, f"Random Forest : F1 {r['f1']:.2f} sur le test", model="RandomForest",
                result=_compact(r))
 
-    # 4. XGBoost
-    models = {"RandomForest": rf, "IsolationForest": iso}
+    # 2. XGBoost
+    models = {"RandomForest": rf}
     try:
         from xgboost import XGBClassifier  # noqa: PLC0415
     except ImportError:
         XGBClassifier = None
-        await emit("XGBoost", 70, "XGBoost absent (pip install xgboost) : modèle ignoré", model="XGBoost", skipped=True)
+        await emit("XGBoost", 55, "XGBoost absent (pip install xgboost) : modèle ignoré", model="XGBoost", skipped=True)
     if XGBClassifier is not None:
-        await emit("XGBoost", 70, "XGBoost : 400 itérations de boosting…", model="XGBoost")
+        await emit("XGBoost", 55, "XGBoost : 400 itérations de boosting…", model="XGBoost")
         pos = max(1, int(y[train_all].sum()))
         xgb = XGBClassifier(n_estimators=400, max_depth=6, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
                             scale_pos_weight=float((len(train_all) - pos) / pos), eval_metric="logloss",
@@ -370,15 +357,26 @@ async def train(emit: Emit) -> dict:
         s_xgb = await asyncio.to_thread(lambda: xgb.fit(X[train_all], y[train_all]).predict_proba(X)[:, 1])
         r = evaluate("XGBoost", "XGBoost", "supervisé", s_xgb, {"n_estimators": 400, "max_depth": 6, "learning_rate": 0.05})
         models["XGBoost"] = xgb
-        await emit("XGBoost", 82, f"XGBoost : F1 {r['f1']:.2f} sur le test", model="XGBoost", result=_compact(r))
+        await emit("XGBoost", 68, f"XGBoost : F1 {r['f1']:.2f} sur le test", model="XGBoost", result=_compact(r))
+
+    # 3. Régression Logistique et 4. MLP : mêmes réglages que transmission_models.py
+    for key, nom, fn, (p0, p1), msg in (
+            ("Logistique", "Régression Logistique", tm.logistic_regression, (70, 76), "Régression Logistique (class_weight équilibré)…"),
+            ("MLP", "MLP", tm.mlp, (77, 83), "MLP (64, 32) avec early stopping…")):
+        await emit(key, p0, msg, model=key)
+        s_m, p_m, m_m = await asyncio.to_thread(fn, X_s, y, train_all)
+        r = evaluate(key, nom, "supervisé", s_m, p_m)
+        models[key] = m_m
+        await emit(key, p1, f"{nom} : F1 {r['f1']:.2f} sur le test", model=key, result=_compact(r))
 
     best_key = max(results, key=lambda k: results[k]["val_f1"])
+    tree_models = {k: m for k, m in models.items() if k in ("RandomForest", "XGBoost")}
 
     # 5. SHAP du meilleur modèle arborescent
     shap_out = None
-    if best_key in models:
+    if best_key in tree_models:
         await emit("SHAP", 85, f"SHAP : explication de {results[best_key]['nom']} sur les attaques de validation et de test…")
-        shap_out = await asyncio.to_thread(_shap_summary, models[best_key], df, feats, val_idx, test_idx, tr)
+        shap_out = await asyncio.to_thread(_shap_summary, tree_models[best_key], df, feats, val_idx, test_idx, tr)
         await emit("SHAP", 95, "SHAP terminé", shap=shap_out)
 
     # 6. Sauvegarde
@@ -444,8 +442,7 @@ def _results_for_report() -> tuple[dict | None, dict | None, str]:
         return web["modeles"], web.get("shap"), "dernier entraînement web"
     pooled = _load_json(POOLED_RESULTS)
     if pooled:
-        models = {k: v for k, v in pooled["resultats"].items() if k != "Statistique"}
-        return models, _load_json(POOLED_SHAP), "étude de référence (9 répétitions)"
+        return pooled["resultats"], _load_json(POOLED_SHAP), "étude de référence (9 répétitions)"
     return None, None, "aucun résultat"
 
 
@@ -466,7 +463,7 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
     best_key = max(models, key=lambda k: models[k].get("val_f1", models[k].get("f1", 0)))
     best = models[best_key]
     if not best.get("type"):
-        best = {**best, "type": "supervisé" if best_key in ("RandomForest", "XGBoost") else "non supervisé"}
+        best = {**best, "type": "supervisé"}
     fa_h = best.get("fausses_alarmes_evenements_par_heure", best.get("evenements_fausse_alarme_par_jour"))
     report["modele"] = {
         "cle": best_key, "nom": best.get("nom", best_key), "type": best.get("type"),
