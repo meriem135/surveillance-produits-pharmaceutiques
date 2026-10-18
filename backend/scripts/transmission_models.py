@@ -1,31 +1,36 @@
 """
-Quatre modèles candidats sur les traces réelles avec attaques de transmission
-===========================================================================
+Quatre modèles supervisés sur les traces réelles avec attaques de transmission
+=============================================================================
 Plan de l'étudiante : (1) prétraitement des traces réelles, (2) injection d'attaques
-MITM / injection, (3) quatre modèles, choix du meilleur, (4) SHAP.
+MITM / injection, (3) quatre modèles supervisés, choix du meilleur, (4) SHAP.
 
-Modèles et raison du choix
-  - Isolation Forest   non supervisé : apprend le normal seul, isole ce qui est rare
-                       (rapide, robuste au bruit, pas besoin d'exemples d'attaque)
-  - One-Class SVM      non supervisé : frontière du normal dans l'espace des features
-                       (référence déjà utilisée dans la phase 2)
-  - Random Forest      supervisé : apprend sur des attaques étiquetées ; robuste,
-                       explicable par SHAP (TreeExplainer)
-  - XGBoost            supervisé : boosting, en général le plus précis sur des
-                       features tabulaires ; explicable par SHAP
-  Référence : le détecteur statistique par capteur de transmission_real.py.
+Modèles (tous supervisés) et raison du choix
+  - Random Forest      apprend sur des attaques étiquetées ; robuste, explicable
+                       par SHAP (TreeExplainer)
+  - XGBoost            boosting, en général le plus précis sur des features
+                       tabulaires ; explicable par SHAP
+  - Régression Logistique  baseline linéaire interprétable, sert de point de
+                       comparaison aux modèles non linéaires
+  - MLP                réseau de neurones (64, 32) avec early stopping, apporte une
+                       famille non-arbre au comparatif
 
-Les modèles supervisés ont besoin d'attaques dans l'entraînement : les épisodes
-sont injectés dans un bloc sur deux de CHAQUE rôle (train / val / test). Les
-non-supervisés n'apprennent que sur les lignes normales des blocs d'entraînement.
+  Les modèles NON supervisés (Isolation Forest, One-Class SVM) et la référence
+  statistique ont été RETIRÉS du comparatif : l'étude ne compare que des modèles
+  supervisés.
+
+Les modèles supervisés ont besoin d'attaques dans l'entraînement : un épisode est
+injecté dans CHAQUE bloc, ce qui porte le jeu de données à ~33 % d'attaques
+(train, val et test).
 
 Prétraitement (features) : par capteur, valeur, variation, moyenne et écart-type
 glissants sur 1, 5 et 15 min, moyenne lissée (EWMA 10 min), indicateur « séquence
 de 2 min déjà transmise » (rejeu exact) ; écarts entre capteurs ; état du frigo et
 du thermostat. Pas d'heure ni de saison : 62 h de données seulement.
 
-Même protocole que transmission_real.py : blocs d'une heure entrelacés, 9
-répétitions à rôles tournants, seuil = max F1 sur la validation, résultats cumulés.
+Même protocole que transmission_real.py : découpage train/val/test NON aléatoire
+70/15/15 par blocs d'une heure entrelacés (recalculé à l'entraînement via
+`transmission_real.block_split`, plus stocké dans le CSV), 9 répétitions à rôles
+tournants, seuil = max F1 sur la validation, résultats cumulés.
 
 Sorties : data/processed/dataset_transmission_reel.csv (répétition 0, attaques dans
           tous les rôles), models/transmission_reel/comparaison_modeles.json,
@@ -38,16 +43,28 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import sys
 import time
 import traceback
 from pathlib import Path
 
+# Garde-fou encodage : sur Windows, une sortie redirigee peut etre en cp1252 et faire
+# planter le script sur un caractere comme la fleche '->'. On force UTF-8 (avec
+# remplacement) pour que le script ne plante JAMAIS pour une histoire d'accent.
+for _flux in (sys.stdout, sys.stderr):
+    try:
+        _flux.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import IsolationForest, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 HERE = Path(__file__).resolve().parent
@@ -69,6 +86,7 @@ SEED = tr.SEED
 N_RUNS = tr.N_RUNS
 OUT_DIR = tr.OUT_DIR
 DATASET_PATH = tr.DATASET_PATH
+EPISODES_PATH = paths.PROCESSED_DIR / "episodes_transmission_reel.json"
 log = ts.log
 
 SENSORS = ("weather", "fridge", "thermostat")
@@ -100,21 +118,14 @@ def engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     feats += ["fridge_thermostat_diff", "weather_fridge_diff", "weather_thermostat_diff",
               "fridge_cond_enc", "thermo_status"]
     d[feats] = d[feats].replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+    # Nettoyage : on retire les colonnes héritées du pré-calcul phase2 (heure, saison,
+    # moyennes/écarts glissants sur 10 pas), inutiles au modèle de transmission.
+    d = tr.drop_phase2_cols(d)
     return d, feats
 
 
 # ── Modèles : chacun renvoie (score par ligne, hyperparamètres, objet entraîné) ──
-
-def isolation_forest(X_s, train_norm):
-    model = IsolationForest(n_estimators=300, max_samples=min(4096, len(train_norm)),
-                            contamination="auto", random_state=SEED, n_jobs=-1).fit(X_s[train_norm])
-    return -model.score_samples(X_s), {"n_estimators": 300, "max_samples": min(4096, len(train_norm))}, model
-
-
-def one_class_svm(X_s, y, train_norm, val_idx):
-    scores, params = ts.ocsvm_scores(X_s, y, train_norm, val_idx)
-    return scores, params, None
-
 
 def random_forest(X, y, train_all):
     model = RandomForestClassifier(n_estimators=300, min_samples_leaf=5, class_weight="balanced_subsample",
@@ -133,11 +144,29 @@ def xgboost_model(X, y, train_all):
                                           "scale_pos_weight": round(ratio, 2)}, model
 
 
-MODELS = [("IsolationForest", "Isolation Forest (non supervisé)"),
-          ("OCSVM", "One-Class SVM (non supervisé)"),
-          ("RandomForest", "Random Forest (supervisé)"),
+def logistic_regression(X_s, y, train_all):
+    """Régression Logistique : baseline linéaire interprétable, class_weight équilibre les classes."""
+    model = LogisticRegression(max_iter=1000, class_weight="balanced",
+                               random_state=SEED).fit(X_s[train_all], y[train_all])
+    return model.predict_proba(X_s)[:, 1], {"max_iter": 1000, "class_weight": "balanced"}, model
+
+
+def mlp(X_s, y, train_all):
+    """MLP (64, 32) : early stopping contre le surapprentissage ; sample_weight équilibre les classes
+    (MLPClassifier n'a pas de class_weight)."""
+    y_tr = y[train_all]
+    pos = max(1, int(y_tr.sum()))
+    poids = np.where(y_tr == 1, len(y_tr) / (2 * pos), len(y_tr) / (2 * max(1, len(y_tr) - pos)))
+    model = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=300, early_stopping=True,
+                          random_state=SEED).fit(X_s[train_all], y_tr, sample_weight=poids)
+    return model.predict_proba(X_s)[:, 1], {"hidden_layer_sizes": (64, 32), "max_iter": 300,
+                                            "early_stopping": True}, model
+
+
+MODELS = [("RandomForest", "Random Forest (supervisé)"),
           ("XGBoost", "XGBoost (supervisé)"),
-          ("Statistique", "Réf. : statistique par capteur")]
+          ("Logistique", "Régression Logistique (supervisé)"),
+          ("MLP", "MLP — réseau de neurones (supervisé)")]
 
 
 def one_run(base: pd.DataFrame, run: int) -> dict:
@@ -146,7 +175,7 @@ def one_run(base: pd.DataFrame, run: int) -> dict:
     df = tr.inject(base, episodes, rng, run)
     df, feats = engineer(df)
     y = df["label"].to_numpy().astype(int)
-    split = df["split"].to_numpy()
+    split = tr.block_split(len(df), run)   # 70/15/15 non aléatoire, recalculé (non stocké dans le CSV)
     garde = df["garde"].to_numpy().astype(bool)
     train_all = np.where((split == "train") & ~garde)[0]
     train_norm = train_all[y[train_all] == 0]
@@ -166,13 +195,11 @@ def one_run(base: pd.DataFrame, run: int) -> dict:
             traceback.print_exc()
             log(f"  !! {key} : échec, ignoré (répétition {run})")
 
-    attempt("IsolationForest", lambda: isolation_forest(X_s, train_norm))
-    attempt("OCSVM", lambda: one_class_svm(X_s, y, train_norm, val_idx))
     attempt("RandomForest", lambda: random_forest(X, y, train_all))
     if XGBClassifier is not None:
         attempt("XGBoost", lambda: xgboost_model(X, y, train_all))
-    with contextlib.redirect_stdout(io.StringIO()):
-        scores["Statistique"] = tr.stat_detector(df, y, train_norm, val_idx)["TOUS"]
+    attempt("Logistique", lambda: logistic_regression(X_s, y, train_all))
+    attempt("MLP", lambda: mlp(X_s, y, train_all))
 
     for key, _ in MODELS:
         if key not in scores:
@@ -243,7 +270,7 @@ def main() -> None:
     base, fusion = tr.fuse_real(real)
     log(f"    grille {tr.STEP} : {fusion['pas_conserves']:,} lignes ({fusion['debut']} → {fusion['fin']})")
 
-    log(f"[2] {N_RUNS} répétitions : attaques injectées dans tous les rôles, 4 modèles + référence")
+    log(f"[2] {N_RUNS} répétitions : attaques injectées dans tous les rôles, 4 modèles supervisés")
     runs = []
     for run in range(N_RUNS):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -254,7 +281,12 @@ def main() -> None:
                 raise
         if run == 0:
             r["df"].to_csv(DATASET_PATH, index=False, float_format="%.4f")
+            # Le planning des épisodes est écrit EN MÊME TEMPS que le jeu de données :
+            # les deux doivent rester cohérents (mêmes épisodes, mêmes bornes).
+            with open(EPISODES_PATH, "w", encoding="utf-8") as f:
+                json.dump(r["episodes"], f, indent=1, ensure_ascii=False, default=ts._json_default)
             log(f"    {DATASET_PATH.name} (répétition 0) : {len(r['df']):,} lignes, {len(r['feats'])} features")
+            log(f"    {EPISODES_PATH.name} : {len(r['episodes'])} épisodes")
         runs.append(r)
         log(f"    répétition {run} terminée")
 
@@ -276,7 +308,7 @@ def main() -> None:
     print()
     print("Classement sur la VALIDATION (F1 cumulé) : "
           + " > ".join(f"{k} ({results[k]['val_f1']:.3f})" for k in ranking))
-    best_key = next(k for k in ranking if k != "Statistique")
+    best_key = ranking[0]
     b = results[best_key]
     print(f"→ Meilleur des 4 modèles : {b['nom']} (test : F1 {b['f1']:.3f}, rappel {b['recall']:.3f}, "
           f"{b['fausses_alarmes_evenements_par_heure']:.2f} fausse(s) alarme(s)/heure, "
@@ -285,16 +317,21 @@ def main() -> None:
     log("[3] SHAP du meilleur modèle (cumulé sur les répétitions)")
     shap_out = None
     model0 = runs[0]["models"].get(best_key)
-    if model0 is not None and best_key in ("RandomForest", "XGBoost", "IsolationForest"):
+    # SKIP_SHAP=1 : on saute l'étape SHAP (lente, inutile pour le tableau comparatif).
+    # Le .pkl du meilleur modèle est quand même écrit ci-dessous.
+    if (model0 is not None and best_key in ("RandomForest", "XGBoost")
+            and not os.environ.get("SKIP_SHAP")):
         shap_out = shap_summary(runs, best_key, np.random.default_rng(SEED))
         print()
         print(f"SHAP — features qui font détecter ({b['nom']}, lignes d'attaque du test, {N_RUNS} répétitions)")
         print("  global : " + ", ".join(f"{f['feature']} ({f['importance']:.3f})" for f in shap_out["global"][:6]))
         for nm, lst in shap_out["par_scenario"].items():
             print(f"  {nm:28s} " + ", ".join(f"{f['feature']} ({f['importance']:.3f})" for f in lst[:4]))
-        joblib.dump(model0, OUT_DIR / "meilleur_modele.pkl")
     else:
-        log("    pas de SHAP arborescent pour ce modèle")
+        log("    pas de SHAP arborescent pour ce modèle (meilleur modèle non-arbre)")
+    # Le .pkl du meilleur modèle est écrit quelle que soit sa famille (arbre ou non)
+    if model0 is not None:
+        joblib.dump(model0, OUT_DIR / "meilleur_modele.pkl")
 
     summary = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -302,8 +339,10 @@ def main() -> None:
         "fusion": fusion,
         "features": runs[0]["feats"],
         "protocole": {
-            "split": "blocs d'une heure entrelacés : 3 train / 1 val / 1 test, rôles tournant à chaque répétition",
-            "attaques": "un épisode de 12 à 20 min dans un bloc sur deux de chaque rôle",
+            "split": "70/15/15 NON aléatoire, blocs d'une heure entrelacés (14 train / 3 val / 3 test "
+                     "sur un cycle de 20), rôles tournant à chaque répétition ; recalculé à l'entraînement "
+                     "(transmission_real.block_split), plus stocké dans le jeu de données",
+            "attaques": "un épisode de 15 à 25 min dans CHAQUE bloc (train, val et test) : ~33 % d'attaques",
             "repetitions": N_RUNS,
             "seuil": "max F1 sur la validation de chaque répétition, appliqué tel quel à son test",
             "episodes_par_repetition": [len(r["episodes"]) for r in runs],

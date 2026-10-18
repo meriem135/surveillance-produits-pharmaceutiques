@@ -7,12 +7,16 @@ Consigne : travailler uniquement sur les données disponibles (3 traces normales
 1. Fusion des trois capteurs sur une grille régulière de 5 s (moyenne par pas,
    trous < 1 min comblés par la dernière valeur, le reste supprimé) :
    data/processed/dataset_transmission_reel.csv
-2. Découpage en blocs d'une heure entrelacés (3 train / 1 val / 1 test) ; un épisode
-   d'attaque de 12 à 20 min dans un bloc de validation / test sur deux (≈ 13 % des
-   lignes) ; 9 scénarios (le « masquage » n'a pas de sens ici : ces traces n'ont pas
-   d'excursion réelle). Les traces ne durent que 62 h : l'étude est donc RÉPÉTÉE
-   9 fois en faisant tourner les rôles des blocs et les scénarios, et les résultats
-   sont cumulés (chaque heure sert de test, chaque scénario a ~5 épisodes de test).
+2. Découpage train / val / test NON aléatoire (70 / 15 / 15) par blocs d'une heure
+   entrelacés. Le découpage est calculé AU MOMENT DE L'ENTRAÎNEMENT (fonction
+   `block_split`) et n'est plus écrit dans le jeu de données. Une attaque de 15 à
+   25 min tient ENTIÈREMENT dans un bloc : aucune attaque n'est coupée entre deux
+   rôles (pas de fuite temporelle). Un épisode dans CHAQUE bloc porte le jeu de
+   données à ~33 % d'attaques, partout (train, val et test). 7 scénarios (le
+   « masquage » n'a pas de sens ici : ces traces n'ont pas d'excursion réelle). Les
+   traces ne durent que 62 h : l'étude est donc RÉPÉTÉE 9 fois en faisant tourner les
+   rôles des blocs et les scénarios, et les résultats sont cumulés (chaque heure sert
+   de test, chaque scénario a ~5 épisodes).
 3. Même protocole que transmission_study.py (seuil = max F1 sur la validation de
    chaque répétition) : les 4 modèles de la phase 2
    réentraînés, et un détecteur STATISTIQUE par capteur — A : capteur figé,
@@ -60,7 +64,7 @@ STEPS_DAY = 24 * STEPS_HOUR
 STEP_MINUTES = 5 / 60
 MAX_GAP = 12                    # trous ≤ 1 min comblés par la dernière valeur
 GUARD = 60                      # 5 min après chaque épisode exclues de l'évaluation
-EP_MIN, EP_MAX = 150, 240       # durée d'un épisode : 12,5 à 20 min
+EP_MIN, EP_MAX = 180, 300       # durée d'un épisode : 15 à 25 min (≈ 33 % d'un bloc)
 N_RUNS = 9                      # répétitions : rotation des rôles des blocs et des scénarios
 FEATURES = phase2.FEATURE_COLS
 OUT_DIR = paths.MODELS_DIR / "transmission_reel"
@@ -69,12 +73,13 @@ DATASET_PATH = paths.PROCESSED_DIR / "dataset_transmission_reel.csv"
 F_SET, F_NOISE = 7.0, 0.35      # injection « nominale » : valeurs forgées autour de la consigne
 RANGE = {"fridge": (1.0, 14.0), "thermostat": (25.0, 35.0)}   # plages observées dans les traces
 
+# Périmètre : les biais faibles -0.5 °C et -1.0 °C ont été RETIRÉS du périmètre d'étude
+# (amplitude sous le bruit du capteur ±3.4 °C : AUC ≈ 0.64 et 0.82, quasi indétectables).
+# Ils sont conservés dans l'historique (Soutenance/) comme limite connue du système.
 ATTACKS = [
     ("MITM_gel",                   "fridge",     "gel",      None),   # dernière valeur rejouée en boucle
     ("MITM_rejeu",                 "fridge",     "rejeu",    None),   # fenêtre passée (≥ 1 h plus tôt) rejouée
     ("Injection_nominale",         "fridge",     "nominale", None),   # valeurs forgées ~7 °C, peu bruitées
-    ("Injection_biais_0.5",        "fridge",     "biais",    -0.5),
-    ("Injection_biais_1.0",        "fridge",     "biais",    -1.0),
     ("Injection_biais_2.0",        "fridge",     "biais",    -2.0),
     ("Injection_derive",           "fridge",     "derive",   -2.0),   # rampe lente 0 → -2 °C
     ("MITM_gel_thermostat",        "thermostat", "gel",      None),
@@ -83,6 +88,18 @@ ATTACKS = [
 ATTACK_NAMES = [a[0] for a in ATTACKS]
 
 log = ts.log
+
+
+PHASE2_ONLY_COLS = ("hour_sin", "hour_cos", "season_sin", "season_cos")
+
+
+def drop_phase2_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Retire les colonnes héritées du pré-calcul phase2 (heure, saison, moyennes et
+    écarts glissants sur 10 pas). Elles ne font pas partie des 35 features du modèle
+    de transmission : on garde un jeu de données propre et reproductible."""
+    cols = [c for c in df.columns if c.endswith(("_roll_mean_10", "_roll_std_10"))]
+    cols += [c for c in PHASE2_ONLY_COLS if c in df.columns]
+    return df.drop(columns=cols, errors="ignore")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -120,25 +137,43 @@ def profile(df: pd.DataFrame) -> dict:
     return out
 
 
+# Découpage train / val / test : NON aléatoire, 70 / 15 / 15.
+# On découpe les heures en blocs entrelacés : sur un cycle de 20 blocs consécutifs,
+# 14 vont au train, 3 à la validation et 3 au test. Comme une attaque tient
+# ENTIÈREMENT dans un bloc d'une heure, aucune attaque n'est jamais coupée entre
+# deux rôles (pas de fuite temporelle). `run` décale le motif d'un cran à chaque
+# répétition (rôles tournants de l'étude cumulée) : le découpage reste déterministe.
+BLOCK_CYCLE = 20
+TRAIN_BLOCKS = 14          # 14/20 = 70 %
+VAL_BLOCKS = 3             # 3/20 = 15 %  (le reste, 3/20 = 15 %, part au test)
+
+
 def role_of_block(block: int, run: int = 0) -> str:
-    r = (block + run) % 5
-    return "val" if r == 3 else ("test" if r == 4 else "train")
+    r = (block + run) % BLOCK_CYCLE
+    if r < TRAIN_BLOCKS:
+        return "train"
+    return "val" if r < TRAIN_BLOCKS + VAL_BLOCKS else "test"
+
+
+def block_split(n: int, run: int = 0) -> np.ndarray:
+    """Rôle (train / val / test) de CHAQUE ligne, déduit de son bloc horaire.
+    Le découpage n'est plus stocké dans le jeu de données : il est recalculé ICI,
+    au moment de l'entraînement. Non aléatoire et reproductible : mêmes blocs,
+    mêmes rôles à chaque exécution."""
+    return np.array([role_of_block(i // STEPS_HOUR, run) for i in range(n)], dtype=object)
 
 
 def build_schedule(n: int, rng: np.random.Generator, run: int = 0,
                    roles: tuple[str, ...] = ("val", "test")) -> list[dict]:
-    """Un épisode dans un bloc sur deux des rôles demandés ; les scénarios tournent
-    avec la répétition, pour que chacun soit testé plusieurs fois. Les modèles
-    supervisés (transmission_models.py) demandent aussi des attaques dans les blocs
-    d'entraînement : roles=("train", "val", "test")."""
+    """Un épisode dans CHAQUE bloc des rôles demandés ; les scénarios tournent avec la
+    répétition, pour que chacun soit testé plusieurs fois. Les modèles supervisés
+    (transmission_models.py) demandent des attaques dans tous les rôles :
+    roles=("train", "val", "test"). Un épisode dans chaque bloc d'une heure porte le
+    jeu de données à ~33 % d'attaques (durée 15 à 25 min par épisode)."""
     episodes, counters = [], {r: run for r in roles}
-    seen = {r: 0 for r in roles}
     for block in range(n // STEPS_HOUR):
         role = role_of_block(block, run)
         if role not in counters:
-            continue
-        seen[role] += 1
-        if seen[role] % 2 == 0:
             continue
         s = block * STEPS_HOUR + int(rng.integers(12, STEPS_HOUR - EP_MAX - 12))
         e = s + int(rng.integers(EP_MIN, EP_MAX + 1))
@@ -187,7 +222,8 @@ def inject(df: pd.DataFrame, episodes: list[dict], rng: np.random.Generator, run
     out["attack_type"] = attack_type
     out["cible"] = cible
     out["incident"] = 0                      # pas d'incident réel identifiable dans ces traces
-    out["split"] = [role_of_block(i // STEPS_HOUR, run) for i in range(n)]
+    # Le rôle train/val/test n'est PLUS écrit dans le jeu de données : il est recalculé
+    # au moment de l'entraînement par block_split() (non aléatoire, 70/15/15, par blocs).
     out["garde"] = garde
     return phase2._engineer_features(out)
 
@@ -371,7 +407,7 @@ def one_run(base: pd.DataFrame, run: int, quiet: bool) -> tuple[dict, list[dict]
     episodes = build_schedule(len(base), rng, run)
     df = inject(base, episodes, rng, run)
     y = df["label"].to_numpy().astype(int)
-    split = df["split"].to_numpy()
+    split = block_split(len(df), run)     # découpage recalculé ici (non stocké dans le CSV)
     garde = df["garde"].to_numpy().astype(bool)
     train_idx = np.where((split == "train") & (y == 0))[0]
     val_idx = np.where((split == "val") & ~garde)[0]
@@ -464,6 +500,17 @@ def _main() -> None:
         with contextlib.redirect_stdout(io.StringIO()) if run else contextlib.nullcontext():
             counts, episodes, df = one_run(base, run, quiet=False)
         if run == 0:
+            # ATTENTION : ce CSV est ECRIT PAR DEUX SCRIPTS. Ici, roles=("val","test") ->
+            # le train reste SANS attaques, ce qui convient a l'etude statistique non
+            # supervisee. L'etude supervisee (transmission_models.py) ecrase ce meme
+            # fichier avec roles=("train","val","test") -> train AVEC attaques. Le
+            # decoupage train/val/test n'est plus stocke dans le CSV (il est recalcule a
+            # l'entrainement par block_split) : les deux variantes ont donc exactement les
+            # memes colonnes, seul le label des blocs de train change. L'application, les
+            # notebooks et entrainement_web.json ont besoin de la variante supervisee : il
+            # faut donc executer transmission_models.py APRES ce script, jamais l'inverse.
+            # Voir Soutenance/perimetre_etude_attaques.md ("Ordre d'execution obligatoire").
+            df = drop_phase2_cols(df)
             df.to_csv(DATASET_PATH, index=False, float_format="%.4f")
             log(f"    {DATASET_PATH.name} (répétition 0) : {len(df):,} lignes")
         all_counts.append(counts)
@@ -516,7 +563,9 @@ def _main() -> None:
         "fusion": fusion,
         "profil_traces": prof,
         "protocole": {
-            "split": "blocs d'une heure entrelacés : 3 train / 1 val / 1 test, rôles tournant à chaque répétition",
+            "split": "70/15/15 NON aléatoire, blocs d'une heure entrelacés (14 train / 3 val / 3 test "
+                     "sur un cycle de 20), rôles tournant à chaque répétition ; recalculé à l'entraînement "
+                     "(transmission_real.block_split), plus stocké dans le jeu de données",
             "repetitions": N_RUNS,
             "seuil": "max F1 sur la validation de chaque répétition, appliqué tel quel à son test",
             "pas_secondes": 5, "zone_de_garde_pas": GUARD,
