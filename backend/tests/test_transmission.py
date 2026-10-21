@@ -21,7 +21,7 @@ def test_operator_report_from_results():
                          "val_f1": 0.66, "fausses_alarmes_evenements_par_heure": 3.3, "delai_median_min": 1.9,
                          "episodes": 55, "episodes_detectes": 48,
                          "per_attack": {"MITM_gel": {"n": 100, "detected": 92, "rate": 92.0},
-                                        "Injection_derive": {"n": 100, "detected": 8, "rate": 8.0}},
+                                        "Injection_biais_0.5": {"n": 100, "detected": 8, "rate": 8.0}},
                          "per_episode": {"MITM_gel": {"n": 6, "detected": 6}}},
         "XGBoost": {"nom": "XGBoost", "type": "supervisé", "precision": 0.67, "recall": 0.51, "f1": 0.58, "val_f1": 0.59,
                     "fausses_alarmes_evenements_par_heure": 4.5, "episodes": 55, "episodes_detectes": 46},
@@ -32,10 +32,10 @@ def test_operator_report_from_results():
     gel = next(s for s in report["scenarios"] if s["scenario"] == "MITM_gel")
     assert gel["niveau"] == "bien détecté"
     assert gel["ce_que_le_modele_regarde"] == ["écart-type sur 1 min du frigo"]
-    biais = next(s for s in report["scenarios"] if s["scenario"] == "Injection_derive")
+    biais = next(s for s in report["scenarios"] if s["scenario"] == "Injection_biais_0.5")
     assert "vérification humaine" in biais["niveau"]
     assert "## Consignes par type d'attaque" in report["markdown"]
-    assert len(report["scenarios"]) == len(service.scenarios())
+    assert len(report["scenarios"]) == len(service.scenarios()) == 9
 
 
 def test_alert_recommendation():
@@ -50,8 +50,28 @@ def test_public_kpis_come_from_the_reference_results():
     kpis = service.public_kpis()
     assert kpis is not None, "models/transmission_reel/comparaison_modeles.json est versionné"
     best = kpis["meilleur"]
-    assert best["id"] == "RandomForest" and 0 < best["f1"] < 1
+    assert best["id"] in ("RandomForest", "XGBoost", "Logistique", "MLP") and 0 < best["recall"] <= 1
+    assert kpis["cible_rappel"] == 0.9 and 0.12 <= kpis["part_attaques_test"] <= 0.16
     assert kpis["traces"]["mesures"] > 40_000 and kpis["traces"]["pas"] == "5s"
     assert kpis["scenarios"] == len(service.scenarios()) == len(kpis["detection_par_scenario"])
     taux = [s["taux"] for s in kpis["detection_par_scenario"]]
     assert taux == sorted(taux, reverse=True)
+
+
+def test_operator_report_uses_the_recall_first_point_chosen_on_validation():
+    def pt(rv, pv, f2v, rt, pt_):
+        mk = lambda r, p, f2: {"recall": r, "precision": p, "f1": 0.5, "f2": f2, "delai_median_min": 1.0,
+                               "fausses_alarmes_evenements_par_heure": 2.0, "episodes": 10, "episodes_detectes": 9,
+                               "per_attack": {"MITM_gel": {"n": 10, "detected": 9, "rate": 90.0}},
+                               "per_episode": {"MITM_gel": {"n": 2, "detected": 2, "delai_median_min": 0.5}}}
+        return {"val": mk(rv, pv, f2v), "test": mk(rt, pt_, 0.1)}
+    models = {
+        "RandomForest": {"nom": "Random Forest", "val_f1": 0.9,
+                         "points_fonctionnement": {"max_f1": pt(0.7, 0.9, 0.7, 0.7, 0.9), "rappel_0.90": pt(0.9, 0.3, 0.6, 0.88, 0.3)}},
+        "MLP": {"nom": "MLP", "val_f1": 0.5,
+                "points_fonctionnement": {"max_f1": pt(0.6, 0.6, 0.6, 0.6, 0.6), "rappel_0.90": pt(0.9, 0.4, 0.7, 0.85, 0.2)}},
+    }
+    report = service.operator_report(models, None, "test", 0.90)
+    assert report["modele"]["cle"] == "MLP"                    # meilleur F2 de VALIDATION au rappel cible
+    assert report["modele"]["recall"] == 0.85 and report["modele"]["point_fonctionnement"] == "rappel cible 0.90"
+    assert "SMOTE" in report["markdown"]

@@ -38,16 +38,17 @@ interface TransmissionKpi {
   repetitions: number;
   scenarios: number;
   meilleur: {
-    id: string; nom: string; f1: number; precision: number; recall: number; roc_auc: number;
-    episodes: number; episodes_detectes: number; delai_median_min: number;
+    id: string; nom: string; f1: number; f2?: number; precision: number; recall: number; roc_auc: number;
+    fausses_alarmes_par_heure?: number; episodes: number; episodes_detectes: number; delai_median_min: number | null;
   };
+  cible_rappel?: number;
   modeles: { id: string; nom: string; f1: number }[];
   detection_par_scenario: { scenario: string; description: string; taux: number; points: number; detectes: number }[];
 }
 
 const FEATURES = [
   { icon: Database, title: 'Collecte & préparation des données', desc: 'J\'ai exploré et prétraité 5 jours de mesures réelles TON_IoT (frigo, thermostat, météo, du 31 mars au 4 avril 2019) : nettoyage, fusion des trois capteurs au pas de 5 s, puis injection d\'attaques de transmission (MITM et injection) sur ces traces.', color: '#00B8D9', tag: 'Data' },
-  { icon: Brain, title: 'Modélisation ML & explicabilité', desc: 'J\'ai entraîné et comparé quatre modèles supervisés (Random Forest, XGBoost, Régression Logistique et MLP) sur 9 répétitions, retenu le meilleur, le Random Forest, puis expliqué chaque détection avec SHAP.', color: '#A855F7', tag: 'Machine Learning' },
+  { icon: Brain, title: 'Modélisation ML & explicabilité', desc: 'J\'ai entraîné et comparé quatre modèles supervisés (Random Forest, XGBoost, Régression Logistique et MLP) sur 20 répétitions, retenu le meilleur sur la validation avec un seuil réglé pour un rappel cible (priorité : ne rater aucune attaque), puis expliqué chaque détection avec SHAP.', color: '#A855F7', tag: 'Machine Learning' },
   { icon: Rocket, title: 'Déploiement de la plateforme', desc: 'J\'ai construit l\'API FastAPI, le dashboard React temps réel (entraînement en direct, SHAP, rapport de recommandation pour l\'opérateur) et une base PostgreSQL.', color: '#00FFA3', tag: 'Déploiement' },
 ];
 
@@ -89,11 +90,11 @@ function buildStats(kpi: TransmissionKpi | null) {
   if (!kpi) return [];
   const t = kpi.traces;
   const m = kpi.meilleur;
-  const f1 = m.f1 * 100;
+  const rappel = m.recall * 100;
   return [
     { value: t.mesures, label: 'Mesures réelles', suffix: `pas de ${t.pas} · ${t.heures.toLocaleString('fr-FR')} h de traces`, icon: Cpu, color: '#00F5FF', format: (n: number) => formatInt(Math.round(n)) },
     { value: kpi.scenarios, label: 'Scénarios d\'attaque', suffix: 'MITM et injection, frigo et thermostat', icon: Shield, color: '#F97316', format: (n: number) => `${Math.round(n)}` },
-    { value: f1, label: 'F1 Score', suffix: `${m.nom ?? m.id} · ${kpi.repetitions} répétitions`, icon: Brain, color: '#22C55E', format: (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %` },
+    { value: rappel, label: 'Rappel (test)', suffix: `${m.nom ?? m.id} · ${m.fausses_alarmes_par_heure ?? '—'} fausses alertes/h · ${kpi.repetitions} répétitions`, icon: Brain, color: '#22C55E', format: (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %` },
     { value: kpi.capteurs.length, label: 'Capteurs', suffix: kpi.capteurs.map(c => SENSOR_FR[c] ?? c).join(' · '), icon: Zap, color: '#818cf8', format: (n: number) => `${Math.round(n)}` },
   ];
 }
@@ -104,8 +105,8 @@ function buildThreatFeed(kpi: TransmissionKpi | null) {
   const m = kpi.meilleur;
   const items: { type: string; msg: string; color: string }[] = [];
   items.push({ type: 'INFO', msg: `${formatInt(t.mesures)} mesures réelles du ${day(t.debut)} au ${day(t.fin)}`, color: '#818cf8' });
-  items.push({ type: 'CRITIQUE', msg: `${m.nom ?? m.id} — F1 ${pct(m.f1)} · précision ${pct(m.precision)}`, color: '#EF4444' });
-  items.push({ type: 'OK', msg: `${m.episodes_detectes}/${m.episodes} attaques détectées · délai médian ${m.delai_median_min.toLocaleString('fr-FR')} min`, color: '#22C55E' });
+  items.push({ type: 'CRITIQUE', msg: `${m.nom ?? m.id} — rappel ${pct(m.recall)} · précision ${pct(m.precision)}`, color: '#EF4444' });
+  items.push({ type: 'OK', msg: `${m.episodes_detectes}/${m.episodes} attaques détectées · délai médian ${m.delai_median_min == null ? '—' : m.delai_median_min.toLocaleString('fr-FR')} min`, color: '#22C55E' });
   kpi.detection_par_scenario.slice(0, 3).forEach(a => {
     items.push({ type: 'ALERTE', msg: `${SCENARIO_FR[a.scenario] ?? a.scenario} détectée à ${a.taux.toLocaleString('fr-FR')} %`, color: '#F97316' });
   });

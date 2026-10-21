@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
 } from 'recharts';
-import { Activity, AlertTriangle, CheckCircle2, Database, Download, FileText, Loader2, Play, Radio, Sparkles } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Database, Download, FileText, Layers, Loader2, Play, Radio, Sparkles, Target } from 'lucide-react';
 import { PhaseShell } from '../components/PhaseShell';
 import type { PhaseItem } from '../components/PhasePipeline';
 import { authHeaders } from '../lib/auth';
@@ -15,35 +15,68 @@ import { toast } from '@/components/ui/use-toast';
    TYPES
    ═══════════════════════════════════════════ */
 interface PerAttack { n: number; detected: number; rate: number }
-interface ModelResult {
-  nom: string; type?: string; precision: number; recall: number; f1: number; val_f1?: number;
-  roc_auc?: number; avg_precision?: number; fausses_alarmes_evenements_par_heure: number;
-  episodes: number; episodes_detectes: number; delai_median_min: number | null;
-  per_attack?: Record<string, PerAttack>;
+interface PerEpisode { n: number; detected: number; delai_median_min?: number | null }
+interface Metrics {
+  recall: number; fausses_alarmes_evenements_par_heure: number; delai_median_min: number | null; precision: number;
+  f1: number; f2?: number; episodes: number; episodes_detectes: number; part_attaques?: number;
+  per_attack?: Record<string, PerAttack>; per_episode?: Record<string, PerEpisode>;
+}
+interface OperatingPoint { libelle: string; seuils: number[]; val: Metrics; test: Metrics }
+interface PrCurve { recall: number[]; precision: number[] }
+interface ModelResult extends Metrics {
+  nom: string; type?: string; val_f1?: number; val_recall?: number; val_precision?: number; val_f2?: number;
+  roc_auc?: number; avg_precision?: number;
+  points_fonctionnement?: Record<string, OperatingPoint>;
+  courbe_pr?: { val: PrCurve; test: PrCurve };
 }
 interface ShapFeature { feature: string; label?: string; importance: number }
-interface ShapData { n_lignes: number; global: ShapFeature[]; par_scenario: Record<string, ShapFeature[]> }
-interface CurvePoint { arbres: number; f1_validation: number; auc_validation: number }
+interface ShapData { n_lignes: number; global: ShapFeature[]; par_scenario: Record<string, ShapFeature[]>; modele?: string }
+interface CurvePoint { arbres: number; f2_validation?: number; f1_validation?: number; auc_validation: number }
+interface RolePrev { lignes: number; attaques: number; part: number; part_min?: number; part_max?: number }
+type Prevalence = Record<'train' | 'val' | 'test', RolePrev>;
 interface WebResults {
   generated_at: string; duree_s: number; meilleur: string; classement_validation: string[];
+  cible_rappel?: number; cibles_rappel?: number[]; classement_validation_par_cible?: Record<string, string[]>;
   modeles: Record<string, ModelResult>; courbe_random_forest: CurvePoint[]; shap: ShapData | null;
-  dataset: { lignes: number; features: number; episodes: number; train: number; val: number; test: number };
+  dataset: { lignes: number; features: number; episodes: number; train: number; val: number; test: number; prevalence?: Prevalence };
+}
+interface CvStat { mean: number; std: number }
+interface CvMethod { description: string; blocs_partages: number; modeles: Record<string, Record<'recall' | 'precision' | 'f1' | 'average_precision', CvStat>> }
+interface CrossVal { lignes: number; blocs: number; folds: number; seuil: string; methodes: { naif: CvMethod; groupes_blocs: CvMethod } }
+interface LongBiasAmp {
+  n: number; detectes: number; delai_median_min: number | null;
+  par_duree: Record<string, { n: number; detectes: number; delai_median_min: number | null }>;
+  detectes_avant_min: Record<string, { n: number; detectes: number; part: number | null }>;
+}
+interface LongBias {
+  protocole: { blocs: string; repetitions: number; seuil: string };
+  jeux_features: Record<string, string>;
+  resultats: Record<string, { fa_h_test: number; auc_test_moyenne: number; par_amplitude: Record<string, LongBiasAmp> }>;
 }
 interface Summary {
-  dataset: { lignes: number; attaques: number; heures: number; episodes: number; scenarios: string[] } | null;
+  dataset: { lignes: number; attaques: number; heures: number; episodes: number; scenarios: string[]; par_role?: Prevalence } | null;
   traces: { fusion?: { debut: string; fin: string }; profil?: Record<string, { moyenne: number; ecart_type: number; autocorr_5s: number }> } | null;
-  reference: { repetitions: number; meilleur: string; modeles: Record<string, ModelResult> } | null;
+  reference: {
+    repetitions: number; meilleur: string; modeles: Record<string, ModelResult>; prevalence?: Prevalence;
+    cible_rappel?: number; cibles_rappel?: number[]; classement_validation_par_cible?: Record<string, string[]>;
+    protocole?: { couverture?: string };
+  } | null;
+  validation_croisee: CrossVal | null;
+  biais_long: LongBias | null;
   shap_reference: ShapData | null;
   web: WebResults | null;
   scenarios: Array<{ nom: string; capteur_fr: string; description: string }>;
 }
 interface ReportScenario {
   scenario: string; capteur: string; description: string; famille: string; taux_detection: number | null;
-  niveau: string; episodes: string; ce_que_le_modele_regarde: string[]; risque: string; actions: string[];
+  niveau: string; episodes: string; delai_median_min?: number | null; ce_que_le_modele_regarde: string[]; risque: string; actions: string[];
 }
 interface Report {
-  titre: string; date: string; source: string; message?: string; markdown: string;
-  modele: { nom: string; type: string; precision: number; recall: number; f1: number; fausses_alertes_par_heure: number; episodes: string; lecture: string } | null;
+  titre: string; date: string; source: string; message?: string; markdown: string; desequilibre?: string; limites?: string[];
+  modele: {
+    nom: string; type: string; point_fonctionnement?: string; recall: number; fausses_alertes_par_heure: number;
+    delai_median_min?: number | null; precision: number; f1: number; f2?: number; episodes: string; lecture: string; seuil?: string;
+  } | null;
   scenarios: ReportScenario[]; regles_generales: string[];
 }
 interface HistoryRun {
@@ -64,13 +97,27 @@ const SCENARIO_LABEL: Record<string, string> = {
   'Injection_biais_1.0': 'Biais −1 °C', 'Injection_biais_2.0': 'Biais −2 °C', Injection_derive: 'Dérive',
   MITM_gel_thermostat: 'Gel thermostat', Injection_biais_thermostat: 'Biais thermostat',
 };
+const SMALL_BIASES = ['Injection_biais_0.5', 'Injection_biais_1.0'];
+const TARGETS = [0.8, 0.9, 0.95];
 const PHASE: PhaseItem = {
-  num: 2, label: 'Attaques de transmission', subtitle: 'Traces réelles TON_IoT · MITM & injection · 4 modèles',
+  num: 2, label: 'Attaques de transmission', subtitle: 'Traces réelles TON_IoT · MITM & injection · 4 modèles supervisés',
   icon: '\u{1F4E1}', color: '#00FFA3', status: 'active', progress: 100,
 };
 
 const pct = (v: number | undefined | null) => (v == null ? '—' : `${Math.round(v * 100)} %`);
+const pct1 = (v: number | undefined | null) => (v == null ? '—' : `${(v * 100).toFixed(1)} %`);
 const num = (v: number | undefined | null, d = 2) => (v == null ? '—' : v.toFixed(d));
+const delai = (v: number | undefined | null) => (v == null ? '—' : `${v.toFixed(1)} min`);
+const opKey = (t: number) => `rappel_${t.toFixed(2)}`;
+const pm = (s?: CvStat) => (s ? `${s.mean.toFixed(3)} ± ${s.std.toFixed(3)}` : '—');
+
+/** Métriques d'un modèle à un point de fonctionnement (anciens résultats : champs à plat = test max F1). */
+function metricsAt(m: ModelResult, op: string, role: 'val' | 'test'): Metrics | null {
+  const p = m.points_fonctionnement?.[op];
+  if (p) return p[role];
+  if (op === 'max_f1' && role === 'test') return m;
+  return null;
+}
 
 async function getJson<T>(url: string): Promise<T | null> {
   try {
@@ -80,6 +127,9 @@ async function getJson<T>(url: string): Promise<T | null> {
     return t ? (JSON.parse(t) as T) : null;
   } catch { return null; }
 }
+
+const TH = 'pr-3 font-normal';
+const cellBorder = { borderColor: 'rgba(255,255,255,0.06)' };
 
 /* ═══════════════════════════════════════════
    PAGE
@@ -93,7 +143,8 @@ export default function TransmissionPage() {
   const [log, setLog] = useState<ProgressMsg[]>([]);
   const [liveResults, setLiveResults] = useState<Record<string, ModelResult>>({});
   const [curve, setCurve] = useState<CurvePoint[]>([]);
-  const [view, setView] = useState<'web' | 'reference'>('web');
+  const [view, setView] = useState<'web' | 'reference'>('reference');
+  const [target, setTarget] = useState(0.9);
   const wsRef = useRef<WebSocket | null>(null);
 
   const load = useCallback(async () => {
@@ -102,7 +153,9 @@ export default function TransmissionPage() {
       getJson<{ runs: HistoryRun[] }>('/api/v1/transmission/history?limit=10'),
     ]);
     setSummary(s); setReport(r); setHistory(h?.runs ?? []);
-    if (s && !s.web && s.reference) setView('reference');
+    if (s && !s.reference && s.web) setView('web');
+    const c = s?.reference?.cible_rappel ?? s?.web?.cible_rappel;
+    if (c) setTarget(c);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -141,22 +194,43 @@ export default function TransmissionPage() {
     if (view === 'web') return summary?.web?.modeles ?? (Object.keys(liveResults).length ? liveResults : null);
     return summary?.reference?.modeles ?? null;
   }, [view, summary, liveResults]);
-  const bestKey = view === 'web' ? summary?.web?.meilleur : summary?.reference?.meilleur;
+  const op = opKey(target);
+  const hasPoints = !!models && Object.values(models).every((m) => m.points_fonctionnement?.[op]);
+  const ranking = view === 'web' ? summary?.web?.classement_validation_par_cible?.[target.toFixed(2)] : summary?.reference?.classement_validation_par_cible?.[target.toFixed(2)];
+  const bestKey = ranking?.[0] ?? (view === 'web' ? summary?.web?.meilleur : summary?.reference?.meilleur);
+  const best = models && bestKey ? models[bestKey] : null;
   const shap: ShapData | null = view === 'web' ? summary?.web?.shap ?? null : summary?.shap_reference ?? null;
   const rfCurve = curve.length ? curve : summary?.web?.courbe_random_forest ?? [];
+  const prevalence: Prevalence | undefined = view === 'web' ? summary?.web?.dataset?.prevalence : summary?.reference?.prevalence;
+  const bestTest = best ? metricsAt(best, hasPoints ? op : 'max_f1', 'test') : null;
 
   const scenarioRows = useMemo(() => {
-    const m = models && bestKey ? models[bestKey] : null;
-    if (!m?.per_attack) return [];
-    return Object.entries(m.per_attack).filter(([, v]) => v.n > 0).map(([k, v]) => ({ scenario: SCENARIO_LABEL[k] ?? k, taux: v.rate, episodes: `${v.detected}/${v.n}` }))
-      .sort((a, b) => b.taux - a.taux);
-  }, [models, bestKey]);
+    if (!best) return [];
+    const t = metricsAt(best, hasPoints ? op : 'max_f1', 'test');
+    const f = metricsAt(best, 'max_f1', 'test');
+    if (!t?.per_attack) return [];
+    return Object.keys(SCENARIO_LABEL).filter((k) => t.per_attack![k]?.n).map((k) => ({
+      key: k, scenario: SCENARIO_LABEL[k], rate: t.per_attack![k].rate, rateF1: f?.per_attack?.[k]?.rate,
+      ep: t.per_episode?.[k], epF1: f?.per_episode?.[k],
+    }));
+  }, [best, op, hasPoints]);
+
+  const prData = useMemo(() => {
+    const c = best?.courbe_pr;
+    if (!c) return null;
+    const toPts = (pr: PrCurve) => pr.recall.map((r, i) => ({ recall: r, precision: pr.precision[i] })).sort((a, b) => a.recall - b.recall);
+    const pt = (o: string, role: 'val' | 'test') => {
+      const m = best?.points_fonctionnement?.[o]?.[role];
+      return m ? [{ recall: m.recall, precision: m.precision }] : [];
+    };
+    return { test: toPts(c.test), val: toPts(c.val), f1Test: pt('max_f1', 'test'), f1Val: pt('max_f1', 'val'), tgTest: pt(op, 'test'), tgVal: pt(op, 'val') };
+  }, [best, op]);
 
   const stats = [
     { icon: <Database className="w-4 h-4" />, label: 'Mesures réelles', value: summary?.dataset ? summary.dataset.lignes.toLocaleString('fr-FR') : '—', color: '#00FFA3', sub: summary?.dataset ? `${summary.dataset.heures} h, pas de 5 s` : 'jeu non construit' },
-    { icon: <AlertTriangle className="w-4 h-4" />, label: 'Épisodes d’attaque', value: summary?.dataset?.episodes ?? '—', color: '#FF2D78', sub: summary?.dataset ? `${summary.dataset.scenarios.length} scénarios` : '' },
-    { icon: <Activity className="w-4 h-4" />, label: 'Meilleur modèle', value: bestKey ? MODEL_LABEL[bestKey] ?? bestKey : '—', color: '#00F5FF', sub: models && bestKey ? `F1 ${num(models[bestKey]?.f1)}` : '' },
-    { icon: <Sparkles className="w-4 h-4" />, label: 'Fausses alertes / h', value: models && bestKey ? num(models[bestKey]?.fausses_alarmes_evenements_par_heure, 1) : '—', color: '#A855F7', sub: 'alertes distinctes à tort' },
+    { icon: <AlertTriangle className="w-4 h-4" />, label: 'Part d’attaques (val / test)', value: prevalence ? `${pct1(prevalence.val.part)} / ${pct1(prevalence.test.part)}` : '—', color: '#FF2D78', sub: prevalence ? `train ${pct1(prevalence.train.part)} · ${summary?.dataset?.scenarios.length ?? 9} scénarios` : '' },
+    { icon: <Activity className="w-4 h-4" />, label: 'Meilleur modèle (validation)', value: bestKey ? MODEL_LABEL[bestKey] ?? bestKey : '—', color: '#00F5FF', sub: bestTest ? `test : rappel ${pct(bestTest.recall)} · précision ${pct(bestTest.precision)}` : '' },
+    { icon: <Sparkles className="w-4 h-4" />, label: 'Fausses alertes / h', value: bestTest ? num(bestTest.fausses_alarmes_evenements_par_heure, 1) : '—', color: '#A855F7', sub: `au rappel cible ${target.toFixed(2)} (test)` },
   ];
 
   const downloadReport = () => {
@@ -166,6 +240,9 @@ export default function TransmissionPage() {
     a.href = URL.createObjectURL(blob); a.download = 'rapport_operateur_transmission.md'; a.click();
     URL.revokeObjectURL(a.href);
   };
+
+  const cv = summary?.validation_croisee;
+  const lb = summary?.biais_long;
 
   return (
     <PhaseShell phase={PHASE} hidePipeline stats={stats} trained={!!models}>
@@ -181,7 +258,8 @@ export default function TransmissionPage() {
         <CardContent className="space-y-4">
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             Jeu : traces réelles TON_IoT avec attaques de transmission injectées (répétition 0). Les quatre modèles sont supervisés :
-            ils apprennent sur les attaques étiquetées des blocs d’entraînement. Seuil choisi sur la validation, résultat mesuré sur le test.
+            ils apprennent sur les attaques étiquetées des blocs d’entraînement (~33 % d’attaques). Validation et test gardent une
+            prévalence réaliste (≈ 14 %). Seuils choisis sur la validation, résultat mesuré sur le test.
           </p>
           <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
             <div className="h-full transition-all duration-500" style={{ width: `${progress?.progress ?? (summary?.web ? 100 : 0)}%`, background: 'linear-gradient(90deg,#00FFA3,#00F5FF)' }} />
@@ -193,6 +271,7 @@ export default function TransmissionPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {MODEL_ORDER.map((k) => {
               const r = liveResults[k] ?? (running ? undefined : summary?.web?.modeles?.[k]);
+              const m = r ? metricsAt(r, r.points_fonctionnement?.[op] ? op : 'max_f1', 'test') : null;
               const active = running && progress?.model === k && !r;
               return (
                 <div key={k} className="rounded-xl p-3 glass-border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: r ? '#00FFA340' : 'rgba(255,255,255,0.08)' }}>
@@ -200,9 +279,9 @@ export default function TransmissionPage() {
                     <span className="text-xs font-bold">{MODEL_LABEL[k]}</span>
                     {r ? <CheckCircle2 className="w-4 h-4" style={{ color: '#00FFA3' }} /> : active ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="text-[10px] opacity-50">en attente</span>}
                   </div>
-                  <div className="text-lg font-mono font-bold mt-1">{r ? `F1 ${num(r.f1)}` : '—'}</div>
+                  <div className="text-lg font-mono font-bold mt-1">{m ? `rappel ${pct(m.recall)}` : '—'}</div>
                   <div className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
-                    {r ? `précision ${pct(r.precision)} · rappel ${pct(r.recall)} · ${num(r.fausses_alarmes_evenements_par_heure, 1)} FA/h` : r === undefined && !running ? 'non entraîné' : ''}
+                    {m ? `${num(m.fausses_alarmes_evenements_par_heure, 1)} FA/h · délai ${delai(m.delai_median_min)} · précision ${pct(m.precision)} · F2 ${num(m.f2)}` : r === undefined && !running ? 'non entraîné' : ''}
                   </div>
                 </div>
               );
@@ -211,7 +290,7 @@ export default function TransmissionPage() {
 
           <div className="grid lg:grid-cols-2 gap-4">
             <div>
-              <div className="text-xs font-bold mb-2">Random Forest : F1 de validation pendant l’apprentissage</div>
+              <div className="text-xs font-bold mb-2">Random Forest : F2 de validation (au rappel cible) pendant l’apprentissage</div>
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={rfCurve} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
@@ -219,7 +298,7 @@ export default function TransmissionPage() {
                     <XAxis dataKey="arbres" tick={{ fontSize: 10 }} label={{ value: 'arbres', position: 'insideBottomRight', fontSize: 10, offset: -4 }} />
                     <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} />
                     <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v) => Number(v).toFixed(3)} />
-                    <Line type="monotone" dataKey="f1_validation" name="F1 validation" stroke="#00FFA3" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+                    <Line type="monotone" dataKey={rfCurve.some((p) => p.f2_validation != null) ? 'f2_validation' : 'f1_validation'} name="F2 validation" stroke="#00FFA3" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
                     <Line type="monotone" dataKey="auc_validation" name="AUC validation" stroke="#00F5FF" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -239,66 +318,97 @@ export default function TransmissionPage() {
       {/* ── Résultats ── */}
       <Card className="glass glass-border">
         <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
-          <CardTitle className="text-sm">Résultats sur le test</CardTitle>
-          <div className="flex gap-2">
+          <CardTitle className="text-sm flex items-center gap-2"><Target className="w-4 h-4" style={{ color: '#00F5FF' }} />Résultats : validation (choix) et test (confirmation)</CardTitle>
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Rappel cible</span>
+            {TARGETS.map((t) => (
+              <Button key={t} size="sm" data-testid={`cible-${t}`} variant={Math.abs(target - t) < 1e-9 ? 'default' : 'outline'} onClick={() => setTarget(t)}>{t.toFixed(2).replace('.', ',')}</Button>
+            ))}
+            <span className="mx-1 opacity-30">|</span>
             <Button size="sm" variant={view === 'web' ? 'default' : 'outline'} onClick={() => setView('web')} disabled={!summary?.web && !Object.keys(liveResults).length}>Cet entraînement</Button>
             <Button size="sm" variant={view === 'reference' ? 'default' : 'outline'} onClick={() => setView('reference')} disabled={!summary?.reference}>
-              Référence ({summary?.reference?.repetitions ?? 9} répétitions)
+              Référence ({summary?.reference?.repetitions ?? 20} répétitions)
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {prevalence && (
+            <div className="flex gap-2 flex-wrap text-[11px]">
+              {(['train', 'val', 'test'] as const).map((r) => (
+                <Badge key={r} variant="secondary">Part d’attaques mesurée — {r} : {pct1(prevalence[r].part)}{prevalence[r].part_min != null ? ` (${pct1(prevalence[r].part_min)}–${pct1(prevalence[r].part_max)} selon la répétition)` : ''}</Badge>
+              ))}
+            </div>
+          )}
           {!models ? (
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Aucun résultat : lancez un entraînement, ou exécutez <code>backend/scripts/transmission_models.py</code> pour la référence.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs" data-testid="table-resultats">
                 <thead>
                   <tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
-                    <th className="py-2 pr-3">Modèle</th><th className="pr-3">Type</th><th className="pr-3">Précision</th><th className="pr-3">Rappel</th>
-                    <th className="pr-3">F1</th><th className="pr-3">AUC</th><th className="pr-3">Fausses alertes / h</th><th className="pr-3">Épisodes</th><th>Délai médian</th>
+                    <th className="py-2 pr-3 font-normal">Modèle</th><th className={TH}>Seuil</th><th className={TH}>Rôle</th>
+                    <th className={TH}>Rappel</th><th className={TH}>Fausses alertes / h</th><th className={TH}>Délai médian</th>
+                    <th className={TH}>Épisodes</th><th className={TH}>Précision</th><th className={TH}>F1</th><th className="font-normal">F2</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {MODEL_ORDER.filter((k) => models[k]).map((k) => {
-                    const r = models[k]; const best = k === bestKey;
-                    return (
-                      <tr key={k} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)', background: best ? 'rgba(0,255,163,0.06)' : undefined }}>
-                        <td className="py-2 pr-3 font-bold">{MODEL_LABEL[k] ?? r.nom} {best && <Badge className="ml-1" variant="secondary">retenu</Badge>}</td>
-                        <td className="pr-3">{r.type ?? 'supervisé'}</td>
-                        <td className="pr-3 font-mono">{pct(r.precision)}</td><td className="pr-3 font-mono">{pct(r.recall)}</td>
-                        <td className="pr-3 font-mono font-bold">{num(r.f1)}</td><td className="pr-3 font-mono">{num(r.roc_auc)}</td>
-                        <td className="pr-3 font-mono">{num(r.fausses_alarmes_evenements_par_heure, 1)}</td>
-                        <td className="pr-3 font-mono">{r.episodes_detectes}/{r.episodes}</td>
-                        <td className="font-mono">{r.delai_median_min == null ? '—' : `${r.delai_median_min.toFixed(1)} min`}</td>
-                      </tr>
-                    );
+                  {MODEL_ORDER.filter((k) => models[k]).flatMap((k) => {
+                    const r = models[k]; const isBest = k === bestKey;
+                    const ops = hasPoints ? [op, 'max_f1'] : ['max_f1'];
+                    return ops.flatMap((o) => (['val', 'test'] as const).map((role) => {
+                      const m = metricsAt(r, o, role);
+                      if (!m) return null;
+                      const first = o === ops[0] && role === 'val';
+                      return (
+                        <tr key={`${k}-${o}-${role}`} className={first ? 'border-t' : ''} style={{ ...cellBorder, background: isBest ? 'rgba(0,255,163,0.06)' : undefined, opacity: o === 'max_f1' ? 0.75 : 1 }}>
+                          <td className="py-1 pr-3 font-bold whitespace-nowrap">{first ? <>{MODEL_LABEL[k] ?? r.nom} {isBest && <Badge className="ml-1" variant="secondary">retenu</Badge>}</> : ''}</td>
+                          <td className="pr-3 whitespace-nowrap">{role === 'val' ? (o === 'max_f1' ? 'max F1' : `rappel ${target.toFixed(2).replace('.', ',')}`) : ''}</td>
+                          <td className="pr-3">{role === 'val' ? 'validation' : 'test'}</td>
+                          <td className="pr-3 font-mono font-bold">{pct1(m.recall)}</td>
+                          <td className="pr-3 font-mono">{num(m.fausses_alarmes_evenements_par_heure, 2)}</td>
+                          <td className="pr-3 font-mono">{delai(m.delai_median_min)}</td>
+                          <td className="pr-3 font-mono">{m.episodes_detectes}/{m.episodes}</td>
+                          <td className="pr-3 font-mono">{pct1(m.precision)}</td>
+                          <td className="pr-3 font-mono">{num(m.f1, 3)}</td>
+                          <td className="font-mono">{num(m.f2, 3)}</td>
+                        </tr>
+                      );
+                    }));
                   })}
                 </tbody>
               </table>
               <p className="text-[11px] mt-3" style={{ color: 'var(--text-secondary)' }}>
-                Précision : part des alertes qui sont de vraies attaques. Rappel : part des mesures falsifiées signalées. Un détecteur qui signalerait tout aurait un F1 d’environ 0,25.
+                Le modèle est choisi sur la <b>validation</b> (F2 au rappel cible) ; le test, jamais utilisé pour choisir, confirme. Seuil « rappel cible » :
+                le seuil le plus haut qui atteint ce rappel sur la validation. Fausses alertes / h : alertes distinctes à tort par heure normale.
+                La précision dépend de la part d’attaques : elle est mesurée ici à une prévalence réaliste (~14 %), pas à 33 %.
+                {summary?.reference?.protocole?.couverture ? ` Répétitions : ${summary.reference.protocole.couverture}.` : ''}
               </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* ── Par scénario + SHAP ── */}
+      {/* ── Courbe PR + par scénario ── */}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card className="glass glass-border">
-          <CardHeader><CardTitle className="text-sm">Détection par scénario — {bestKey ? MODEL_LABEL[bestKey] ?? bestKey : ''}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">Courbe précision–rappel — {bestKey ? MODEL_LABEL[bestKey] ?? bestKey : ''}</CardTitle></CardHeader>
           <CardContent>
-            {scenarioRows.length === 0 ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>—</p> : (
-              <div className="h-72">
+            {!prData ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Courbe disponible après un entraînement.</p> : (
+              <div className="h-72" data-testid="courbe-pr">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={scenarioRows} layout="vertical" margin={{ top: 4, right: 40, left: 40, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
-                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} unit=" %" />
-                    <YAxis type="category" dataKey="scenario" width={110} tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v, _n, p) => [`${Number(v).toFixed(1)} % des mesures · épisodes ${(p.payload as { episodes: string }).episodes}`, 'signalé']} />
-                    <Bar dataKey="taux" fill="#00FFA3" radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 10, formatter: (v) => `${Math.round(Number(v))} %` }} />
-                  </BarChart>
+                  <ScatterChart margin={{ top: 8, right: 16, left: -10, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis type="number" dataKey="recall" domain={[0, 1]} tick={{ fontSize: 10 }} label={{ value: 'rappel', position: 'insideBottomRight', fontSize: 10, offset: -4 }} />
+                    <YAxis type="number" dataKey="precision" domain={[0, 1]} tick={{ fontSize: 10 }} />
+                    <ZAxis range={[60, 60]} />
+                    <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v) => Number(v).toFixed(3)} />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    <Scatter name="test (cumulé)" data={prData.test} line={{ stroke: '#00F5FF', strokeWidth: 2 }} shape={() => <g />} fill="#00F5FF" isAnimationActive={false} />
+                    <Scatter name="validation (cumulé)" data={prData.val} line={{ stroke: '#64748B', strokeWidth: 1, strokeDasharray: '4 3' }} shape={() => <g />} fill="#64748B" isAnimationActive={false} />
+                    <Scatter name="max F1 (test)" data={prData.f1Test} fill="#F59E0B" shape="diamond" isAnimationActive={false} />
+                    <Scatter name={`rappel cible ${target.toFixed(2)} (test)`} data={prData.tgTest} fill="#00FFA3" shape="star" isAnimationActive={false} />
+                    <Scatter name="points de validation" data={[...prData.f1Val, ...prData.tgVal]} fill="#94A3B8" shape="circle" isAnimationActive={false} />
+                  </ScatterChart>
                 </ResponsiveContainer>
               </div>
             )}
@@ -306,36 +416,150 @@ export default function TransmissionPage() {
         </Card>
 
         <Card className="glass glass-border">
-          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="w-4 h-4" style={{ color: '#A855F7' }} />SHAP — ce que le modèle regarde</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {!shap ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>SHAP disponible après un entraînement d’un modèle arborescent.</p> : (
-              <>
-                <div className="h-44">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={shap.global.slice(0, 8).map((f) => ({ name: f.label ?? f.feature, importance: f.importance }))} layout="vertical" margin={{ top: 0, right: 30, left: 80, bottom: 0 }}>
-                      <XAxis type="number" tick={{ fontSize: 10 }} />
-                      <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 9 }} />
-                      <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v) => Number(v).toFixed(3)} />
-                      <Bar dataKey="importance" fill="#A855F7" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <table className="w-full text-[11px]">
-                  <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}><th className="py-1 pr-2">Scénario</th><th>Features décisives</th></tr></thead>
+          <CardHeader><CardTitle className="text-sm">Détection par scénario (test) — {bestKey ? MODEL_LABEL[bestKey] ?? bestKey : ''}, rappel cible {target.toFixed(2).replace('.', ',')}</CardTitle></CardHeader>
+          <CardContent>
+            {scenarioRows.length === 0 ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>—</p> : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs" data-testid="table-scenarios">
+                  <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
+                    <th className="py-1.5 pr-3 font-normal">Scénario</th><th className={TH}>Rappel</th><th className={TH}>Épisodes détectés</th>
+                    <th className={TH}>Délai médian</th><th className="font-normal">Rappel au max F1</th>
+                  </tr></thead>
                   <tbody>
-                    {Object.entries(shap.par_scenario).map(([sc, feats]) => (
-                      <tr key={sc} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                        <td className="py-1 pr-2 font-bold whitespace-nowrap">{SCENARIO_LABEL[sc] ?? sc}</td>
-                        <td>{feats.slice(0, 3).map((f) => f.label ?? f.feature).join(' · ')}</td>
-                      </tr>
-                    ))}
+                    {scenarioRows.map((s) => {
+                      const small = SMALL_BIASES.includes(s.key);
+                      return (
+                        <tr key={s.key} className="border-t" style={{ ...cellBorder, background: small ? 'rgba(255,45,120,0.06)' : undefined }}>
+                          <td className="py-1.5 pr-3 font-bold whitespace-nowrap">{s.scenario}{small && <Badge className="ml-1" variant="destructive">limite connue</Badge>}</td>
+                          <td className="pr-3 font-mono font-bold">{s.rate.toFixed(1)} %</td>
+                          <td className="pr-3 font-mono">{s.ep ? `${s.ep.detected}/${s.ep.n}` : '—'}</td>
+                          <td className="pr-3 font-mono">{delai(s.ep?.delai_median_min)}</td>
+                          <td className="font-mono opacity-70">{s.rateF1 == null ? '—' : `${s.rateF1.toFixed(1)} %`}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
-              </>
+                <p className="text-[11px] mt-2" style={{ color: 'var(--text-secondary)' }}>
+                  Rappel = part des mesures falsifiées signalées. Les biais de −0,5 et −1 °C sont très en dessous du bruit du frigo (σ ≈ 3,4 °C par mesure) :
+                  non détectables de façon fiable en 15–25 min à ce niveau de bruit (voir l’étude des biais longs ci-dessous).
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Validation croisée + biais longs ── */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Card className="glass glass-border">
+          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Layers className="w-4 h-4" style={{ color: '#38BDF8' }} />Validation croisée de confirmation (5 folds)</CardTitle></CardHeader>
+          <CardContent>
+            {!cv ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Lancer <code>transmission_models.py</code> (sans SKIP_CV).</p> : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs" data-testid="table-cv">
+                  <thead>
+                    <tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
+                      <th className="py-1.5 pr-3 font-normal" rowSpan={2}>Modèle</th>
+                      <th className="pr-3 font-normal" colSpan={2}>Groupée par bloc d’1 h (honnête)</th>
+                      <th className="font-normal" colSpan={2}>Naïve, lignes mélangées (à ne pas faire)</th>
+                    </tr>
+                    <tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
+                      <th className={TH}>Rappel</th><th className={TH}>Précision</th><th className={TH}>Rappel</th><th className="font-normal">Précision</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MODEL_ORDER.filter((k) => cv.methodes.groupes_blocs.modeles[k]).map((k) => {
+                      const g = cv.methodes.groupes_blocs.modeles[k]; const n = cv.methodes.naif.modeles[k];
+                      return (
+                        <tr key={k} className="border-t" style={cellBorder}>
+                          <td className="py-1.5 pr-3 font-bold">{MODEL_LABEL[k]}</td>
+                          <td className="pr-3 font-mono">{pm(g.recall)}</td><td className="pr-3 font-mono">{pm(g.precision)}</td>
+                          <td className="pr-3 font-mono opacity-60">{pm(n?.recall)}</td><td className="font-mono opacity-60">{pm(n?.precision)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="text-[11px] mt-2" style={{ color: 'var(--text-secondary)' }}>
+                  Lignes d’entraînement de la répétition 0 ({cv.lignes.toLocaleString('fr-FR')} lignes, {cv.blocs} blocs), seuil 0,5. Groupe = bloc d’une heure :
+                  une attaque et les lignes normales qui partagent ses fenêtres glissantes restent du même côté
+                  (blocs partagés entre apprentissage et évaluation : {cv.methodes.groupes_blocs.blocs_partages} contre {cv.methodes.naif.blocs_partages} en naïf).
+                  Confirme le protocole par blocs, ne le remplace pas.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="glass glass-border">
+          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" style={{ color: '#FF2D78' }} />Étude complémentaire : petits biais longs (1 à 3 h)</CardTitle></CardHeader>
+          <CardContent>
+            {!lb ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Lancer <code>backend/scripts/transmission_biais_long.py</code>.</p> : (
+              <div className="space-y-2" data-testid="biais-long">
+                {(['A', 'B'] as const).filter((j) => lb.resultats[j]).map((j) => (
+                  <div key={j}>
+                    <div className="text-[11px] font-bold">{j === 'A' ? 'Features actuelles (≤ 15 min)' : '+ moyennes 30 / 60 min, EWMA 1 h'} <span className="opacity-60 font-normal">· {num(lb.resultats[j].fa_h_test, 2)} FA/h au test</span></div>
+                    <table className="w-full text-xs mt-1">
+                      <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
+                        <th className="py-1 pr-3 font-normal">Biais</th><th className={TH}>Détectés</th>
+                        {Object.keys(Object.values(lb.resultats[j].par_amplitude)[0]?.detectes_avant_min ?? {}).map((h) => <th key={h} className={TH}>≤ {h} min</th>)}
+                        <th className="font-normal">Délai médian</th>
+                      </tr></thead>
+                      <tbody>
+                        {Object.entries(lb.resultats[j].par_amplitude).map(([amp, v]) => (
+                          <tr key={amp} className="border-t" style={cellBorder}>
+                            <td className="py-1 pr-3 font-bold">{amp.replace('.', ',')} °C</td>
+                            <td className="pr-3 font-mono">{v.detectes}/{v.n}</td>
+                            {Object.values(v.detectes_avant_min).map((x, i) => <td key={i} className="pr-3 font-mono">{x.n ? `${x.detectes}/${x.n}` : '—'}</td>)}
+                            <td className="font-mono">{delai(v.delai_median_min)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                  Étude séparée (blocs de 4 h pour que chaque épisode de 1 à 3 h reste dans un seul rôle), {lb.protocole.repetitions} répétitions, Random Forest ;
+                  seuil : {lb.protocole.seuil}. « ≤ 60 min » : épisodes d’au moins 1 h détectés dans leur première heure. Petit échantillon : ordre de grandeur.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── SHAP ── */}
+      <Card className="glass glass-border">
+        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="w-4 h-4" style={{ color: '#A855F7' }} />SHAP — ce que le modèle regarde{shap?.modele ? ` (${MODEL_LABEL[shap.modele] ?? shap.modele})` : ''}</CardTitle></CardHeader>
+        <CardContent className="grid lg:grid-cols-2 gap-4">
+          {!shap ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>SHAP disponible après un entraînement d’un modèle arborescent.</p> : (
+            <>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={shap.global.slice(0, 8).map((f) => ({ name: f.label ?? f.feature, importance: f.importance }))} layout="vertical" margin={{ top: 0, right: 30, left: 80, bottom: 0 }}>
+                    <XAxis type="number" tick={{ fontSize: 10 }} />
+                    <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 9 }} />
+                    <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v) => Number(v).toFixed(3)} />
+                    <Bar dataKey="importance" fill="#A855F7" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <table className="w-full text-[11px]">
+                <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}><th className="py-1 pr-2 font-normal">Scénario</th><th className="font-normal">Features décisives</th></tr></thead>
+                <tbody>
+                  {Object.entries(shap.par_scenario).map(([sc, feats]) => (
+                    <tr key={sc} className="border-t" style={cellBorder}>
+                      <td className="py-1 pr-2 font-bold whitespace-nowrap">{SCENARIO_LABEL[sc] ?? sc}</td>
+                      <td>{feats.slice(0, 3).map((f) => f.label ?? f.feature).join(' · ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Historique (entraînements enregistrés en base) ── */}
       <Card className="glass glass-border">
@@ -345,18 +569,18 @@ export default function TransmissionPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
-                  <th className="py-1.5 pr-3">Date</th><th className="pr-3">Lancé par</th><th className="pr-3">Statut</th>
-                  <th className="pr-3">Durée</th><th className="pr-3">Meilleur modèle</th><th>F1 (test)</th>
+                  <th className="py-1.5 pr-3 font-normal">Date</th><th className={TH}>Lancé par</th><th className={TH}>Statut</th>
+                  <th className={TH}>Durée</th><th className={TH}>Meilleur modèle</th><th className="font-normal">F1 (test, max F1)</th>
                 </tr></thead>
                 <tbody>
                   {history.map((h) => (
-                    <tr key={h.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }} title={h.erreur ?? undefined}>
+                    <tr key={h.id} className="border-t" style={cellBorder} title={h.erreur ?? undefined}>
                       <td className="py-1.5 pr-3 whitespace-nowrap">{new Date(`${h.debut}Z`).toLocaleString('fr-FR')}</td>
                       <td className="pr-3">{h.lance_par ?? '—'}</td>
                       <td className="pr-3"><Badge variant={h.statut === 'termine' ? 'default' : h.statut === 'en_cours' ? 'secondary' : 'destructive'}>{h.statut.replace('_', ' ')}</Badge></td>
                       <td className="pr-3">{h.duree_s != null ? `${Math.round(h.duree_s)} s` : '—'}</td>
                       <td className="pr-3">{h.meilleur_modele ? MODEL_LABEL[h.meilleur_modele] ?? h.meilleur_modele : '—'}</td>
-                      <td>{pct(h.meilleur_f1)}</td>
+                      <td>{num(h.meilleur_f1, 3)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -375,9 +599,11 @@ export default function TransmissionPage() {
         <CardContent className="space-y-4">
           {!report || !report.modele ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{report?.message ?? 'Rapport indisponible.'}</p> : (
             <>
-              <div className="rounded-xl p-3 text-xs" style={{ background: 'rgba(0,245,255,0.05)' }}>
-                <div className="font-bold mb-1">Modèle en service : {report.modele.nom} ({report.modele.type}) · source : {report.source}</div>
+              <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(0,245,255,0.05)' }}>
+                <div className="font-bold">Modèle en service : {report.modele.nom} ({report.modele.type}){report.modele.point_fonctionnement ? `, seuil « ${report.modele.point_fonctionnement} »` : ''} · source : {report.source}</div>
                 <div>{report.modele.lecture}</div>
+                {report.modele.seuil && <div style={{ color: 'var(--text-secondary)' }}>{report.modele.seuil}</div>}
+                {report.desequilibre && <div style={{ color: 'var(--text-secondary)' }}><b>Déséquilibre des classes.</b> {report.desequilibre}</div>}
               </div>
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {report.scenarios.map((s) => (
@@ -389,13 +615,19 @@ export default function TransmissionPage() {
                       </Badge>
                     </div>
                     <div style={{ color: 'var(--text-secondary)' }}>{s.description}</div>
-                    <div><span className="font-bold">Niveau :</span> {s.niveau}</div>
+                    <div><span className="font-bold">Niveau :</span> {s.niveau} · épisodes {s.episodes} · délai {delai(s.delai_median_min)}</div>
                     <div><span className="font-bold">Le modèle regarde :</span> {s.ce_que_le_modele_regarde.join(', ')}</div>
                     <div><span className="font-bold">Risque :</span> {s.risque}</div>
                     <ol className="list-decimal pl-4 space-y-0.5">{s.actions.map((a, i) => <li key={i}>{a}</li>)}</ol>
                   </div>
                 ))}
               </div>
+              {!!report.limites?.length && (
+                <div className="text-[11px]">
+                  <div className="font-bold mb-1">Limites connues</div>
+                  <ul className="list-disc pl-4 space-y-0.5">{report.limites.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                </div>
+              )}
               <div className="text-[11px]">
                 <div className="font-bold mb-1">Règles générales</div>
                 <ul className="list-disc pl-4 space-y-0.5">{report.regles_generales.map((r, i) => <li key={i}>{r}</li>)}</ul>

@@ -6,7 +6,9 @@ transmission_models.py) : même jeu de données, mêmes features, même protocol
 
 - summary()            : état du jeu de données, résultats de référence, dernier entraînement web
 - train(emit)          : entraîne les 4 modèles supervisés (Random Forest, XGBoost,
-                         Régression Logistique, MLP) en diffusant la progression
+                         Régression Logistique, MLP) en diffusant la progression ; seuils
+                         « max F1 » et « rappel cible » choisis sur la validation, choix du
+                         modèle sur la validation (F2 au rappel cible)
                          (le Random Forest est entraîné par paliers d'arbres pour tracer
                          sa courbe en direct), puis SHAP du meilleur et sauvegarde
 - operator_report()    : rapport de recommandation pour l'opérateur (JSON + Markdown)
@@ -34,6 +36,8 @@ WEB_RESULTS = OUT_DIR / "entrainement_web.json"
 POOLED_RESULTS = OUT_DIR / "comparaison_modeles.json"
 POOLED_SHAP = OUT_DIR / "shap_transmission_reel.json"
 REAL_STUDY = OUT_DIR / "resultats_transmission_reel.json"
+CV_RESULTS = OUT_DIR / "validation_croisee.json"
+LONG_BIAS_RESULTS = OUT_DIR / "biais_long.json"
 MODEL_FILE = OUT_DIR / "random_forest.pkl"
 FEATURES_FILE = OUT_DIR / "random_forest_features.json"
 
@@ -186,29 +190,46 @@ def scenarios() -> list[dict]:
 
 # ── Résumé ───────────────────────────────────────────────────────────────────
 
+def _op_key(target: float) -> str:
+    return f"rappel_{float(target):.2f}"
+
+
 def summary() -> dict:
     out: dict[str, Any] = {"dataset": None, "traces": None, "reference": None,
                            "shap_reference": None, "web": _load_json(WEB_RESULTS)}
     if DATASET_PATH.exists() and EPISODES_PATH.exists():
         tr, _ = _scripts()
-        cols = pd.read_csv(DATASET_PATH, usecols=["label", "attack_type"], keep_default_na=False)
+        cols = pd.read_csv(DATASET_PATH, usecols=["label", "attack_type", "garde"], keep_default_na=False)
         cols["split"] = tr.block_split(len(cols), 0)   # le découpage n'est plus stocké dans le CSV
+        cols = cols[~cols["garde"].astype(str).str.lower().eq("true")]   # lignes évaluées (hors zone de garde)
         episodes = _load_json(EPISODES_PATH) or []
+        par_role = {}
+        for r in ("train", "val", "test"):
+            sub = cols.loc[cols["split"] == r, "label"]
+            par_role[r] = {"lignes": int(len(sub)), "attaques": int(sub.sum()),
+                           "part": round(float(sub.mean()), 4) if len(sub) else 0.0}
         out["dataset"] = {
             "fichier": DATASET_PATH.name, "lignes": int(len(cols)), "attaques": int(cols["label"].sum()),
             "heures": round(len(cols) * 5 / 3600, 1), "episodes": len(episodes),
-            "par_role": {r: {"lignes": int((cols["split"] == r).sum()),
-                             "attaques": int(cols.loc[cols["split"] == r, "label"].sum())}
-                         for r in ("train", "val", "test")},
-            "scenarios": sorted(set(e["name"] for e in episodes)),
+            "par_role": par_role, "scenarios": sorted(set(e["name"] for e in episodes)),
         }
     study = _load_json(REAL_STUDY)
     if study:
         out["traces"] = {"fusion": study.get("fusion"), "profil": study.get("profil_traces")}
     pooled = _load_json(POOLED_RESULTS)
     if pooled:
-        out["reference"] = {"generated_at": pooled.get("generated_at"), "repetitions": pooled["protocole"]["repetitions"],
-                            "meilleur": pooled.get("meilleur_modele"), "modeles": pooled["resultats"]}
+        out["reference"] = {
+            "generated_at": pooled.get("generated_at"), "repetitions": pooled["protocole"]["repetitions"],
+            "protocole": pooled.get("protocole"), "prevalence": pooled.get("prevalence"),
+            "cible_rappel": pooled.get("cible_rappel"), "cibles_rappel": pooled.get("cibles_rappel"),
+            "meilleur": pooled.get("meilleur_modele"), "meilleur_par_cible": pooled.get("meilleur_par_cible"),
+            "classement_validation": pooled.get("classement_validation"),
+            "classement_validation_max_f1": pooled.get("classement_validation_max_f1"),
+            "classement_validation_par_cible": pooled.get("classement_validation_par_cible"),
+            "modeles": pooled["resultats"],
+        }
+    out["validation_croisee"] = _load_json(CV_RESULTS) or (pooled or {}).get("validation_croisee")
+    out["biais_long"] = _load_json(LONG_BIAS_RESULTS)
     out["shap_reference"] = _load_json(POOLED_SHAP)
     out["scenarios"] = scenarios() if DATASET_PATH.exists() or pooled else []
     return out
@@ -216,15 +237,20 @@ def summary() -> dict:
 
 def public_kpis() -> dict | None:
     """Chiffres de la page d'accueil (publics) : uniquement des agrégats des résultats de
-    référence sur les traces réelles (comparaison_modeles.json, 9 répétitions)."""
+    référence sur les traces réelles (comparaison_modeles.json, cumul des répétitions).
+    Le modèle et ses chiffres sont ceux du point « rappel cible » (choisi sur la validation),
+    mesurés sur le test."""
     pooled = _load_json(POOLED_RESULTS)
     if not pooled or not pooled.get("resultats"):
         return None
     fusion = pooled.get("fusion") or {}
     best_id = pooled.get("meilleur_modele")
     best = pooled["resultats"].get(best_id, {})
+    cible = pooled.get("cible_rappel")
+    point = ((best.get("points_fonctionnement") or {}).get(_op_key(cible)) or {}).get("test") if cible else None
+    m = point or best
     mesures = int(fusion.get("pas_conserves") or 0)
-    par_scenario = sorted(best.get("per_attack", {}).items(), key=lambda kv: -kv[1]["rate"])
+    par_scenario = sorted(m.get("per_attack", {}).items(), key=lambda kv: -kv[1]["rate"])
     return {
         "generated_at": pooled.get("generated_at"),
         "traces": {"debut": fusion.get("debut"), "fin": fusion.get("fin"), "pas": fusion.get("pas"),
@@ -232,9 +258,13 @@ def public_kpis() -> dict | None:
         "capteurs": list(SENSOR_FR),
         "repetitions": pooled.get("protocole", {}).get("repetitions"),
         "scenarios": len(par_scenario),
-        "meilleur": {"id": best_id, "nom": best.get("nom"), "f1": best.get("f1"), "precision": best.get("precision"),
-                     "recall": best.get("recall"), "roc_auc": best.get("roc_auc"), "episodes": best.get("episodes"),
-                     "episodes_detectes": best.get("episodes_detectes"), "delai_median_min": best.get("delai_median_min")},
+        "cible_rappel": cible,
+        "part_attaques_test": (pooled.get("prevalence") or {}).get("test", {}).get("part"),
+        "meilleur": {"id": best_id, "nom": best.get("nom"), "recall": m.get("recall"),
+                     "fausses_alarmes_par_heure": m.get("fausses_alarmes_evenements_par_heure"),
+                     "delai_median_min": m.get("delai_median_min"), "precision": m.get("precision"),
+                     "f1": m.get("f1"), "f2": m.get("f2"), "roc_auc": best.get("roc_auc"),
+                     "episodes": m.get("episodes"), "episodes_detectes": m.get("episodes_detectes")},
         "modeles": [{"id": k, "nom": v.get("nom"), "f1": v.get("f1")} for k, v in pooled["resultats"].items()],
         "detection_par_scenario": [{"scenario": k, "description": SCENARIOS_FR.get(k, k), "taux": v["rate"],
                                     "points": v["n"], "detectes": v["detected"]} for k, v in par_scenario],
@@ -243,9 +273,23 @@ def public_kpis() -> dict | None:
 
 # ── Entraînement ─────────────────────────────────────────────────────────────
 
+def _dataset_is_current(tr) -> bool:
+    """Le CSV en place suit-il le protocole actuel ? Un ancien CSV (colonne split, autres
+    scénarios) est reconstruit plutôt que mélangé au nouveau découpage."""
+    header = pd.read_csv(DATASET_PATH, nrows=0).columns
+    episodes = _load_json(EPISODES_PATH) or []
+    if "split" in header or not episodes:
+        return False
+    if {e.get("name") for e in episodes} != set(tr.ATTACK_NAMES):
+        return False
+    split = tr.block_split(max(e["end"] for e in episodes), 0)
+    return all(set(split[e["start"]:e["end"]]) == {e.get("split")} for e in episodes)
+
+
 def _load_or_build_dataset(tr, tm) -> tuple[pd.DataFrame, list[str], list[dict], bool]:
-    """Jeu de données réel avec attaques (répétition 0). Construit s'il manque."""
-    if DATASET_PATH.exists() and EPISODES_PATH.exists():
+    """Jeu de données réel avec attaques (répétition 0). Construit s'il manque ou s'il
+    vient d'un ancien protocole."""
+    if DATASET_PATH.exists() and EPISODES_PATH.exists() and _dataset_is_current(tr):
         df = pd.read_csv(DATASET_PATH, parse_dates=["datetime"], keep_default_na=False)
         df["garde"] = df["garde"].astype(str).str.lower().eq("true")
         episodes = json.load(open(EPISODES_PATH, encoding="utf-8"))
@@ -261,22 +305,26 @@ def _load_or_build_dataset(tr, tm) -> tuple[pd.DataFrame, list[str], list[dict],
     paths.ensure_dirs()
     df.to_csv(DATASET_PATH, index=False, float_format="%.4f")
     with open(EPISODES_PATH, "w", encoding="utf-8") as f:
-        json.dump(episodes, f, indent=1)
+        json.dump(episodes, f, indent=1, ensure_ascii=False)
     return df, feats, episodes, True
 
 
 def _compact(r: dict) -> dict:
-    keys = ("nom", "type", "precision", "recall", "f1", "fpr", "val_f1", "roc_auc", "avg_precision",
-            "fausses_alarmes_evenements_par_heure", "episodes", "episodes_detectes", "delai_median_min",
-            "threshold", "per_attack", "per_episode", "hyperparameters")
+    keys = ("nom", "type", "recall", "fausses_alarmes_evenements_par_heure", "delai_median_min", "precision",
+            "f1", "f2", "fpr", "episodes", "episodes_detectes", "part_attaques",
+            "val_recall", "val_fausses_alarmes_par_heure", "val_delai_median_min", "val_precision", "val_f1",
+            "val_f2", "val_episodes", "val_episodes_detectes", "val_part_attaques",
+            "roc_auc", "avg_precision", "val_roc_auc", "val_avg_precision", "threshold",
+            "per_attack", "per_episode", "points_fonctionnement", "courbe_pr", "hyperparameters")
     return {k: r[k] for k in keys if k in r}
 
 
 async def train(emit: Emit) -> dict:
+    """Une répétition (la 0) des 4 modèles supervisés, même protocole que transmission_models.py :
+    seuils max F1 et rappel cible choisis sur la validation, mesurés sur le test ; choix du
+    modèle sur la validation (F2 au rappel cible)."""
     tr, tm = _scripts()
-    from app.api.v1 import phase2  # noqa: PLC0415
-    from sklearn.ensemble import RandomForestClassifier  # noqa: PLC0415
-    from sklearn.metrics import average_precision_score, roc_auc_score  # noqa: PLC0415
+    from sklearn.metrics import roc_auc_score  # noqa: PLC0415
     from sklearn.preprocessing import StandardScaler  # noqa: PLC0415
 
     t0 = time.time()
@@ -291,92 +339,88 @@ async def train(emit: Emit) -> dict:
     test_idx = np.where((split == "test") & ~garde)[0]
     X = df[feats].to_numpy(float)
     X_s = StandardScaler().fit(X[train_norm]).transform(X)
+    prevalence = tm.role_prevalence(y, {"train": train_all, "val": val_idx, "test": test_idx})
     dataset_info = {
         "fichier": DATASET_PATH.name, "construit": built, "lignes": int(len(df)), "features": len(feats),
         "train": int(len(train_all)), "train_normales": int(len(train_norm)),
         "val": int(len(val_idx)), "test": int(len(test_idx)),
-        "attaques_val": int(y[val_idx].sum()), "attaques_test": int(y[test_idx].sum()),
+        "attaques_train": int(y[train_all].sum()), "attaques_val": int(y[val_idx].sum()),
+        "attaques_test": int(y[test_idx].sum()), "prevalence": prevalence,
         "episodes": len(episodes),
     }
     await emit("dataset", 10, f"{len(df):,} lignes, {len(feats)} features, {len(episodes)} épisodes d'attaque "
-               f"(train {len(train_all):,} · val {len(val_idx):,} · test {len(test_idx):,})", dataset=dataset_info)
+               f"(train {len(train_all):,} · val {len(val_idx):,} · test {len(test_idx):,} ; attaques "
+               f"{100 * prevalence['train']['part']:.0f} % / {100 * prevalence['val']['part']:.0f} % / "
+               f"{100 * prevalence['test']['part']:.0f} %)", dataset=dataset_info)
 
+    cible = tm.TARGET_RECALL
+    op = tm.op_key(cible)
     results: dict[str, dict] = {}
 
-    def evaluate(key: str, nom: str, typ: str, scores: np.ndarray, params: dict | None = None) -> dict:
-        s = np.nan_to_num(np.asarray(scores, dtype=float), nan=0.0)
-        thr = phase2._best_f1_threshold(y[val_idx], s[val_idx])
-        pred = s >= thr
-        r = tr.pool([tr.count_run(pred, df, test_idx, episodes, "test")])
-        r.update(nom=nom, type=typ, threshold=float(thr),
-                 val_f1=tr.pool([tr.count_run(pred, df, val_idx, episodes, "val")])["f1"],
-                 roc_auc=round(float(roc_auc_score(y[test_idx], s[test_idx])), 4),
-                 avg_precision=round(float(average_precision_score(y[test_idx], s[test_idx])), 4),
-                 hyperparameters=params or {})
+    def evaluate(key: str, nom: str, scores: np.ndarray, params: dict | None = None) -> dict:
+        ev = tm.evaluate_scores(scores, df, y, val_idx, test_idx, episodes)
+        r = tm.summarize_model([ev], nom)
+        r["hyperparameters"] = params or {}
         results[key] = r
         return r
 
+    def line(r: dict) -> str:
+        t = r["points_fonctionnement"][op]["test"]
+        return (f"rappel {t['recall']:.2f}, {t['fausses_alarmes_evenements_par_heure']:.1f} FA/h, "
+                f"précision {t['precision']:.2f}, F2 {t['f2']:.2f} sur le test (rappel cible {cible:.2f})")
+
     # 1. Random Forest, par paliers d'arbres : la courbe se trace en direct
     await emit("RandomForest", 12, "Random Forest : apprentissage par paliers de 30 arbres…", model="RandomForest")
-    rf = RandomForestClassifier(n_estimators=30, min_samples_leaf=5, class_weight="balanced_subsample",
-                                warm_start=True, random_state=tr.SEED, n_jobs=-1)
+    rf = tm.make_random_forest().set_params(n_estimators=30, warm_start=True)
     curve = []
     for n_trees in range(30, 301, 30):
         rf.set_params(n_estimators=n_trees)
         await asyncio.to_thread(rf.fit, X[train_all], y[train_all])
         p_val = await asyncio.to_thread(lambda: rf.predict_proba(X[val_idx])[:, 1])
-        thr = phase2._best_f1_threshold(y[val_idx], p_val)
+        thr = tm.threshold_for_recall(y[val_idx], p_val, cible)
         pred = p_val >= thr
         tp = int((pred & (y[val_idx] == 1)).sum()); fp = int((pred & (y[val_idx] == 0)).sum())
         fn = int((~pred & (y[val_idx] == 1)).sum())
-        point = {"arbres": n_trees, "f1_validation": round(2 * tp / max(1, 2 * tp + fp + fn), 4),
+        prec, rec = tp / max(1, tp + fp), tp / max(1, tp + fn)
+        point = {"arbres": n_trees, "f2_validation": round(tr.f_beta(prec, rec, 2.0), 4),
+                 "precision_validation": round(prec, 4),
                  "auc_validation": round(float(roc_auc_score(y[val_idx], p_val)), 4)}
         curve.append(point)
         await emit("RandomForest", 12 + int(38 * n_trees / 300),
-                   f"Random Forest : {n_trees} arbres, F1 validation {point['f1_validation']:.2f}",
-                   model="RandomForest", curve_point=point)
+                   f"Random Forest : {n_trees} arbres, F2 validation {point['f2_validation']:.2f} "
+                   f"(précision {prec:.2f} au rappel {cible:.2f})", model="RandomForest", curve_point=point)
     s_rf = await asyncio.to_thread(lambda: rf.predict_proba(X)[:, 1])
-    r = evaluate("RandomForest", "Random Forest", "supervisé", s_rf,
+    r = evaluate("RandomForest", "Random Forest", s_rf,
                  {"n_estimators": 300, "min_samples_leaf": 5, "class_weight": "balanced_subsample"})
-    await emit("RandomForest", 52, f"Random Forest : F1 {r['f1']:.2f} sur le test", model="RandomForest",
-               result=_compact(r))
+    await emit("RandomForest", 52, f"Random Forest : {line(r)}", model="RandomForest", result=_compact(r))
 
-    # 2. XGBoost
+    # 2. XGBoost, 3. Régression Logistique, 4. MLP : mêmes réglages que transmission_models.py
     models = {"RandomForest": rf}
-    try:
-        from xgboost import XGBClassifier  # noqa: PLC0415
-    except ImportError:
-        XGBClassifier = None
+    steps = []
+    if tm.XGBClassifier is not None:
+        steps.append(("XGBoost", "XGBoost", tm.xgboost_model, X, (55, 68), "XGBoost : 400 itérations de boosting…"))
+    else:
         await emit("XGBoost", 55, "XGBoost absent (pip install xgboost) : modèle ignoré", model="XGBoost", skipped=True)
-    if XGBClassifier is not None:
-        await emit("XGBoost", 55, "XGBoost : 400 itérations de boosting…", model="XGBoost")
-        pos = max(1, int(y[train_all].sum()))
-        xgb = XGBClassifier(n_estimators=400, max_depth=6, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
-                            scale_pos_weight=float((len(train_all) - pos) / pos), eval_metric="logloss",
-                            random_state=tr.SEED, n_jobs=8, verbosity=0)
-        s_xgb = await asyncio.to_thread(lambda: xgb.fit(X[train_all], y[train_all]).predict_proba(X)[:, 1])
-        r = evaluate("XGBoost", "XGBoost", "supervisé", s_xgb, {"n_estimators": 400, "max_depth": 6, "learning_rate": 0.05})
-        models["XGBoost"] = xgb
-        await emit("XGBoost", 68, f"XGBoost : F1 {r['f1']:.2f} sur le test", model="XGBoost", result=_compact(r))
-
-    # 3. Régression Logistique et 4. MLP : mêmes réglages que transmission_models.py
-    for key, nom, fn, (p0, p1), msg in (
-            ("Logistique", "Régression Logistique", tm.logistic_regression, (70, 76), "Régression Logistique (class_weight équilibré)…"),
-            ("MLP", "MLP", tm.mlp, (77, 83), "MLP (64, 32) avec early stopping…")):
+    steps += [("Logistique", "Régression Logistique", tm.logistic_regression, X_s, (70, 76),
+               "Régression Logistique (class_weight équilibré)…"),
+              ("MLP", "MLP", tm.mlp, X_s, (77, 83), "MLP (64, 32), early stopping, sample_weight équilibré…")]
+    for key, nom, fn, Xm, (p0, p1), msg in steps:
         await emit(key, p0, msg, model=key)
-        s_m, p_m, m_m = await asyncio.to_thread(fn, X_s, y, train_all)
-        r = evaluate(key, nom, "supervisé", s_m, p_m)
+        s_m, p_m, m_m = await asyncio.to_thread(fn, Xm, y, train_all)
+        r = evaluate(key, nom, s_m, p_m)
         models[key] = m_m
-        await emit(key, p1, f"{nom} : F1 {r['f1']:.2f} sur le test", model=key, result=_compact(r))
+        await emit(key, p1, f"{nom} : {line(r)}", model=key, result=_compact(r))
 
-    best_key = max(results, key=lambda k: results[k]["val_f1"])
-    tree_models = {k: m for k, m in models.items() if k in ("RandomForest", "XGBoost")}
+    ranking = tm.rank_models(results, op)          # VALIDATION uniquement
+    best_key = ranking[0]
+    tree_key = next((k for k in ranking if k in tm.TREE_MODELS), None)
 
     # 5. SHAP du meilleur modèle arborescent
     shap_out = None
-    if best_key in tree_models:
-        await emit("SHAP", 85, f"SHAP : explication de {results[best_key]['nom']} sur les attaques de validation et de test…")
-        shap_out = await asyncio.to_thread(_shap_summary, tree_models[best_key], df, feats, val_idx, test_idx, tr)
+    if tree_key is not None:
+        await emit("SHAP", 85, f"SHAP : explication de {results[tree_key]['nom']} sur les attaques de validation et de test…")
+        shap_out = await asyncio.to_thread(_shap_summary, models[tree_key], df, feats, val_idx, test_idx, tr)
+        shap_out["modele"] = tree_key
         await emit("SHAP", 95, "SHAP terminé", shap=shap_out)
 
     # 6. Sauvegarde
@@ -385,23 +429,29 @@ async def train(emit: Emit) -> dict:
     joblib.dump(rf, MODEL_FILE)
     with open(FEATURES_FILE, "w", encoding="utf-8") as f:
         json.dump(feats, f, indent=1)
-    if best_key in models and best_key != "RandomForest":
+    if best_key != "RandomForest":
         joblib.dump(models[best_key], OUT_DIR / f"{best_key.lower()}.pkl")
     out = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "duree_s": round(time.time() - t0, 1),
         "dataset": dataset_info,
         "features": feats,
+        "cible_rappel": cible,
+        "cibles_rappel": list(tm.TARGETS),
         "modeles": {k: _compact(r) for k, r in results.items()},
-        "classement_validation": sorted(results, key=lambda k: results[k]["val_f1"], reverse=True),
+        "classement_validation": ranking,
+        "classement_validation_max_f1": tm.rank_models(results, "max_f1"),
+        "classement_validation_par_cible": {f"{t:.2f}": tm.rank_models(results, tm.op_key(t)) for t in tm.TARGETS},
         "meilleur": best_key,
         "courbe_random_forest": curve,
         "shap": shap_out,
     }
     with open(WEB_RESULTS, "w", encoding="utf-8") as f:
-        json.dump(out, f, indent=2, ensure_ascii=False)
-    await emit("done", 100, f"Entraînement terminé en {out['duree_s']:.0f} s — meilleur modèle : "
-               f"{results[best_key]['nom']} (F1 {results[best_key]['f1']:.2f})", results=out)
+        json.dump(out, f, indent=2, ensure_ascii=False, default=str)
+    b = results[best_key]["points_fonctionnement"][op]["test"]
+    await emit("done", 100, f"Entraînement terminé en {out['duree_s']:.0f} s — meilleur modèle (validation) : "
+               f"{results[best_key]['nom']} ; test au rappel cible {cible:.2f} : rappel {b['recall']:.2f}, "
+               f"{b['fausses_alarmes_evenements_par_heure']:.1f} FA/h, précision {b['precision']:.2f}", results=out)
     return out
 
 
@@ -436,82 +486,162 @@ def _shap_summary(model, df, feats, val_idx, test_idx, tr) -> dict:
 
 # ── Rapport pour l'opérateur ─────────────────────────────────────────────────
 
-def _results_for_report() -> tuple[dict | None, dict | None, str]:
+SEUIL_TXT = ("Le seuil d'alerte est réglé sur la VALIDATION pour signaler au moins {cible} % des mesures "
+             "falsifiées (mode « rappel d'abord » : rater une attaque coûte plus cher qu'une fausse alerte). "
+             "Le modèle est choisi sur la validation (F2) ; les chiffres ci-dessous sont mesurés ensuite sur le "
+             "test, qui n'a servi à aucun choix.")
+DESEQUILIBRE_TXT = ("Les attaques sont minoritaires : les modèles compensent par des poids de classe "
+                    "(class_weight, scale_pos_weight, sample_weight). Pas de SMOTE : des points synthétiques "
+                    "interpolés entre deux lignes d'une série temporelle fabriqueraient des fenêtres glissantes "
+                    "qui n'existent pas, et le sur-échantillonnage ne change pas la proportion d'attaques réelle, "
+                    "qui seule fixe la précision. Le vrai levier est le seuil.")
+
+
+def _results_for_report() -> tuple[dict | None, dict | None, str, float | None]:
     web = _load_json(WEB_RESULTS)
     if web and web.get("modeles"):
-        return web["modeles"], web.get("shap"), "dernier entraînement web"
+        return web["modeles"], web.get("shap"), "dernier entraînement web", web.get("cible_rappel")
     pooled = _load_json(POOLED_RESULTS)
     if pooled:
-        return pooled["resultats"], _load_json(POOLED_SHAP), "étude de référence (9 répétitions)"
-    return None, None, "aucun résultat"
+        n = pooled.get("protocole", {}).get("repetitions")
+        return (pooled["resultats"], _load_json(POOLED_SHAP), f"étude de référence ({n} répétitions)",
+                pooled.get("cible_rappel"))
+    return None, None, "aucun résultat", None
 
 
-def operator_report(models: dict | None = None, shap_data: dict | None = None, source: str | None = None) -> dict:
-    """Rapport de recommandation : le modèle en service, chaque scénario (détection, ce que le
-    modèle regarde, consignes), et les règles générales. JSON structuré + rendu Markdown."""
+def _point(m: dict, op: str | None, role: str = "test") -> dict:
+    """Métriques d'un modèle à un point de fonctionnement ; anciens résultats : champs à plat (max F1)."""
+    pts = m.get("points_fonctionnement") or {}
+    if op and op in pts:
+        return pts[op][role]
+    return m if role == "test" else {k[4:]: v for k, v in m.items() if k.startswith("val_")}
+
+
+def _niveau(rate: float | None) -> str:
+    if rate is None:
+        return "non évalué"
+    if rate >= 80:
+        return "bien détecté"
+    if rate >= 40:
+        return "partiellement détecté"
+    return "mal détecté : vérification humaine indispensable"
+
+
+def _fmt_delai(d) -> str:
+    return "—" if d is None else f"{d:.1f} min"
+
+
+def operator_report(models: dict | None = None, shap_data: dict | None = None, source: str | None = None,
+                    cible: float | None = None) -> dict:
+    """Rapport de recommandation : le modèle en service et son seuil (rappel cible), chaque
+    scénario (rappel, épisodes, délai, ce que le modèle regarde, consignes), les limites
+    connues et les règles générales. JSON structuré + rendu Markdown. Les chiffres sont lus
+    dans les résultats (aucun chiffre écrit en dur)."""
     if models is None:
-        models, shap_data, source = _results_for_report()
-    tr, _ = _scripts()
+        models, shap_data, source, cible = _results_for_report()
+    tr, tm = _scripts()
     report: dict[str, Any] = {"titre": "Rapport pour l'opérateur — attaques de transmission",
                               "date": datetime.now().strftime("%d/%m/%Y %H:%M"), "source": source,
-                              "modele": None, "scenarios": [], "regles_generales": GENERAL_RULES}
+                              "modele": None, "scenarios": [], "regles_generales": GENERAL_RULES,
+                              "desequilibre": DESEQUILIBRE_TXT}
     if not models:
         report["message"] = "Aucun résultat disponible : lancez un entraînement."
         report["markdown"] = f"# {report['titre']}\n\n{report['message']}\n"
         return report
 
-    best_key = max(models, key=lambda k: models[k].get("val_f1", models[k].get("f1", 0)))
+    has_points = all("points_fonctionnement" in m for m in models.values())
+    cible = cible if cible is not None else tm.TARGET_RECALL
+    op = tm.op_key(cible) if has_points else None
+    if op and all(op in m["points_fonctionnement"] for m in models.values()):
+        best_key = tm.rank_models(models, op)[0]                # choix sur la VALIDATION
+    else:
+        op = None
+        best_key = max(models, key=lambda k: models[k].get("val_f1", 0))
     best = models[best_key]
-    if not best.get("type"):
-        best = {**best, "type": "supervisé"}
-    fa_h = best.get("fausses_alarmes_evenements_par_heure", best.get("evenements_fausse_alarme_par_jour"))
+    t = _point(best, op, "test")
+    v = _point(best, op, "val")
+    fa_h = t.get("fausses_alarmes_evenements_par_heure")
     report["modele"] = {
-        "cle": best_key, "nom": best.get("nom", best_key), "type": best.get("type"),
-        "precision": best["precision"], "recall": best["recall"], "f1": best["f1"],
-        "fausses_alertes_par_heure": fa_h, "delai_median_min": best.get("delai_median_min"),
-        "episodes": f"{best.get('episodes_detectes')}/{best.get('episodes')}",
-        "lecture": (f"Sur 100 alertes, environ {round(100 * best['precision'])} correspondent à une vraie attaque. "
-                    f"Le modèle signale {round(100 * best['recall'])} % des mesures falsifiées et déclenche "
-                    f"environ {fa_h} fausse(s) alerte(s) par heure."),
+        "cle": best_key, "nom": best.get("nom", best_key), "type": best.get("type", "supervisé"),
+        "point_fonctionnement": f"rappel cible {cible:.2f}" if op else "max F1",
+        "cible_rappel": cible if op else None,
+        "recall": t["recall"], "fausses_alertes_par_heure": fa_h, "delai_median_min": t.get("delai_median_min"),
+        "precision": t["precision"], "f1": t["f1"], "f2": t.get("f2"),
+        "episodes": f"{t.get('episodes_detectes')}/{t.get('episodes')}",
+        "validation": {"recall": v.get("recall"), "precision": v.get("precision"), "f2": v.get("f2")},
+        "seuil": SEUIL_TXT.format(cible=round(100 * cible)) if op else "Seuil : F1 maximal sur la validation.",
+        "lecture": (f"Le modèle signale {round(100 * t['recall'])} % des mesures falsifiées, déclenche environ "
+                    f"{fa_h} fausse(s) alerte(s) par heure et réagit en {_fmt_delai(t.get('delai_median_min'))} "
+                    f"(médiane) ; sur 100 alertes, environ {round(100 * t['precision'])} correspondent à une vraie "
+                    "attaque."),
     }
+    if op and "max_f1" in best.get("points_fonctionnement", {}):
+        m1 = best["points_fonctionnement"]["max_f1"]["test"]
+        report["modele"]["alternative_max_f1"] = {
+            "recall": m1["recall"], "fausses_alertes_par_heure": m1["fausses_alarmes_evenements_par_heure"],
+            "delai_median_min": m1["delai_median_min"], "precision": m1["precision"], "f1": m1["f1"]}
+
     shap_sc = (shap_data or {}).get("par_scenario", {})
     for a in tr.ATTACKS:
         name, sensor, kind = a[0], a[1], a[2]
-        pa = best.get("per_attack", {}).get(name, {})
-        pe = best.get("per_episode", {}).get(name, {})
+        pa = t.get("per_attack", {}).get(name, {})
+        pe = t.get("per_episode", {}).get(name, {})
         reco = RECOMMANDATIONS[_family(kind)]
         feats = shap_sc.get(name, [])[:3]
         rate = pa.get("rate") if pa.get("n") else None      # scénario absent du test : non évalué
-        if rate is None:
-            niveau = "non évalué"
-        elif rate >= 80:
-            niveau = "bien détecté"
-        elif rate >= 40:
-            niveau = "partiellement détecté"
-        else:
-            niveau = "mal détecté : vérification humaine indispensable"
         report["scenarios"].append({
             "scenario": name, "capteur": SENSOR_FR[sensor], "description": SCENARIOS_FR.get(name, ""),
-            "famille": reco["titre"], "taux_detection": rate, "niveau": niveau,
+            "famille": reco["titre"], "taux_detection": rate, "niveau": _niveau(rate),
             "episodes": f"{pe.get('detected', '—')}/{pe.get('n', '—')}",
+            "delai_median_min": pe.get("delai_median_min"),
             "ce_que_le_modele_regarde": [f.get("label") or feature_label(f["feature"]) for f in feats] or [reco["signes"]],
             "risque": reco["risque"], "actions": reco["actions"],
         })
 
+    # Limites connues : les petits biais, et l'étude complémentaire des biais longs
+    limites = []
+    for s in report["scenarios"]:
+        if s["scenario"] in ("Injection_biais_0.5", "Injection_biais_1.0") and s["taux_detection"] is not None:
+            limites.append(f"{SCENARIOS_FR[s['scenario']]} : {s['taux_detection']:.0f} % des mesures signalées, "
+                           f"épisodes {s['episodes']} — non détectable de façon fiable en 15 à 25 min à ce niveau "
+                           "de bruit (σ ≈ 3,4 °C par mesure du frigo).")
+    long_bias = _load_json(LONG_BIAS_RESULTS)
+    if long_bias:
+        for jeu, lib in (("B", "avec des moyennes sur 30 et 60 min"), ("A", "avec les features actuelles")):
+            res = long_bias["resultats"].get(jeu, {})
+            for amp, x in res.get("par_amplitude", {}).items():
+                h = x.get("detectes_avant_min", {})
+                parts = ", ".join(f"{v['detectes']}/{v['n']} en moins de {k} min" for k, v in h.items() if v["n"])
+                limites.append(f"Biais long {amp} °C (1 à 3 h), {lib} : {parts} "
+                               f"(≤ {res.get('fa_h_test', '—')} fausse alerte/h au test).")
+    report["limites"] = limites
+
+    md = report["modele"]
     lines = [f"# {report['titre']}", f"*{report['date']} · source : {source}*", "",
              "## Le modèle en service", "",
-             f"**{report['modele']['nom']}**" + (f" ({report['modele']['type']})" if report['modele']['type'] not in report['modele']['nom'] else "") + f" — précision {round(100 * best['precision'])} %, "
-             f"rappel {round(100 * best['recall'])} %, F1 {best['f1']:.2f}, {fa_h} fausse(s) alerte(s) par heure, "
-             f"épisodes détectés {report['modele']['episodes']}.", "", report["modele"]["lecture"], "",
-             "## Consignes par type d'attaque", ""]
+             f"**{md['nom']}** ({md['type']}), seuil « {md['point_fonctionnement']} » — rappel "
+             f"{round(100 * md['recall'])} %, {fa_h} fausse(s) alerte(s) par heure, délai médian "
+             f"{_fmt_delai(md['delai_median_min'])}, précision {round(100 * md['precision'])} %, "
+             f"F1 {md['f1']:.2f}" + (f", F2 {md['f2']:.2f}" if md.get("f2") is not None else "")
+             + f", épisodes détectés {md['episodes']} (test).", "", md["lecture"], "", md["seuil"], ""]
+    if md.get("alternative_max_f1"):
+        a1 = md["alternative_max_f1"]
+        lines += [f"Au seuil « max F1 », le même modèle aurait un rappel de {round(100 * a1['recall'])} %, "
+                  f"{a1['fausses_alertes_par_heure']} fausse(s) alerte(s)/h et une précision de "
+                  f"{round(100 * a1['precision'])} % : moins d'alertes, mais plus d'attaques ratées.", ""]
+    lines += ["## Déséquilibre des classes", "", DESEQUILIBRE_TXT, "", "## Consignes par type d'attaque", ""]
     for s in report["scenarios"]:
-        rate_txt = "non évalué" if s["taux_detection"] is None else f"{s['taux_detection']:.0f} % des mesures, épisodes {s['episodes']}"
+        rate_txt = ("non évalué" if s["taux_detection"] is None else
+                    f"rappel {s['taux_detection']:.0f} % des mesures, épisodes {s['episodes']}, "
+                    f"délai médian {_fmt_delai(s['delai_median_min'])}")
         lines += [f"### {s['famille']} — {s['scenario']} ({s['capteur']})", "",
                   f"- **Ce que fait l'attaquant :** {s['description']}",
                   f"- **Détection :** {rate_txt} — {s['niveau']}",
                   f"- **Ce que le modèle regarde :** {', '.join(s['ce_que_le_modele_regarde'])}",
                   f"- **Risque :** {s['risque']}",
                   "- **À faire :**"] + [f"  {i}. {act}" for i, act in enumerate(s["actions"], 1)] + [""]
+    if limites:
+        lines += ["## Limites connues", ""] + [f"- {x}" for x in limites] + [""]
     lines += ["## Règles générales", ""] + [f"- {r}" for r in GENERAL_RULES] + [""]
     report["markdown"] = "\n".join(lines)
     return report
