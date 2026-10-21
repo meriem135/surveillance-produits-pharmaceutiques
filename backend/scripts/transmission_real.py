@@ -11,12 +11,18 @@ Consigne : travailler uniquement sur les données disponibles (3 traces normales
    entrelacés. Le découpage est calculé AU MOMENT DE L'ENTRAÎNEMENT (fonction
    `block_split`) et n'est plus écrit dans le jeu de données. Une attaque de 15 à
    25 min tient ENTIÈREMENT dans un bloc : aucune attaque n'est coupée entre deux
-   rôles (pas de fuite temporelle). Un épisode dans CHAQUE bloc porte le jeu de
-   données à ~33 % d'attaques, partout (train, val et test). 7 scénarios (le
-   « masquage » n'a pas de sens ici : ces traces n'ont pas d'excursion réelle). Les
-   traces ne durent que 62 h : l'étude est donc RÉPÉTÉE 9 fois en faisant tourner les
-   rôles des blocs et les scénarios, et les résultats sont cumulés (chaque heure sert
-   de test, chaque scénario a ~5 épisodes).
+   rôles (pas de fuite temporelle).
+   Prévalence : un épisode dans CHAQUE bloc d'entraînement (~33 % d'attaques : les
+   modèles supervisés ont besoin d'exemples), mais une prévalence RÉALISTE en
+   validation et en test : un épisode dans 2 blocs sur 5 (≈ 13–15 % des lignes).
+   La précision et le F1 dépendent de la prévalence : à 33 % d'attaques, le seuil
+   « max F1 » glisse vers « tout signaler » et la précision mesurée est flatteuse.
+   9 scénarios, dont les petits biais −0,5 et −1 °C, gardés comme LIMITE CONNUE et
+   mesurés scénario par scénario (le « masquage » n'a pas de sens ici : ces traces
+   n'ont pas d'excursion réelle). Les traces ne durent que 62 h : l'étude est donc
+   RÉPÉTÉE 20 fois en décalant le cycle de 20 blocs d'un cran à chaque répétition,
+   ce qui parcourt TOUTES les rotations : chaque heure sert 3 fois de test et 3 fois
+   de validation ; les scénarios tournent aussi, les résultats sont cumulés.
 3. Même protocole que transmission_study.py (seuil = max F1 sur la validation de
    chaque répétition) : les 4 modèles de la phase 2
    réentraînés, et un détecteur STATISTIQUE par capteur — A : capteur figé,
@@ -27,8 +33,9 @@ Ce que sont ces traces : du bruit sans mémoire (frigo uniforme 1–14 °C, ther
 25 °C avec sauts, météo cycle de 5 valeurs), sans relation physique entre capteurs.
 Le canal « désaccord salle↔frigo » de transmission_study.py n'a donc pas de base ici.
 
-Sorties : data/processed/dataset_transmission_reel.csv (répétition 0),
-          models/transmission_reel/resultats_transmission_reel.json, detecteur_statistique.json
+Sorties : models/transmission_reel/resultats_transmission_reel.json, detecteur_statistique.json
+          (le jeu de données dataset_transmission_reel.csv n'est écrit QUE par
+          transmission_models.py : l'ordre d'exécution des deux scripts n'importe plus)
 Usage :  cd backend && .venv/bin/python scripts/transmission_real.py
 """
 
@@ -65,7 +72,7 @@ STEP_MINUTES = 5 / 60
 MAX_GAP = 12                    # trous ≤ 1 min comblés par la dernière valeur
 GUARD = 60                      # 5 min après chaque épisode exclues de l'évaluation
 EP_MIN, EP_MAX = 180, 300       # durée d'un épisode : 15 à 25 min (≈ 33 % d'un bloc)
-N_RUNS = 9                      # répétitions : rotation des rôles des blocs et des scénarios
+N_RUNS = 20                     # répétitions : les 20 rotations du cycle de blocs (voir BLOCK_CYCLE)
 FEATURES = phase2.FEATURE_COLS
 OUT_DIR = paths.MODELS_DIR / "transmission_reel"
 DATASET_PATH = paths.PROCESSED_DIR / "dataset_transmission_reel.csv"
@@ -73,13 +80,17 @@ DATASET_PATH = paths.PROCESSED_DIR / "dataset_transmission_reel.csv"
 F_SET, F_NOISE = 7.0, 0.35      # injection « nominale » : valeurs forgées autour de la consigne
 RANGE = {"fridge": (1.0, 14.0), "thermostat": (25.0, 35.0)}   # plages observées dans les traces
 
-# Périmètre : les biais faibles -0.5 °C et -1.0 °C ont été RETIRÉS du périmètre d'étude
-# (amplitude sous le bruit du capteur ±3.4 °C : AUC ≈ 0.64 et 0.82, quasi indétectables).
-# Ils sont conservés dans l'historique (Soutenance/) comme limite connue du système.
+# Périmètre : les biais faibles -0.5 °C et -1.0 °C sont GARDÉS dans l'étude. Leur amplitude
+# est sous le bruit du capteur (σ ≈ 3,4 °C par mesure) : ils sont mal détectés en 15–25 min,
+# et c'est justement ce qu'il faut montrer (limite connue, chiffrée scénario par scénario).
+# L'étude complémentaire transmission_biais_long.py mesure à partir de quelle durée
+# (1 à 3 h) ils deviennent détectables.
 ATTACKS = [
     ("MITM_gel",                   "fridge",     "gel",      None),   # dernière valeur rejouée en boucle
     ("MITM_rejeu",                 "fridge",     "rejeu",    None),   # fenêtre passée (≥ 1 h plus tôt) rejouée
     ("Injection_nominale",         "fridge",     "nominale", None),   # valeurs forgées ~7 °C, peu bruitées
+    ("Injection_biais_0.5",        "fridge",     "biais",    -0.5),   # limite connue (sous le bruit)
+    ("Injection_biais_1.0",        "fridge",     "biais",    -1.0),   # limite connue (sous le bruit)
     ("Injection_biais_2.0",        "fridge",     "biais",    -2.0),
     ("Injection_derive",           "fridge",     "derive",   -2.0),   # rampe lente 0 → -2 °C
     ("MITM_gel_thermostat",        "thermostat", "gel",      None),
@@ -143,9 +154,24 @@ def profile(df: pd.DataFrame) -> dict:
 # ENTIÈREMENT dans un bloc d'une heure, aucune attaque n'est jamais coupée entre
 # deux rôles (pas de fuite temporelle). `run` décale le motif d'un cran à chaque
 # répétition (rôles tournants de l'étude cumulée) : le découpage reste déterministe.
+# Avec N_RUNS = BLOCK_CYCLE = 20 répétitions, toutes les rotations sont parcourues :
+# chaque bloc est 14 fois en train, 3 fois en validation et 3 fois en test.
 BLOCK_CYCLE = 20
 TRAIN_BLOCKS = 14          # 14/20 = 70 %
 VAL_BLOCKS = 3             # 3/20 = 15 %  (le reste, 3/20 = 15 %, part au test)
+
+# Prévalence des attaques par rôle. Train : un épisode dans CHAQUE bloc (~33 % des
+# lignes), les modèles supervisés ont besoin d'exemples. Validation et test : un
+# épisode dans 2 blocs sur 5 seulement (≈ 13–15 % des lignes), une prévalence
+# réaliste : la précision, le F1 et le seuil « max F1 » en dépendent directement.
+EVAL_PATTERN = (True, False, True, False, False)   # blocs de val / test successifs : épisode ou non
+
+
+def block_index(n: int) -> np.ndarray:
+    """Numéro du bloc d'une heure de chaque ligne (sert aussi de groupe pour la
+    validation croisée par groupes : une attaque et ses fenêtres glissantes restent
+    dans leur bloc)."""
+    return np.arange(n) // STEPS_HOUR
 
 
 def role_of_block(block: int, run: int = 0) -> str:
@@ -165,16 +191,23 @@ def block_split(n: int, run: int = 0) -> np.ndarray:
 
 def build_schedule(n: int, rng: np.random.Generator, run: int = 0,
                    roles: tuple[str, ...] = ("val", "test")) -> list[dict]:
-    """Un épisode dans CHAQUE bloc des rôles demandés ; les scénarios tournent avec la
-    répétition, pour que chacun soit testé plusieurs fois. Les modèles supervisés
-    (transmission_models.py) demandent des attaques dans tous les rôles :
-    roles=("train", "val", "test"). Un épisode dans chaque bloc d'une heure porte le
-    jeu de données à ~33 % d'attaques (durée 15 à 25 min par épisode)."""
+    """Planning des épisodes : un épisode dans CHAQUE bloc d'entraînement (~33 %
+    d'attaques), dans 2 blocs sur 5 de validation et de test (EVAL_PATTERN, ≈ 13–15 %).
+    Les scénarios tournent avec la répétition, pour que chacun soit testé plusieurs
+    fois. Les modèles supervisés (transmission_models.py) demandent des attaques dans
+    tous les rôles : roles=("train", "val", "test"). Chaque épisode (15 à 25 min) tient
+    entièrement dans son bloc d'une heure."""
     episodes, counters = [], {r: run for r in roles}
+    seen = {r: run for r in roles}
     for block in range(n // STEPS_HOUR):
         role = role_of_block(block, run)
         if role not in counters:
             continue
+        if role != "train":
+            keep = EVAL_PATTERN[seen[role] % len(EVAL_PATTERN)]
+            seen[role] += 1
+            if not keep:
+                continue
         s = block * STEPS_HOUR + int(rng.integers(12, STEPS_HOUR - EP_MAX - 12))
         e = s + int(rng.integers(EP_MIN, EP_MAX + 1))
         name, sensor, kind, param = ATTACKS[counters[role] % len(ATTACKS)]
@@ -320,7 +353,8 @@ def count_run(pred: np.ndarray, df: pd.DataFrame, idx: np.ndarray, episodes: lis
            "tn": int((~p & ~y).sum()), "fa_events": int((fa & ~np.r_[False, fa[:-1]]).sum()),
            "nominal_hours": float((~y).sum() / STEPS_HOUR),
            "per_attack": {nm: [int((types == nm).sum()), int((p & (types == nm)).sum())] for nm in ATTACK_NAMES},
-           "per_episode": {nm: [0, 0] for nm in ATTACK_NAMES}, "delays": []}
+           "per_episode": {nm: [0, 0] for nm in ATTACK_NAMES}, "delays": [],
+           "delays_per_attack": {nm: [] for nm in ATTACK_NAMES}}
     for ep in episodes:
         if ep["split"] != split:
             continue
@@ -329,7 +363,14 @@ def count_run(pred: np.ndarray, df: pd.DataFrame, idx: np.ndarray, episodes: lis
         if seg.any():
             out["per_episode"][ep["name"]][1] += 1
             out["delays"].append(int(np.argmax(seg)) * STEP_MINUTES)
+            out["delays_per_attack"][ep["name"]].append(int(np.argmax(seg)) * STEP_MINUTES)
     return out
+
+
+def f_beta(precision: float, recall: float, beta: float) -> float:
+    """F-bêta : bêta = 2 (F2) donne au rappel 4 fois le poids de la précision."""
+    b2 = beta * beta
+    return (1 + b2) * precision * recall / (b2 * precision + recall) if precision + recall else 0.0
 
 
 def pool(runs: list[dict]) -> dict:
@@ -343,13 +384,19 @@ def pool(runs: list[dict]) -> dict:
         n = sum(r["per_attack"][nm][0] for r in runs); d = sum(r["per_attack"][nm][1] for r in runs)
         per_attack[nm] = {"n": n, "detected": d, "rate": round(100 * d / max(1, n), 1)}
         ne = sum(r["per_episode"][nm][0] for r in runs); de = sum(r["per_episode"][nm][1] for r in runs)
-        per_episode[nm] = {"n": ne, "detected": de}
+        dl = [x for r in runs for x in r.get("delays_per_attack", {}).get(nm, [])]
+        per_episode[nm] = {"n": ne, "detected": de,
+                           "delai_median_min": round(float(np.median(dl)), 1) if dl else None}
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
     return {
-        "precision": round(tp / (tp + fp), 4) if tp + fp else 0.0,
-        "recall": round(tp / (tp + fn), 4) if tp + fn else 0.0,
+        "recall": round(recall, 4),
+        "precision": round(precision, 4),
         "f1": round(2 * tp / (2 * tp + fp + fn), 4) if 2 * tp + fp + fn else 0.0,
+        "f2": round(f_beta(precision, recall, 2.0), 4),
         "fpr": round(fp / (fp + tn), 5) if fp + tn else 0.0,
         "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+        "part_attaques": round((tp + fn) / max(1, tp + fp + fn + tn), 4),   # prévalence mesurée
         "fausses_alarmes_evenements_par_heure": round(sum(r["fa_events"] for r in runs) / max(1e-9, hours), 2),
         "episodes": sum(v["n"] for v in per_episode.values()),
         "episodes_detectes": sum(v["detected"] for v in per_episode.values()),
@@ -365,27 +412,32 @@ def print_tables(results: dict) -> None:
     print(f"ATTAQUES DE TRANSMISSION SUR LES TRACES RÉELLES — test cumulé sur {N_RUNS} répétitions "
           "(seuil : max F1 sur la validation de chaque répétition)")
     print("═" * 112)
-    print(f"{'Détecteur':28s} {'AUC':>6s} {'AP':>6s} {'Préc.':>6s} {'Rappel':>7s} {'F1':>6s} "
-          f"{'FA/h':>6s} {'Épisodes':>9s} {'Délai méd.':>11s}")
+    # Ordre des métriques (priorité pharma) : rappel, fausses alertes/h, délai, précision, F1/F2
+    print(f"{'Détecteur':28s} {'Rappel':>7s} {'FA/h':>6s} {'Délai méd.':>11s} {'Épisodes':>9s} "
+          f"{'Préc.':>6s} {'F1':>6s} {'F2':>6s} {'AUC':>6s} {'AP':>6s}")
     for k in keys:
         r = results[k]
         ep = f"{r['episodes_detectes']}/{r['episodes']}"
         delai = "—" if r["delai_median_min"] is None else f"{r['delai_median_min']:.1f} min"
-        print(f"{r['nom']:28s} {ts._fmt(r.get('roc_auc'), '.3f', 6)} {ts._fmt(r.get('avg_precision'), '.3f', 6)} "
-              f"{r['precision']:>6.3f} {r['recall']:>7.3f} {r['f1']:>6.3f} "
-              f"{r['fausses_alarmes_evenements_par_heure']:>6.2f} {ep:>9s} {delai:>11s}")
+        print(f"{r['nom']:28s} {r['recall']:>7.3f} {r['fausses_alarmes_evenements_par_heure']:>6.2f} "
+              f"{delai:>11s} {ep:>9s} {r['precision']:>6.3f} {r['f1']:>6.3f} {r.get('f2', 0.0):>6.3f} "
+              f"{ts._fmt(r.get('roc_auc'), '.3f', 6)} {ts._fmt(r.get('avg_precision'), '.3f', 6)}")
     print("FA/h : alertes distinctes à tort par heure normale. AUC et AP : moyennes des répétitions.")
 
-    for title, field in (("% des LIGNES d'attaque détectées", "per_attack"), ("ÉPISODES détectés", "per_episode")):
+    for title, field in (("rappel = % des LIGNES d'attaque détectées", "per_attack"),
+                         ("ÉPISODES détectés", "per_episode"), ("DÉLAI médian (min)", "delai")):
         print()
         print(f"Détection par scénario — {title} (test cumulé)")
         print(f"{'Scénario':28s} {'n':>5s} " + " ".join(f"{k:>11s}" for k in keys))
         for name in ATTACK_NAMES:
-            n = results[keys[0]][field][name]["n"]
+            n = results[keys[0]]["per_attack" if field == "per_attack" else "per_episode"][name]["n"]
             if field == "per_attack":
                 cells = " ".join(f"{results[k][field][name]['rate']:>10.1f}%" for k in keys)
-            else:
+            elif field == "per_episode":
                 cells = " ".join(f"{results[k][field][name]['detected']:>8d}/{n:<2d}" for k in keys)
+            else:
+                cells = " ".join(ts._fmt(results[k]["per_episode"][name].get("delai_median_min"), ".1f", 11)
+                                 for k in keys)
             print(f"{name:28s} {n:>5d} {cells}")
 
 
@@ -499,20 +551,11 @@ def _main() -> None:
     for run in range(N_RUNS):
         with contextlib.redirect_stdout(io.StringIO()) if run else contextlib.nullcontext():
             counts, episodes, df = one_run(base, run, quiet=False)
-        if run == 0:
-            # ATTENTION : ce CSV est ECRIT PAR DEUX SCRIPTS. Ici, roles=("val","test") ->
-            # le train reste SANS attaques, ce qui convient a l'etude statistique non
-            # supervisee. L'etude supervisee (transmission_models.py) ecrase ce meme
-            # fichier avec roles=("train","val","test") -> train AVEC attaques. Le
-            # decoupage train/val/test n'est plus stocke dans le CSV (il est recalcule a
-            # l'entrainement par block_split) : les deux variantes ont donc exactement les
-            # memes colonnes, seul le label des blocs de train change. L'application, les
-            # notebooks et entrainement_web.json ont besoin de la variante supervisee : il
-            # faut donc executer transmission_models.py APRES ce script, jamais l'inverse.
-            # Voir Soutenance/perimetre_etude_attaques.md ("Ordre d'execution obligatoire").
-            df = drop_phase2_cols(df)
-            df.to_csv(DATASET_PATH, index=False, float_format="%.4f")
-            log(f"    {DATASET_PATH.name} (répétition 0) : {len(df):,} lignes")
+        # Ce script n'écrit PLUS dataset_transmission_reel.csv. Ici roles=("val", "test") :
+        # le train reste SANS attaques (étude statistique non supervisée). Le jeu de données
+        # de l'application, des notebooks et de l'entraînement web (attaques dans les trois
+        # rôles) est écrit uniquement par transmission_models.py, avec son planning
+        # d'épisodes : les deux scripts peuvent donc s'exécuter dans n'importe quel ordre.
         all_counts.append(counts)
         all_episodes.append([{**e, "run": run} for e in episodes])
         log(f"    répétition {run} terminée (lambda {counts['lambda']})")
@@ -524,7 +567,10 @@ def _main() -> None:
             continue
         res = pool([r["test"] for r in runs])
         res["nom"] = nom
-        res["val_f1"] = pool([r["val"] for r in runs])["f1"]
+        val = pool([r["val"] for r in runs])
+        res.update(val_recall=val["recall"], val_precision=val["precision"], val_f1=val["f1"], val_f2=val["f2"],
+                   val_fausses_alarmes_par_heure=val["fausses_alarmes_evenements_par_heure"],
+                   val_part_attaques=val["part_attaques"])
         if "roc_auc" in runs[0]:
             res["roc_auc"] = round(float(np.mean([r["roc_auc"] for r in runs])), 4)
             res["avg_precision"] = round(float(np.mean([r["avg_precision"] for r in runs])), 4)
@@ -566,7 +612,11 @@ def _main() -> None:
             "split": "70/15/15 NON aléatoire, blocs d'une heure entrelacés (14 train / 3 val / 3 test "
                      "sur un cycle de 20), rôles tournant à chaque répétition ; recalculé à l'entraînement "
                      "(transmission_real.block_split), plus stocké dans le jeu de données",
+            "attaques": "train sans attaque (étude non supervisée) ; un épisode de 15 à 25 min dans 2 blocs "
+                        "sur 5 de validation et de test (≈ 13–15 % des lignes)",
             "repetitions": N_RUNS,
+            "couverture": "20 répétitions = les 20 rotations du cycle : chaque heure sert 3 fois de test "
+                          "et 3 fois de validation",
             "seuil": "max F1 sur la validation de chaque répétition, appliqué tel quel à son test",
             "pas_secondes": 5, "zone_de_garde_pas": GUARD,
             "episodes_par_repetition": [len(e) for e in all_episodes],
