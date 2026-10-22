@@ -477,8 +477,8 @@ export default function TransmissionPage() {
                       return (
                         <tr key={k} className="border-t" style={cellBorder}>
                           <td className="py-1.5 pr-3 font-bold">{MODEL_LABEL[k]}</td>
-                          <td className="pr-3 font-mono">{pm(g.recall)}</td><td className="pr-3 font-mono">{pm(g.precision)}</td>
-                          <td className="pr-3 font-mono opacity-60">{pm(n?.recall)}</td><td className="font-mono opacity-60">{pm(n?.precision)}</td>
+                          <td className="pr-3 font-mono whitespace-nowrap">{pm(g.recall)}</td><td className="pr-3 font-mono whitespace-nowrap">{pm(g.precision)}</td>
+                          <td className="pr-3 font-mono whitespace-nowrap opacity-60">{pm(n?.recall)}</td><td className="font-mono whitespace-nowrap opacity-60">{pm(n?.precision)}</td>
                         </tr>
                       );
                     })}
