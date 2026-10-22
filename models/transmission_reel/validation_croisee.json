@@ -1,0 +1,167 @@
+{
+  "repetition": 0,
+  "lignes": 28903,
+  "attaques": 10178,
+  "blocs": 44,
+  "folds": 5,
+  "seuil": "predict (probabilité ≥ 0,5), modèles pondérés",
+  "methodes": {
+    "naif": {
+      "description": "StratifiedKFold(shuffle=True) : lignes mélangées — à NE PAS faire",
+      "blocs_partages": 220,
+      "modeles": {
+        "RandomForest": {
+          "recall": {
+            "mean": 0.9831,
+            "std": 0.003
+          },
+          "precision": {
+            "mean": 0.9943,
+            "std": 0.0018
+          },
+          "f1": {
+            "mean": 0.9887,
+            "std": 0.0014
+          },
+          "average_precision": {
+            "mean": 0.9995,
+            "std": 0.0001
+          }
+        },
+        "XGBoost": {
+          "recall": {
+            "mean": 0.9909,
+            "std": 0.0016
+          },
+          "precision": {
+            "mean": 0.9973,
+            "std": 0.0011
+          },
+          "f1": {
+            "mean": 0.9941,
+            "std": 0.0011
+          },
+          "average_precision": {
+            "mean": 0.9997,
+            "std": 0.0002
+          }
+        },
+        "Logistique": {
+          "recall": {
+            "mean": 0.6914,
+            "std": 0.0118
+          },
+          "precision": {
+            "mean": 0.6303,
+            "std": 0.006
+          },
+          "f1": {
+            "mean": 0.6594,
+            "std": 0.0048
+          },
+          "average_precision": {
+            "mean": 0.7728,
+            "std": 0.0048
+          }
+        },
+        "MLP": {
+          "recall": {
+            "mean": 0.9854,
+            "std": 0.0035
+          },
+          "precision": {
+            "mean": 0.9849,
+            "std": 0.0021
+          },
+          "f1": {
+            "mean": 0.9851,
+            "std": 0.0027
+          },
+          "average_precision": {
+            "mean": 0.9983,
+            "std": 0.0004
+          }
+        }
+      }
+    },
+    "groupes_blocs": {
+      "description": "StratifiedGroupKFold, groupe = bloc d'une heure",
+      "blocs_partages": 0,
+      "modeles": {
+        "RandomForest": {
+          "recall": {
+            "mean": 0.6215,
+            "std": 0.1014
+          },
+          "precision": {
+            "mean": 0.863,
+            "std": 0.0642
+          },
+          "f1": {
+            "mean": 0.716,
+            "std": 0.0741
+          },
+          "average_precision": {
+            "mean": 0.8182,
+            "std": 0.0208
+          }
+        },
+        "XGBoost": {
+          "recall": {
+            "mean": 0.5388,
+            "std": 0.1101
+          },
+          "precision": {
+            "mean": 0.7507,
+            "std": 0.0626
+          },
+          "f1": {
+            "mean": 0.6237,
+            "std": 0.0948
+          },
+          "average_precision": {
+            "mean": 0.7565,
+            "std": 0.0648
+          }
+        },
+        "Logistique": {
+          "recall": {
+            "mean": 0.6128,
+            "std": 0.078
+          },
+          "precision": {
+            "mean": 0.5838,
+            "std": 0.0679
+          },
+          "f1": {
+            "mean": 0.5964,
+            "std": 0.0652
+          },
+          "average_precision": {
+            "mean": 0.7052,
+            "std": 0.0727
+          }
+        },
+        "MLP": {
+          "recall": {
+            "mean": 0.5423,
+            "std": 0.0468
+          },
+          "precision": {
+            "mean": 0.6231,
+            "std": 0.1054
+          },
+          "f1": {
+            "mean": 0.5781,
+            "std": 0.0721
+          },
+          "average_precision": {
+            "mean": 0.675,
+            "std": 0.0729
+          }
+        }
+      }
+    }
+  },
+  "generated_at": "2026-10-22T00:19:12"
+}

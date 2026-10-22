@@ -38,7 +38,8 @@ vite*.log
 docker_config_bypass/
 
 # ===== DATA (régénérées par backend/scripts/build_dataset.py) =====
-/data/processed/
+/data/processed/*
+!/data/processed/README.md
 /data/generated/
 /data/logs/
 /data/alert_triage.json

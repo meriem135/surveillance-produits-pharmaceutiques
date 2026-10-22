@@ -1,5 +1,8 @@
 {
-  "generated_at": "2026-10-18T18:38:05",
+  "generated_at": "2026-10-22T01:28:31",
+  "duree_s": 6875.2,
+  "duree_par_repetition_s": 92.6,
+  "n_jobs": 3,
   "dataset": "dataset_transmission_reel.csv",
   "fusion": {
     "pas": "5s",
@@ -47,21 +50,71 @@
   ],
   "protocole": {
     "split": "70/15/15 NON aléatoire, blocs d'une heure entrelacés (14 train / 3 val / 3 test sur un cycle de 20), rôles tournant à chaque répétition ; recalculé à l'entraînement (transmission_real.block_split), plus stocké dans le jeu de données",
-    "attaques": "un épisode de 15 à 25 min dans CHAQUE bloc (train, val et test) : ~33 % d'attaques",
-    "repetitions": 9,
-    "seuil": "max F1 sur la validation de chaque répétition, appliqué tel quel à son test",
+    "attaques": "un épisode de 15 à 25 min dans CHAQUE bloc d'entraînement (~33 %), dans 2 blocs sur 5 de validation et de test (prévalence réaliste ≈ 13–15 %)",
+    "repetitions": 20,
+    "couverture": "les 20 rotations du cycle : chaque heure sert 3 fois de test et 3 fois de validation",
+    "seuil": "choisi sur la validation de chaque répétition, appliqué tel quel à son test : max F1, et rappel cible (seuil le plus haut qui atteint ce rappel sur la validation)",
+    "selection": "sur la VALIDATION uniquement ; mode rappel d'abord : F2 de validation au rappel cible",
+    "desequilibre": "class_weight / scale_pos_weight / sample_weight, pas de SMOTE",
     "episodes_par_repetition": [
-      61,
-      61,
-      61,
-      61,
-      61,
-      61,
-      61,
-      61,
-      61
+      51,
+      49,
+      51,
+      49,
+      51,
+      51,
+      49,
+      51,
+      49,
+      51,
+      51,
+      49,
+      51,
+      49,
+      50,
+      50,
+      49,
+      50,
+      49,
+      50
     ]
   },
+  "prevalence": {
+    "train": {
+      "lignes": 570972,
+      "attaques": 204949,
+      "part": 0.3589,
+      "part_min": 0.3425,
+      "part_max": 0.3724
+    },
+    "val": {
+      "lignes": 128949,
+      "attaques": 17336,
+      "part": 0.1344,
+      "part_min": 0.1037,
+      "part_max": 0.1768
+    },
+    "test": {
+      "lignes": 128939,
+      "attaques": 17428,
+      "part": 0.1352,
+      "part_min": 0.0979,
+      "part_max": 0.1778
+    }
+  },
+  "cible_rappel": 0.9,
+  "cibles_rappel": [
+    0.8,
+    0.9,
+    0.95
+  ],
+  "ordre_metriques": [
+    "rappel",
+    "fausses alertes/heure",
+    "délai de détection",
+    "précision",
+    "F1/F2"
+  ],
   "modeles": {
     "RandomForest": "Random Forest (supervisé)",
     "XGBoost": "XGBoost (supervisé)",
@@ -71,95 +124,1644 @@
   "classement_validation": [
     "RandomForest",
     "XGBoost",
-    "MLP",
-    "Logistique"
+    "Logistique",
+    "MLP"
   ],
+  "classement_validation_max_f1": [
+    "RandomForest",
+    "XGBoost",
+    "Logistique",
+    "MLP"
+  ],
+  "classement_validation_par_cible": {
+    "0.80": [
+      "RandomForest",
+      "XGBoost",
+      "MLP",
+      "Logistique"
+    ],
+    "0.90": [
+      "RandomForest",
+      "XGBoost",
+      "Logistique",
+      "MLP"
+    ],
+    "0.95": [
+      "XGBoost",
+      "RandomForest",
+      "Logistique",
+      "MLP"
+    ]
+  },
   "meilleur_modele": "RandomForest",
+  "meilleur_par_cible": {
+    "0.80": "RandomForest",
+    "0.90": "RandomForest",
+    "0.95": "XGBoost"
+  },
+  "modele_shap": "RandomForest",
   "resultats": {
     "RandomForest": {
-      "precision": 0.939,
-      "recall": 0.8135,
-      "f1": 0.8717,
-      "fpr": 0.0306,
-      "tp": 15936,
-      "fp": 1036,
-      "fn": 3653,
-      "tn": 32824,
-      "fausses_alarmes_evenements_par_heure": 4.23,
-      "episodes": 81,
-      "episodes_detectes": 81,
-      "delai_median_min": 1.0,
+      "nom": "Random Forest (supervisé)",
+      "type": "supervisé",
+      "recall": 0.6561,
+      "precision": 0.7709,
+      "f1": 0.7089,
+      "f2": 0.6763,
+      "fpr": 0.03047,
+      "tp": 11435,
+      "fp": 3398,
+      "fn": 5993,
+      "tn": 108113,
+      "part_attaques": 0.1352,
+      "fausses_alarmes_evenements_par_heure": 3.22,
+      "episodes": 73,
+      "episodes_detectes": 71,
+      "delai_median_min": 2.2,
       "per_attack": {
         "MITM_gel": {
-          "n": 2891,
-          "detected": 2783,
-          "rate": 96.3
+          "n": 2006,
+          "detected": 1912,
+          "rate": 95.3
         },
         "MITM_rejeu": {
-          "n": 3245,
-          "detected": 2860,
-          "rate": 88.1
+          "n": 2161,
+          "detected": 1548,
+          "rate": 71.6
         },
         "Injection_nominale": {
-          "n": 2900,
-          "detected": 2800,
-          "rate": 96.6
+          "n": 2265,
+          "detected": 2112,
+          "rate": 93.2
+        },
+        "Injection_biais_0.5": {
+          "n": 2364,
+          "detected": 541,
+          "rate": 22.9
+        },
+        "Injection_biais_1.0": {
+          "n": 1788,
+          "detected": 791,
+          "rate": 44.2
         },
         "Injection_biais_2.0": {
-          "n": 2477,
-          "detected": 2092,
-          "rate": 84.5
+          "n": 1675,
+          "detected": 1426,
+          "rate": 85.1
         },
         "Injection_derive": {
-          "n": 2805,
-          "detected": 951,
-          "rate": 33.9
+          "n": 1605,
+          "detected": 570,
+          "rate": 35.5
         },
         "MITM_gel_thermostat": {
-          "n": 2678,
-          "detected": 2581,
-          "rate": 96.4
+          "n": 1635,
+          "detected": 1554,
+          "rate": 95.0
         },
         "Injection_biais_thermostat": {
-          "n": 2593,
-          "detected": 1869,
-          "rate": 72.1
+          "n": 1929,
+          "detected": 981,
+          "rate": 50.9
         }
       },
       "per_episode": {
         "MITM_gel": {
-          "n": 12,
-          "detected": 12
+          "n": 8,
+          "detected": 8,
+          "delai_median_min": 0.8
         },
         "MITM_rejeu": {
-          "n": 13,
-          "detected": 13
+          "n": 9,
+          "detected": 8,
+          "delai_median_min": 1.9
         },
         "Injection_nominale": {
-          "n": 12,
-          "detected": 12
+          "n": 9,
+          "detected": 9,
+          "delai_median_min": 0.9
+        },
+        "Injection_biais_0.5": {
+          "n": 10,
+          "detected": 10,
+          "delai_median_min": 5.5
+        },
+        "Injection_biais_1.0": {
+          "n": 8,
+          "detected": 8,
+          "delai_median_min": 3.9
         },
         "Injection_biais_2.0": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 2.5
         },
         "Injection_derive": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 10.7
         },
         "MITM_gel_thermostat": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 0.8
         },
         "Injection_biais_thermostat": {
-          "n": 11,
-          "detected": 11
+          "n": 8,
+          "detected": 7,
+          "delai_median_min": 4.6
         }
       },
-      "nom": "Random Forest (supervisé)",
-      "val_f1": 0.8796,
-      "roc_auc": 0.9125,
-      "avg_precision": 0.9205,
+      "val_recall": 0.6707,
+      "val_fausses_alarmes_par_heure": 2.84,
+      "val_delai_median_min": 1.9,
+      "val_precision": 0.8035,
+      "val_f1": 0.7311,
+      "val_f2": 0.6936,
+      "val_episodes": 73,
+      "val_episodes_detectes": 71,
+      "val_part_attaques": 0.1344,
+      "roc_auc": 0.8718,
+      "avg_precision": 0.7562,
+      "val_roc_auc": 0.8724,
+      "val_avg_precision": 0.7503,
+      "threshold": 0.7063,
+      "points_fonctionnement": {
+        "max_f1": {
+          "libelle": "max F1 (validation)",
+          "seuils": [
+            0.7063,
+            0.3339,
+            0.3842,
+            0.4769,
+            0.6731,
+            0.5794,
+            0.4489,
+            0.6255,
+            0.7076,
+            0.7695,
+            0.5347,
+            0.5528,
+            0.7332,
+            0.4775,
+            0.6424,
+            0.6023,
+            0.6174,
+            0.5883,
+            0.75,
+            0.6209
+          ],
+          "val": {
+            "recall": 0.6707,
+            "precision": 0.8035,
+            "f1": 0.7311,
+            "f2": 0.6936,
+            "fpr": 0.02547,
+            "tp": 11627,
+            "fp": 2843,
+            "fn": 5709,
+            "tn": 108770,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 2.84,
+            "episodes": 73,
+            "episodes_detectes": 71,
+            "delai_median_min": 1.9,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1787,
+                "rate": 95.8
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 1512,
+                "rate": 58.8
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1813,
+                "rate": 95.2
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 490,
+                "rate": 22.9
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1128,
+                "rate": 63.1
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1544,
+                "rate": 90.0
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 523,
+                "rate": 28.3
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1525,
+                "rate": 95.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1305,
+                "rate": 68.5
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.9
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 7,
+                "delai_median_min": 10.3
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 3.7
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.4
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 11.5
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 4.2
+              }
+            }
+          },
+          "test": {
+            "recall": 0.6561,
+            "precision": 0.7709,
+            "f1": 0.7089,
+            "f2": 0.6763,
+            "fpr": 0.03047,
+            "tp": 11435,
+            "fp": 3398,
+            "fn": 5993,
+            "tn": 108113,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 3.22,
+            "episodes": 73,
+            "episodes_detectes": 71,
+            "delai_median_min": 2.2,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1912,
+                "rate": 95.3
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1548,
+                "rate": 71.6
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2112,
+                "rate": 93.2
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 541,
+                "rate": 22.9
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 791,
+                "rate": 44.2
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1426,
+                "rate": 85.1
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 570,
+                "rate": 35.5
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1554,
+                "rate": 95.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 981,
+                "rate": 50.9
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 8,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.9
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 5.5
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 3.9
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.5
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 10.7
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 7,
+                "delai_median_min": 4.6
+              }
+            }
+          }
+        },
+        "rappel_0.80": {
+          "libelle": "rappel cible 0.80 (validation)",
+          "seuils": [
+            0.2184,
+            0.1397,
+            0.3194,
+            0.192,
+            0.2079,
+            0.3371,
+            0.1982,
+            0.6292,
+            0.1403,
+            0.5928,
+            0.2627,
+            0.1748,
+            0.1424,
+            0.3721,
+            0.2999,
+            0.402,
+            0.6225,
+            0.1613,
+            0.8337,
+            0.26
+          ],
+          "val": {
+            "recall": 0.8004,
+            "precision": 0.3491,
+            "f1": 0.4861,
+            "f2": 0.6359,
+            "fpr": 0.23185,
+            "tp": 13876,
+            "fp": 25877,
+            "fn": 3460,
+            "tn": 85736,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 13.28,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.8,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1807,
+                "rate": 96.9
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 1568,
+                "rate": 61.0
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1828,
+                "rate": 96.0
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1355,
+                "rate": 63.4
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1622,
+                "rate": 90.7
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1626,
+                "rate": 94.8
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 946,
+                "rate": 51.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1537,
+                "rate": 96.4
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1587,
+                "rate": 83.3
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.7
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 2.2
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.6
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.1
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 6.7
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 1.7
+              }
+            }
+          },
+          "test": {
+            "recall": 0.7911,
+            "precision": 0.3415,
+            "f1": 0.477,
+            "f2": 0.6262,
+            "fpr": 0.23843,
+            "tp": 13787,
+            "fp": 26588,
+            "fn": 3641,
+            "tn": 84923,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 12.73,
+            "episodes": 73,
+            "episodes_detectes": 72,
+            "delai_median_min": 0.8,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1906,
+                "rate": 95.0
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1521,
+                "rate": 70.4
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2188,
+                "rate": 96.6
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1489,
+                "rate": 63.0
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1350,
+                "rate": 75.5
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1525,
+                "rate": 91.0
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 905,
+                "rate": 56.4
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1575,
+                "rate": 96.3
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1328,
+                "rate": 68.8
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 8,
+                "delai_median_min": 1.3
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.6
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 1.2
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 1.7
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 1.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 8.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 3.1
+              }
+            }
+          }
+        },
+        "rappel_0.90": {
+          "libelle": "rappel cible 0.90 (validation)",
+          "seuils": [
+            0.1213,
+            0.0916,
+            0.2219,
+            0.1503,
+            0.094,
+            0.1705,
+            0.0433,
+            0.4927,
+            0.0867,
+            0.2236,
+            0.1309,
+            0.1163,
+            0.0853,
+            0.1265,
+            0.135,
+            0.1627,
+            0.2717,
+            0.0492,
+            0.809,
+            0.2016
+          ],
+          "val": {
+            "recall": 0.9004,
+            "precision": 0.2245,
+            "f1": 0.3594,
+            "f2": 0.562,
+            "fpr": 0.4831,
+            "tp": 15609,
+            "fp": 53920,
+            "fn": 1727,
+            "tn": 57693,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 20.44,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1817,
+                "rate": 97.4
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2071,
+                "rate": 80.6
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1864,
+                "rate": 97.8
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1764,
+                "rate": 82.5
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1719,
+                "rate": 96.1
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1676,
+                "rate": 97.7
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1377,
+                "rate": 74.4
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1549,
+                "rate": 97.1
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1772,
+                "rate": 93.0
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.5
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.3
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.1
+              }
+            }
+          },
+          "test": {
+            "recall": 0.8734,
+            "precision": 0.2273,
+            "f1": 0.3607,
+            "f2": 0.5568,
+            "fpr": 0.46409,
+            "tp": 15222,
+            "fp": 51751,
+            "fn": 2206,
+            "tn": 59760,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 18.55,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.1,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1933,
+                "rate": 96.4
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1722,
+                "rate": 79.7
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2200,
+                "rate": 97.1
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1763,
+                "rate": 74.6
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1570,
+                "rate": 87.8
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1593,
+                "rate": 95.1
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1140,
+                "rate": 71.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1594,
+                "rate": 97.5
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1707,
+                "rate": 88.5
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.5
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.1
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.4
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.7
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        },
+        "rappel_0.95": {
+          "libelle": "rappel cible 0.95 (validation)",
+          "seuils": [
+            0.0879,
+            0.0721,
+            0.1751,
+            0.12,
+            0.0657,
+            0.1031,
+            0.0312,
+            0.2617,
+            0.0649,
+            0.1261,
+            0.0981,
+            0.0706,
+            0.0682,
+            0.0994,
+            0.0739,
+            0.0927,
+            0.0874,
+            0.0271,
+            0.7346,
+            0.1542
+          ],
+          "val": {
+            "recall": 0.9506,
+            "precision": 0.1848,
+            "f1": 0.3095,
+            "f2": 0.5198,
+            "fpr": 0.65122,
+            "tp": 16479,
+            "fp": 72685,
+            "fn": 857,
+            "tn": 38928,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 21.42,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1837,
+                "rate": 98.5
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2328,
+                "rate": 90.5
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1884,
+                "rate": 98.9
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1966,
+                "rate": 92.0
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1743,
+                "rate": 97.4
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1692,
+                "rate": 98.6
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1630,
+                "rate": 88.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1568,
+                "rate": 98.3
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1831,
+                "rate": 96.1
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          },
+          "test": {
+            "recall": 0.9269,
+            "precision": 0.19,
+            "f1": 0.3153,
+            "f2": 0.522,
+            "fpr": 0.61766,
+            "tp": 16154,
+            "fp": 68876,
+            "fn": 1274,
+            "tn": 42635,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 20.58,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1976,
+                "rate": 98.5
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 2015,
+                "rate": 93.2
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2236,
+                "rate": 98.7
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1914,
+                "rate": 81.0
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1639,
+                "rate": 91.7
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1648,
+                "rate": 98.4
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1243,
+                "rate": 77.4
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1616,
+                "rate": 98.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1867,
+                "rate": 96.8
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.1
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.6
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        }
+      },
+      "courbe_pr": {
+        "val": {
+          "recall": [
+            1.0,
+            0.9993,
+            0.9983,
+            0.9972,
+            0.996,
+            0.9946,
+            0.993,
+            0.9918,
+            0.9904,
+            0.9892,
+            0.9874,
+            0.9857,
+            0.9835,
+            0.9814,
+            0.9793,
+            0.9779,
+            0.9765,
+            0.9741,
+            0.9725,
+            0.971,
+            0.9694,
+            0.9672,
+            0.9653,
+            0.9628,
+            0.9607,
+            0.9581,
+            0.9549,
+            0.953,
+            0.9501,
+            0.9474,
+            0.9446,
+            0.9416,
+            0.9382,
+            0.9355,
+            0.9326,
+            0.9299,
+            0.9269,
+            0.9246,
+            0.9221,
+            0.9199,
+            0.9176,
+            0.9154,
+            0.9134,
+            0.9121,
+            0.9096,
+            0.9074,
+            0.9048,
+            0.9027,
+            0.9006,
+            0.8982,
+            0.8964,
+            0.8939,
+            0.8914,
+            0.8893,
+            0.8875,
+            0.8852,
+            0.883,
+            0.8803,
+            0.8776,
+            0.8752,
+            0.8722,
+            0.8696,
+            0.867,
+            0.8648,
+            0.8624,
+            0.8595,
+            0.8571,
+            0.8543,
+            0.8519,
+            0.8494,
+            0.846,
+            0.8432,
+            0.8397,
+            0.8365,
+            0.8324,
+            0.829,
+            0.8254,
+            0.822,
+            0.8175,
+            0.8142,
+            0.8107,
+            0.8071,
+            0.803,
+            0.7994,
+            0.7951,
+            0.7908,
+            0.7869,
+            0.7829,
+            0.7784,
+            0.7743,
+            0.7699,
+            0.7653,
+            0.7615,
+            0.7573,
+            0.7519,
+            0.7467,
+            0.7424,
+            0.7368,
+            0.7299,
+            0.7225,
+            0.7142,
+            0.7047,
+            0.695,
+            0.6831,
+            0.6715,
+            0.6582,
+            0.6424,
+            0.6248,
+            0.6005,
+            0.5723,
+            0.5297,
+            0.4857,
+            0.4345,
+            0.3789,
+            0.3226,
+            0.2664,
+            0.2069,
+            0.1429,
+            0.0752,
+            0.0
+          ],
+          "precision": [
+            0.1344,
+            0.1356,
+            0.1366,
+            0.1376,
+            0.1386,
+            0.1397,
+            0.1407,
+            0.1417,
+            0.1428,
+            0.1439,
+            0.145,
+            0.1461,
+            0.1471,
+            0.1482,
+            0.1493,
+            0.1505,
+            0.1517,
+            0.1528,
+            0.1541,
+            0.1554,
+            0.1567,
+            0.1579,
+            0.1592,
+            0.1605,
+            0.1618,
+            0.1631,
+            0.1643,
+            0.1657,
+            0.167,
+            0.1684,
+            0.1697,
+            0.1711,
+            0.1725,
+            0.1739,
+            0.1754,
+            0.177,
+            0.1786,
+            0.1803,
+            0.182,
+            0.1838,
+            0.1857,
+            0.1876,
+            0.1896,
+            0.1918,
+            0.1938,
+            0.196,
+            0.1981,
+            0.2003,
+            0.2027,
+            0.205,
+            0.2075,
+            0.21,
+            0.2125,
+            0.2152,
+            0.2181,
+            0.2209,
+            0.2238,
+            0.2267,
+            0.2297,
+            0.2328,
+            0.236,
+            0.2393,
+            0.2427,
+            0.2464,
+            0.2502,
+            0.2539,
+            0.2579,
+            0.262,
+            0.2663,
+            0.2708,
+            0.2752,
+            0.28,
+            0.2847,
+            0.2897,
+            0.2947,
+            0.3001,
+            0.3057,
+            0.3116,
+            0.3174,
+            0.3239,
+            0.3308,
+            0.3378,
+            0.3451,
+            0.353,
+            0.3611,
+            0.3695,
+            0.3787,
+            0.3885,
+            0.3985,
+            0.4095,
+            0.4211,
+            0.4333,
+            0.4469,
+            0.4613,
+            0.4761,
+            0.4922,
+            0.5102,
+            0.5291,
+            0.5486,
+            0.5697,
+            0.5923,
+            0.6162,
+            0.6428,
+            0.6704,
+            0.7018,
+            0.7359,
+            0.7719,
+            0.8114,
+            0.8485,
+            0.8867,
+            0.9083,
+            0.9324,
+            0.9474,
+            0.9565,
+            0.9666,
+            0.9815,
+            0.9906,
+            0.9948,
+            1.0,
+            1.0
+          ]
+        },
+        "test": {
+          "recall": [
+            1.0,
+            0.9937,
+            0.9906,
+            0.9888,
+            0.9864,
+            0.985,
+            0.9833,
+            0.9814,
+            0.9801,
+            0.9792,
+            0.9774,
+            0.9767,
+            0.9755,
+            0.9741,
+            0.973,
+            0.9721,
+            0.9707,
+            0.9688,
+            0.9673,
+            0.9656,
+            0.9639,
+            0.9628,
+            0.9614,
+            0.9605,
+            0.9591,
+            0.9573,
+            0.9562,
+            0.955,
+            0.9536,
+            0.9522,
+            0.9511,
+            0.9489,
+            0.9479,
+            0.9462,
+            0.9442,
+            0.9422,
+            0.9401,
+            0.9381,
+            0.9367,
+            0.935,
+            0.9329,
+            0.9307,
+            0.9286,
+            0.9255,
+            0.9236,
+            0.921,
+            0.9187,
+            0.9164,
+            0.9143,
+            0.9113,
+            0.9089,
+            0.9055,
+            0.9037,
+            0.9008,
+            0.8978,
+            0.8961,
+            0.8932,
+            0.8902,
+            0.8874,
+            0.8848,
+            0.8824,
+            0.8805,
+            0.8781,
+            0.8751,
+            0.8727,
+            0.8695,
+            0.8655,
+            0.8622,
+            0.8579,
+            0.8543,
+            0.8512,
+            0.8477,
+            0.8438,
+            0.84,
+            0.8365,
+            0.8326,
+            0.8286,
+            0.8251,
+            0.8213,
+            0.8168,
+            0.8129,
+            0.8083,
+            0.804,
+            0.8001,
+            0.7952,
+            0.7914,
+            0.7884,
+            0.7844,
+            0.7796,
+            0.7742,
+            0.7704,
+            0.7665,
+            0.7615,
+            0.7573,
+            0.7522,
+            0.7477,
+            0.7434,
+            0.7367,
+            0.7315,
+            0.7253,
+            0.7191,
+            0.7127,
+            0.7044,
+            0.6954,
+            0.6859,
+            0.6758,
+            0.6642,
+            0.6505,
+            0.6295,
+            0.5997,
+            0.5601,
+            0.5127,
+            0.4611,
+            0.4061,
+            0.3512,
+            0.2946,
+            0.2332,
+            0.1694,
+            0.1004,
+            0.0
+          ],
+          "precision": [
+            0.1352,
+            0.1355,
+            0.1363,
+            0.1372,
+            0.138,
+            0.139,
+            0.14,
+            0.141,
+            0.1421,
+            0.1432,
+            0.1442,
+            0.1455,
+            0.1466,
+            0.1478,
+            0.149,
+            0.1503,
+            0.1515,
+            0.1527,
+            0.154,
+            0.1552,
+            0.1565,
+            0.1579,
+            0.1593,
+            0.1608,
+            0.1622,
+            0.1636,
+            0.1652,
+            0.1667,
+            0.1683,
+            0.1699,
+            0.1716,
+            0.1731,
+            0.1749,
+            0.1766,
+            0.1783,
+            0.18,
+            0.1818,
+            0.1836,
+            0.1855,
+            0.1875,
+            0.1894,
+            0.1914,
+            0.1934,
+            0.1952,
+            0.1974,
+            0.1995,
+            0.2017,
+            0.2039,
+            0.2063,
+            0.2085,
+            0.2109,
+            0.2132,
+            0.2159,
+            0.2184,
+            0.221,
+            0.224,
+            0.2268,
+            0.2296,
+            0.2326,
+            0.2357,
+            0.239,
+            0.2425,
+            0.2461,
+            0.2495,
+            0.2533,
+            0.257,
+            0.2605,
+            0.2645,
+            0.2682,
+            0.2723,
+            0.2768,
+            0.2813,
+            0.2858,
+            0.2906,
+            0.2957,
+            0.3009,
+            0.3063,
+            0.3121,
+            0.3181,
+            0.3241,
+            0.3306,
+            0.3372,
+            0.3443,
+            0.3519,
+            0.3595,
+            0.368,
+            0.3775,
+            0.387,
+            0.3967,
+            0.4067,
+            0.4183,
+            0.4305,
+            0.4431,
+            0.4571,
+            0.4716,
+            0.4876,
+            0.5051,
+            0.5225,
+            0.5424,
+            0.5636,
+            0.587,
+            0.6126,
+            0.6393,
+            0.6686,
+            0.701,
+            0.7372,
+            0.7768,
+            0.8199,
+            0.8603,
+            0.8953,
+            0.921,
+            0.9386,
+            0.9518,
+            0.9621,
+            0.9767,
+            0.9904,
+            0.9953,
+            0.9973,
+            0.9994,
+            1.0
+          ]
+        }
+      },
       "hyperparameters": {
         "n_estimators": 300,
         "min_samples_leaf": 5,
@@ -167,278 +1769,5277 @@
       }
     },
     "XGBoost": {
-      "precision": 0.9364,
-      "recall": 0.7987,
-      "f1": 0.8621,
-      "fpr": 0.03139,
-      "tp": 15646,
-      "fp": 1063,
-      "fn": 3943,
-      "tn": 32797,
-      "fausses_alarmes_evenements_par_heure": 4.19,
-      "episodes": 81,
-      "episodes_detectes": 81,
-      "delai_median_min": 0.9,
+      "nom": "XGBoost (supervisé)",
+      "type": "supervisé",
+      "recall": 0.6221,
+      "precision": 0.768,
+      "f1": 0.6874,
+      "f2": 0.6467,
+      "fpr": 0.02938,
+      "tp": 10842,
+      "fp": 3276,
+      "fn": 6586,
+      "tn": 108235,
+      "part_attaques": 0.1352,
+      "fausses_alarmes_evenements_par_heure": 3.74,
+      "episodes": 73,
+      "episodes_detectes": 70,
+      "delai_median_min": 2.5,
       "per_attack": {
         "MITM_gel": {
-          "n": 2891,
-          "detected": 2782,
-          "rate": 96.2
+          "n": 2006,
+          "detected": 1817,
+          "rate": 90.6
         },
         "MITM_rejeu": {
-          "n": 3245,
-          "detected": 2874,
-          "rate": 88.6
+          "n": 2161,
+          "detected": 1420,
+          "rate": 65.7
         },
         "Injection_nominale": {
-          "n": 2900,
-          "detected": 2776,
-          "rate": 95.7
+          "n": 2265,
+          "detected": 2125,
+          "rate": 93.8
+        },
+        "Injection_biais_0.5": {
+          "n": 2364,
+          "detected": 400,
+          "rate": 16.9
+        },
+        "Injection_biais_1.0": {
+          "n": 1788,
+          "detected": 676,
+          "rate": 37.8
         },
         "Injection_biais_2.0": {
-          "n": 2477,
-          "detected": 2015,
-          "rate": 81.3
+          "n": 1675,
+          "detected": 1395,
+          "rate": 83.3
         },
         "Injection_derive": {
-          "n": 2805,
-          "detected": 901,
-          "rate": 32.1
+          "n": 1605,
+          "detected": 491,
+          "rate": 30.6
         },
         "MITM_gel_thermostat": {
-          "n": 2678,
-          "detected": 2581,
-          "rate": 96.4
+          "n": 1635,
+          "detected": 1572,
+          "rate": 96.1
         },
         "Injection_biais_thermostat": {
-          "n": 2593,
-          "detected": 1717,
-          "rate": 66.2
+          "n": 1929,
+          "detected": 946,
+          "rate": 49.0
         }
       },
       "per_episode": {
         "MITM_gel": {
-          "n": 12,
-          "detected": 12
+          "n": 8,
+          "detected": 8,
+          "delai_median_min": 0.8
         },
         "MITM_rejeu": {
-          "n": 13,
-          "detected": 13
+          "n": 9,
+          "detected": 8,
+          "delai_median_min": 1.9
         },
         "Injection_nominale": {
-          "n": 12,
-          "detected": 12
+          "n": 9,
+          "detected": 9,
+          "delai_median_min": 0.9
+        },
+        "Injection_biais_0.5": {
+          "n": 10,
+          "detected": 9,
+          "delai_median_min": 4.6
+        },
+        "Injection_biais_1.0": {
+          "n": 8,
+          "detected": 8,
+          "delai_median_min": 3.1
         },
         "Injection_biais_2.0": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 2.6
         },
         "Injection_derive": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 10.5
         },
         "MITM_gel_thermostat": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 0.8
         },
         "Injection_biais_thermostat": {
-          "n": 11,
-          "detected": 11
+          "n": 8,
+          "detected": 7,
+          "delai_median_min": 4.8
         }
       },
-      "nom": "XGBoost (supervisé)",
-      "val_f1": 0.8682,
-      "roc_auc": 0.9132,
-      "avg_precision": 0.919,
+      "val_recall": 0.6261,
+      "val_fausses_alarmes_par_heure": 3.43,
+      "val_delai_median_min": 1.9,
+      "val_precision": 0.7975,
+      "val_f1": 0.7015,
+      "val_f2": 0.6542,
+      "val_episodes": 73,
+      "val_episodes_detectes": 71,
+      "val_part_attaques": 0.1344,
+      "roc_auc": 0.8558,
+      "avg_precision": 0.7407,
+      "val_roc_auc": 0.8592,
+      "val_avg_precision": 0.7232,
+      "threshold": 0.8833,
+      "points_fonctionnement": {
+        "max_f1": {
+          "libelle": "max F1 (validation)",
+          "seuils": [
+            0.8833,
+            0.3627,
+            0.2129,
+            0.6126,
+            0.8296,
+            0.6481,
+            0.8477,
+            0.9241,
+            0.9805,
+            0.9216,
+            0.5601,
+            0.8578,
+            0.9581,
+            0.7429,
+            0.6321,
+            0.6876,
+            0.8606,
+            0.9111,
+            0.9805,
+            0.7505
+          ],
+          "val": {
+            "recall": 0.6261,
+            "precision": 0.7975,
+            "f1": 0.7015,
+            "f2": 0.6542,
+            "fpr": 0.02469,
+            "tp": 10854,
+            "fp": 2756,
+            "fn": 6482,
+            "tn": 108857,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 3.43,
+            "episodes": 73,
+            "episodes_detectes": 71,
+            "delai_median_min": 1.9,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1671,
+                "rate": 89.6
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 1481,
+                "rate": 57.6
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1808,
+                "rate": 94.9
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 401,
+                "rate": 18.8
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1001,
+                "rate": 56.0
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1476,
+                "rate": 86.0
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 519,
+                "rate": 28.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1499,
+                "rate": 94.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 998,
+                "rate": 52.4
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.9
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 7,
+                "delai_median_min": 7.8
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 2.8
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.9
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 10.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 4.9
+              }
+            }
+          },
+          "test": {
+            "recall": 0.6221,
+            "precision": 0.768,
+            "f1": 0.6874,
+            "f2": 0.6467,
+            "fpr": 0.02938,
+            "tp": 10842,
+            "fp": 3276,
+            "fn": 6586,
+            "tn": 108235,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 3.74,
+            "episodes": 73,
+            "episodes_detectes": 70,
+            "delai_median_min": 2.5,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1817,
+                "rate": 90.6
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1420,
+                "rate": 65.7
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2125,
+                "rate": 93.8
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 400,
+                "rate": 16.9
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 676,
+                "rate": 37.8
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1395,
+                "rate": 83.3
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 491,
+                "rate": 30.6
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1572,
+                "rate": 96.1
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 946,
+                "rate": 49.0
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 8,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.9
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 9,
+                "delai_median_min": 4.6
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 3.1
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.6
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 10.5
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 7,
+                "delai_median_min": 4.8
+              }
+            }
+          }
+        },
+        "rappel_0.80": {
+          "libelle": "rappel cible 0.80 (validation)",
+          "seuils": [
+            0.0362,
+            0.013,
+            0.1515,
+            0.0211,
+            0.0539,
+            0.2423,
+            0.0877,
+            0.9642,
+            0.0534,
+            0.4647,
+            0.1319,
+            0.0245,
+            0.0383,
+            0.1299,
+            0.2998,
+            0.3254,
+            0.5245,
+            0.0084,
+            0.9976,
+            0.3285
+          ],
+          "val": {
+            "recall": 0.8004,
+            "precision": 0.2972,
+            "f1": 0.4335,
+            "f2": 0.598,
+            "fpr": 0.29393,
+            "tp": 13876,
+            "fp": 32806,
+            "fn": 3460,
+            "tn": 78807,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 17.59,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.8,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1768,
+                "rate": 94.8
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 1774,
+                "rate": 69.0
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1829,
+                "rate": 96.0
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1328,
+                "rate": 62.1
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1534,
+                "rate": 85.7
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1628,
+                "rate": 94.9
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1007,
+                "rate": 54.4
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1495,
+                "rate": 93.7
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1513,
+                "rate": 79.4
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.8
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.6
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 6.8
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 2.1
+              }
+            }
+          },
+          "test": {
+            "recall": 0.7787,
+            "precision": 0.2973,
+            "f1": 0.4303,
+            "f2": 0.5882,
+            "fpr": 0.2877,
+            "tp": 13572,
+            "fp": 32082,
+            "fn": 3856,
+            "tn": 79429,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 16.83,
+            "episodes": 73,
+            "episodes_detectes": 72,
+            "delai_median_min": 0.8,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1897,
+                "rate": 94.6
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1490,
+                "rate": 68.9
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2182,
+                "rate": 96.3
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1359,
+                "rate": 57.5
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1375,
+                "rate": 76.9
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1556,
+                "rate": 92.9
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 850,
+                "rate": 53.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1574,
+                "rate": 96.3
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1289,
+                "rate": 66.8
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 9,
+                "delai_median_min": 0.2
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.2
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 1.5
+              }
+            }
+          }
+        },
+        "rappel_0.90": {
+          "libelle": "rappel cible 0.90 (validation)",
+          "seuils": [
+            0.0131,
+            0.0054,
+            0.0297,
+            0.0096,
+            0.0277,
+            0.117,
+            0.0174,
+            0.8895,
+            0.0203,
+            0.0757,
+            0.0689,
+            0.0087,
+            0.0158,
+            0.0347,
+            0.0912,
+            0.0614,
+            0.0261,
+            0.0035,
+            0.9947,
+            0.1582
+          ],
+          "val": {
+            "recall": 0.9004,
+            "precision": 0.2214,
+            "f1": 0.3554,
+            "f2": 0.5581,
+            "fpr": 0.49185,
+            "tp": 15609,
+            "fp": 54897,
+            "fn": 1727,
+            "tn": 56716,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 20.48,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1815,
+                "rate": 97.3
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2157,
+                "rate": 83.9
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1864,
+                "rate": 97.8
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1767,
+                "rate": 82.6
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1632,
+                "rate": 91.2
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1673,
+                "rate": 97.5
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1459,
+                "rate": 78.8
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1540,
+                "rate": 96.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1702,
+                "rate": 89.3
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.2
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.1
+              }
+            }
+          },
+          "test": {
+            "recall": 0.8476,
+            "precision": 0.215,
+            "f1": 0.343,
+            "f2": 0.5336,
+            "fpr": 0.4836,
+            "tp": 14772,
+            "fp": 53927,
+            "fn": 2656,
+            "tn": 57584,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 19.74,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.1,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1918,
+                "rate": 95.6
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1722,
+                "rate": 79.7
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2192,
+                "rate": 96.8
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1716,
+                "rate": 72.6
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1529,
+                "rate": 85.5
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1604,
+                "rate": 95.8
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 997,
+                "rate": 62.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1596,
+                "rate": 97.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1498,
+                "rate": 77.7
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.3
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.6
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.2
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.1
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 1.9
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.1
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        },
+        "rappel_0.95": {
+          "libelle": "rappel cible 0.95 (validation)",
+          "seuils": [
+            0.007,
+            0.0011,
+            0.011,
+            0.0058,
+            0.018,
+            0.0527,
+            0.0097,
+            0.0717,
+            0.0132,
+            0.0353,
+            0.0466,
+            0.0026,
+            0.008,
+            0.0176,
+            0.0455,
+            0.0381,
+            0.0148,
+            0.0023,
+            0.9436,
+            0.0712
+          ],
+          "val": {
+            "recall": 0.9506,
+            "precision": 0.1903,
+            "f1": 0.3171,
+            "f2": 0.5284,
+            "fpr": 0.62813,
+            "tp": 16479,
+            "fp": 70107,
+            "fn": 857,
+            "tn": 41506,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 18.88,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1852,
+                "rate": 99.3
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2364,
+                "rate": 91.9
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1877,
+                "rate": 98.5
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1977,
+                "rate": 92.5
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1679,
+                "rate": 93.9
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1695,
+                "rate": 98.8
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1682,
+                "rate": 90.9
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1556,
+                "rate": 97.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1797,
+                "rate": 94.3
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          },
+          "test": {
+            "recall": 0.8977,
+            "precision": 0.1877,
+            "f1": 0.3105,
+            "f2": 0.511,
+            "fpr": 0.60725,
+            "tp": 15645,
+            "fp": 67715,
+            "fn": 1783,
+            "tn": 43796,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 19.27,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1968,
+                "rate": 98.1
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1936,
+                "rate": 89.6
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2238,
+                "rate": 98.8
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1957,
+                "rate": 82.8
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1596,
+                "rate": 89.3
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1639,
+                "rate": 97.9
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1068,
+                "rate": 66.5
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1616,
+                "rate": 98.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1627,
+                "rate": 84.3
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.2
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.1
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 1.8
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        }
+      },
+      "courbe_pr": {
+        "val": {
+          "recall": [
+            1.0,
+            0.9983,
+            0.9965,
+            0.9944,
+            0.9935,
+            0.9924,
+            0.9903,
+            0.9888,
+            0.9874,
+            0.9859,
+            0.9851,
+            0.9832,
+            0.9815,
+            0.9793,
+            0.9773,
+            0.9757,
+            0.9736,
+            0.972,
+            0.9704,
+            0.9687,
+            0.9664,
+            0.9642,
+            0.9622,
+            0.9596,
+            0.9573,
+            0.9556,
+            0.9533,
+            0.9511,
+            0.9483,
+            0.9459,
+            0.9435,
+            0.941,
+            0.9385,
+            0.9367,
+            0.9346,
+            0.9323,
+            0.9294,
+            0.9273,
+            0.925,
+            0.9217,
+            0.9183,
+            0.9158,
+            0.9135,
+            0.9116,
+            0.9094,
+            0.9067,
+            0.9044,
+            0.9021,
+            0.9,
+            0.8974,
+            0.8947,
+            0.8919,
+            0.8895,
+            0.8874,
+            0.8845,
+            0.8812,
+            0.8782,
+            0.8748,
+            0.8717,
+            0.8685,
+            0.8646,
+            0.861,
+            0.8581,
+            0.8552,
+            0.8526,
+            0.8486,
+            0.8459,
+            0.8432,
+            0.8399,
+            0.8358,
+            0.8316,
+            0.8279,
+            0.8244,
+            0.8212,
+            0.8173,
+            0.8132,
+            0.8092,
+            0.8052,
+            0.8015,
+            0.7971,
+            0.7929,
+            0.7898,
+            0.7862,
+            0.7816,
+            0.7772,
+            0.7724,
+            0.768,
+            0.7618,
+            0.7569,
+            0.7507,
+            0.7458,
+            0.7411,
+            0.7363,
+            0.7301,
+            0.7235,
+            0.717,
+            0.7093,
+            0.7021,
+            0.6941,
+            0.685,
+            0.6766,
+            0.6679,
+            0.6586,
+            0.6478,
+            0.6342,
+            0.6211,
+            0.6072,
+            0.5922,
+            0.5749,
+            0.5527,
+            0.522,
+            0.4826,
+            0.4382,
+            0.3852,
+            0.3279,
+            0.2664,
+            0.2037,
+            0.1398,
+            0.071,
+            0.0
+          ],
+          "precision": [
+            0.1344,
+            0.1353,
+            0.1362,
+            0.1371,
+            0.1382,
+            0.1392,
+            0.1402,
+            0.1412,
+            0.1423,
+            0.1433,
+            0.1445,
+            0.1456,
+            0.1467,
+            0.1477,
+            0.1488,
+            0.15,
+            0.1511,
+            0.1524,
+            0.1536,
+            0.1549,
+            0.1561,
+            0.1573,
+            0.1586,
+            0.1598,
+            0.1611,
+            0.1625,
+            0.1639,
+            0.1653,
+            0.1666,
+            0.168,
+            0.1695,
+            0.171,
+            0.1725,
+            0.1741,
+            0.1758,
+            0.1774,
+            0.179,
+            0.1808,
+            0.1825,
+            0.1842,
+            0.1858,
+            0.1877,
+            0.1896,
+            0.1917,
+            0.1938,
+            0.1958,
+            0.198,
+            0.2002,
+            0.2025,
+            0.2048,
+            0.2071,
+            0.2095,
+            0.212,
+            0.2147,
+            0.2173,
+            0.2199,
+            0.2226,
+            0.2253,
+            0.2281,
+            0.2311,
+            0.2339,
+            0.2369,
+            0.2402,
+            0.2437,
+            0.2473,
+            0.2507,
+            0.2546,
+            0.2586,
+            0.2626,
+            0.2665,
+            0.2706,
+            0.2749,
+            0.2795,
+            0.2845,
+            0.2893,
+            0.2944,
+            0.2997,
+            0.3052,
+            0.3111,
+            0.3171,
+            0.3235,
+            0.3306,
+            0.3379,
+            0.3451,
+            0.3529,
+            0.3609,
+            0.3696,
+            0.3779,
+            0.3874,
+            0.3969,
+            0.4078,
+            0.4195,
+            0.4319,
+            0.4445,
+            0.4579,
+            0.4723,
+            0.4872,
+            0.5038,
+            0.5213,
+            0.5397,
+            0.5605,
+            0.5833,
+            0.6083,
+            0.6347,
+            0.6617,
+            0.6931,
+            0.7281,
+            0.7673,
+            0.8102,
+            0.8538,
+            0.8921,
+            0.9231,
+            0.9516,
+            0.9681,
+            0.979,
+            0.9828,
+            0.9863,
+            0.9922,
+            0.9968,
+            1.0
+          ]
+        },
+        "test": {
+          "recall": [
+            1.0,
+            0.998,
+            0.9956,
+            0.9924,
+            0.9897,
+            0.9871,
+            0.9848,
+            0.9826,
+            0.9811,
+            0.9791,
+            0.9773,
+            0.9759,
+            0.9745,
+            0.9724,
+            0.9699,
+            0.9674,
+            0.9654,
+            0.963,
+            0.9612,
+            0.9591,
+            0.9571,
+            0.9546,
+            0.9528,
+            0.9518,
+            0.9495,
+            0.9478,
+            0.9459,
+            0.9438,
+            0.9414,
+            0.9392,
+            0.9361,
+            0.9339,
+            0.9317,
+            0.9293,
+            0.9271,
+            0.925,
+            0.9223,
+            0.92,
+            0.9173,
+            0.9154,
+            0.9132,
+            0.9115,
+            0.9093,
+            0.907,
+            0.905,
+            0.9032,
+            0.9013,
+            0.8994,
+            0.8973,
+            0.8944,
+            0.8923,
+            0.89,
+            0.8878,
+            0.885,
+            0.8827,
+            0.8803,
+            0.8769,
+            0.8731,
+            0.87,
+            0.8664,
+            0.8638,
+            0.8612,
+            0.8575,
+            0.8544,
+            0.8513,
+            0.8486,
+            0.8458,
+            0.8424,
+            0.8392,
+            0.8362,
+            0.8334,
+            0.8296,
+            0.8267,
+            0.8235,
+            0.8193,
+            0.8157,
+            0.8121,
+            0.8086,
+            0.805,
+            0.8008,
+            0.7972,
+            0.7942,
+            0.7912,
+            0.787,
+            0.7832,
+            0.7783,
+            0.7742,
+            0.7695,
+            0.7653,
+            0.7608,
+            0.7564,
+            0.7516,
+            0.7465,
+            0.7416,
+            0.7362,
+            0.7299,
+            0.7245,
+            0.719,
+            0.7129,
+            0.7054,
+            0.6983,
+            0.6893,
+            0.6808,
+            0.6714,
+            0.6618,
+            0.6535,
+            0.6445,
+            0.6322,
+            0.6142,
+            0.5916,
+            0.5643,
+            0.524,
+            0.4749,
+            0.4173,
+            0.3566,
+            0.2941,
+            0.2295,
+            0.163,
+            0.0946,
+            0.0
+          ],
+          "precision": [
+            0.1352,
+            0.136,
+            0.1368,
+            0.1376,
+            0.1384,
+            0.1392,
+            0.1401,
+            0.141,
+            0.1421,
+            0.1431,
+            0.1441,
+            0.1452,
+            0.1464,
+            0.1474,
+            0.1484,
+            0.1495,
+            0.1506,
+            0.1517,
+            0.1529,
+            0.1541,
+            0.1553,
+            0.1564,
+            0.1578,
+            0.1592,
+            0.1605,
+            0.1619,
+            0.1633,
+            0.1647,
+            0.1661,
+            0.1675,
+            0.1688,
+            0.1703,
+            0.1719,
+            0.1734,
+            0.175,
+            0.1767,
+            0.1783,
+            0.18,
+            0.1817,
+            0.1835,
+            0.1854,
+            0.1874,
+            0.1893,
+            0.1913,
+            0.1934,
+            0.1956,
+            0.1979,
+            0.2001,
+            0.2025,
+            0.2047,
+            0.2071,
+            0.2096,
+            0.2121,
+            0.2146,
+            0.2173,
+            0.2201,
+            0.2227,
+            0.2253,
+            0.2281,
+            0.2309,
+            0.234,
+            0.2373,
+            0.2404,
+            0.2437,
+            0.2471,
+            0.2509,
+            0.2547,
+            0.2584,
+            0.2624,
+            0.2666,
+            0.2711,
+            0.2754,
+            0.2801,
+            0.285,
+            0.2898,
+            0.2949,
+            0.3003,
+            0.306,
+            0.3119,
+            0.3179,
+            0.3244,
+            0.3315,
+            0.339,
+            0.3463,
+            0.3543,
+            0.3621,
+            0.3709,
+            0.3798,
+            0.3896,
+            0.3999,
+            0.4108,
+            0.4223,
+            0.4345,
+            0.4477,
+            0.4617,
+            0.4761,
+            0.4924,
+            0.51,
+            0.5288,
+            0.5482,
+            0.57,
+            0.5925,
+            0.6179,
+            0.6456,
+            0.6763,
+            0.7127,
+            0.7534,
+            0.7963,
+            0.8388,
+            0.882,
+            0.9265,
+            0.9571,
+            0.9783,
+            0.9859,
+            0.9915,
+            0.9953,
+            0.998,
+            0.9982,
+            0.9982,
+            1.0
+          ]
+        }
+      },
       "hyperparameters": {
         "n_estimators": 400,
         "max_depth": 6,
         "learning_rate": 0.05,
-        "scale_pos_weight": 1.83
+        "scale_pos_weight": 1.84
       }
     },
     "Logistique": {
-      "precision": 0.7121,
-      "recall": 0.6926,
-      "f1": 0.7022,
-      "fpr": 0.16202,
-      "tp": 13568,
-      "fp": 5486,
-      "fn": 6021,
-      "tn": 28374,
-      "fausses_alarmes_evenements_par_heure": 12.31,
-      "episodes": 81,
-      "episodes_detectes": 80,
-      "delai_median_min": 0.8,
+      "nom": "Régression Logistique (supervisé)",
+      "type": "supervisé",
+      "recall": 0.4463,
+      "precision": 0.5566,
+      "f1": 0.4954,
+      "f2": 0.4647,
+      "fpr": 0.05556,
+      "tp": 7778,
+      "fp": 6196,
+      "fn": 9650,
+      "tn": 105315,
+      "part_attaques": 0.1352,
+      "fausses_alarmes_evenements_par_heure": 5.48,
+      "episodes": 73,
+      "episodes_detectes": 64,
+      "delai_median_min": 2.9,
       "per_attack": {
         "MITM_gel": {
-          "n": 2891,
-          "detected": 2430,
-          "rate": 84.1
+          "n": 2006,
+          "detected": 1285,
+          "rate": 64.1
         },
         "MITM_rejeu": {
-          "n": 3245,
-          "detected": 2890,
-          "rate": 89.1
+          "n": 2161,
+          "detected": 1603,
+          "rate": 74.2
         },
         "Injection_nominale": {
-          "n": 2900,
-          "detected": 2653,
-          "rate": 91.5
+          "n": 2265,
+          "detected": 1816,
+          "rate": 80.2
+        },
+        "Injection_biais_0.5": {
+          "n": 2364,
+          "detected": 394,
+          "rate": 16.7
+        },
+        "Injection_biais_1.0": {
+          "n": 1788,
+          "detected": 394,
+          "rate": 22.0
         },
         "Injection_biais_2.0": {
-          "n": 2477,
-          "detected": 1433,
-          "rate": 57.9
+          "n": 1675,
+          "detected": 937,
+          "rate": 55.9
         },
         "Injection_derive": {
-          "n": 2805,
-          "detected": 1026,
-          "rate": 36.6
+          "n": 1605,
+          "detected": 143,
+          "rate": 8.9
         },
         "MITM_gel_thermostat": {
-          "n": 2678,
-          "detected": 2046,
-          "rate": 76.4
+          "n": 1635,
+          "detected": 687,
+          "rate": 42.0
         },
         "Injection_biais_thermostat": {
-          "n": 2593,
-          "detected": 1090,
-          "rate": 42.0
+          "n": 1929,
+          "detected": 519,
+          "rate": 26.9
         }
       },
       "per_episode": {
         "MITM_gel": {
-          "n": 12,
-          "detected": 12
+          "n": 8,
+          "detected": 8,
+          "delai_median_min": 1.6
         },
         "MITM_rejeu": {
-          "n": 13,
-          "detected": 13
+          "n": 9,
+          "detected": 8,
+          "delai_median_min": 1.9
         },
         "Injection_nominale": {
-          "n": 12,
-          "detected": 12
+          "n": 9,
+          "detected": 9,
+          "delai_median_min": 0.9
+        },
+        "Injection_biais_0.5": {
+          "n": 10,
+          "detected": 7,
+          "delai_median_min": 8.9
+        },
+        "Injection_biais_1.0": {
+          "n": 8,
+          "detected": 7,
+          "delai_median_min": 3.9
         },
         "Injection_biais_2.0": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 2.8
         },
         "Injection_derive": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 6,
+          "delai_median_min": 13.2
         },
         "MITM_gel_thermostat": {
-          "n": 11,
-          "detected": 10
+          "n": 7,
+          "detected": 6,
+          "delai_median_min": 4.2
         },
         "Injection_biais_thermostat": {
-          "n": 11,
-          "detected": 11
+          "n": 8,
+          "detected": 6,
+          "delai_median_min": 3.5
         }
       },
-      "nom": "Régression Logistique (supervisé)",
-      "val_f1": 0.7243,
-      "roc_auc": 0.8367,
-      "avg_precision": 0.8102,
+      "val_recall": 0.4559,
+      "val_fausses_alarmes_par_heure": 5.52,
+      "val_delai_median_min": 2.4,
+      "val_precision": 0.5941,
+      "val_f1": 0.5159,
+      "val_f2": 0.4782,
+      "val_episodes": 73,
+      "val_episodes_detectes": 61,
+      "val_part_attaques": 0.1344,
+      "roc_auc": 0.8081,
+      "avg_precision": 0.5741,
+      "val_roc_auc": 0.7708,
+      "val_avg_precision": 0.5363,
+      "threshold": 0.6437,
+      "points_fonctionnement": {
+        "max_f1": {
+          "libelle": "max F1 (validation)",
+          "seuils": [
+            0.6437,
+            0.581,
+            0.5343,
+            0.8961,
+            0.6915,
+            0.7071,
+            0.5971,
+            0.6682,
+            0.7604,
+            0.8036,
+            0.6569,
+            0.7214,
+            0.5738,
+            0.704,
+            0.9075,
+            0.9365,
+            0.9265,
+            0.759,
+            0.8929,
+            0.8975
+          ],
+          "val": {
+            "recall": 0.4559,
+            "precision": 0.5941,
+            "f1": 0.5159,
+            "f2": 0.4782,
+            "fpr": 0.04839,
+            "tp": 7904,
+            "fp": 5401,
+            "fn": 9432,
+            "tn": 106212,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 5.52,
+            "episodes": 73,
+            "episodes_detectes": 61,
+            "delai_median_min": 2.4,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 973,
+                "rate": 52.2
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 1494,
+                "rate": 58.1
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1682,
+                "rate": 88.3
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 351,
+                "rate": 16.4
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 645,
+                "rate": 36.1
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1256,
+                "rate": 73.2
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 366,
+                "rate": 19.8
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 876,
+                "rate": 54.9
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 261,
+                "rate": 13.7
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 6,
+                "delai_median_min": 2.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 6,
+                "delai_median_min": 5.9
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 2.8
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 3.2
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 4,
+                "delai_median_min": 9.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 5,
+                "delai_median_min": 2.4
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 6,
+                "delai_median_min": 4.5
+              }
+            }
+          },
+          "test": {
+            "recall": 0.4463,
+            "precision": 0.5566,
+            "f1": 0.4954,
+            "f2": 0.4647,
+            "fpr": 0.05556,
+            "tp": 7778,
+            "fp": 6196,
+            "fn": 9650,
+            "tn": 105315,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 5.48,
+            "episodes": 73,
+            "episodes_detectes": 64,
+            "delai_median_min": 2.9,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1285,
+                "rate": 64.1
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1603,
+                "rate": 74.2
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 1816,
+                "rate": 80.2
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 394,
+                "rate": 16.7
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 394,
+                "rate": 22.0
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 937,
+                "rate": 55.9
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 143,
+                "rate": 8.9
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 687,
+                "rate": 42.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 519,
+                "rate": 26.9
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 1.6
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 8,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.9
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 7,
+                "delai_median_min": 8.9
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 7,
+                "delai_median_min": 3.9
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.8
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 6,
+                "delai_median_min": 13.2
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 6,
+                "delai_median_min": 4.2
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 6,
+                "delai_median_min": 3.5
+              }
+            }
+          }
+        },
+        "rappel_0.80": {
+          "libelle": "rappel cible 0.80 (validation)",
+          "seuils": [
+            0.0101,
+            0.2698,
+            0.4325,
+            0.3876,
+            0.2825,
+            0.1769,
+            0.2917,
+            0.5048,
+            0.2646,
+            0.3092,
+            0.3035,
+            0.3384,
+            0.3986,
+            0.6217,
+            0.2337,
+            0.2341,
+            0.3574,
+            0.3126,
+            0.9306,
+            0.3827
+          ],
+          "val": {
+            "recall": 0.8004,
+            "precision": 0.2122,
+            "f1": 0.3355,
+            "f2": 0.515,
+            "fpr": 0.46142,
+            "tp": 13876,
+            "fp": 51500,
+            "fn": 3460,
+            "tn": 60113,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 20.96,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.1,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1342,
+                "rate": 72.0
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 1866,
+                "rate": 72.6
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1852,
+                "rate": 97.2
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1497,
+                "rate": 70.0
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1534,
+                "rate": 85.7
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1632,
+                "rate": 95.1
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1179,
+                "rate": 63.7
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1322,
+                "rate": 82.9
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1652,
+                "rate": 86.7
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.2
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.3
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.2
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.1
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.2
+              }
+            }
+          },
+          "test": {
+            "recall": 0.819,
+            "precision": 0.2185,
+            "f1": 0.345,
+            "f2": 0.5285,
+            "fpr": 0.45772,
+            "tp": 14273,
+            "fp": 51041,
+            "fn": 3155,
+            "tn": 60470,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 19.34,
+            "episodes": 73,
+            "episodes_detectes": 70,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1783,
+                "rate": 88.9
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1891,
+                "rate": 87.5
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2232,
+                "rate": 98.5
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1607,
+                "rate": 68.0
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1190,
+                "rate": 66.6
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1552,
+                "rate": 92.7
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1093,
+                "rate": 68.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1361,
+                "rate": 83.2
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1564,
+                "rate": 81.1
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 9,
+                "delai_median_min": 0.2
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.5
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.2
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 6,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        },
+        "rappel_0.90": {
+          "libelle": "rappel cible 0.90 (validation)",
+          "seuils": [
+            0.0052,
+            0.1113,
+            0.3489,
+            0.3212,
+            0.2064,
+            0.1289,
+            0.2038,
+            0.3556,
+            0.1948,
+            0.2406,
+            0.2417,
+            0.2887,
+            0.3048,
+            0.547,
+            0.0529,
+            0.1829,
+            0.2546,
+            0.163,
+            0.8955,
+            0.1585
+          ],
+          "val": {
+            "recall": 0.9004,
+            "precision": 0.1819,
+            "f1": 0.3026,
+            "f2": 0.503,
+            "fpr": 0.62904,
+            "tp": 15609,
+            "fp": 70209,
+            "fn": 1727,
+            "tn": 41404,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 19.57,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1597,
+                "rate": 85.6
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2152,
+                "rate": 83.7
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1885,
+                "rate": 99.0
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1841,
+                "rate": 86.1
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1651,
+                "rate": 92.3
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1688,
+                "rate": 98.4
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1520,
+                "rate": 82.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1470,
+                "rate": 92.2
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1805,
+                "rate": 94.7
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          },
+          "test": {
+            "recall": 0.8902,
+            "precision": 0.1841,
+            "f1": 0.3051,
+            "f2": 0.5038,
+            "fpr": 0.6165,
+            "tp": 15514,
+            "fp": 68747,
+            "fn": 1914,
+            "tn": 42764,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 17.19,
+            "episodes": 73,
+            "episodes_detectes": 72,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1794,
+                "rate": 89.4
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1998,
+                "rate": 92.5
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2246,
+                "rate": 99.2
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1902,
+                "rate": 80.5
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1457,
+                "rate": 81.5
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1639,
+                "rate": 97.9
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1320,
+                "rate": 82.2
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1385,
+                "rate": 84.7
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1773,
+                "rate": 91.9
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.5
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        },
+        "rappel_0.95": {
+          "libelle": "rappel cible 0.95 (validation)",
+          "seuils": [
+            0.0026,
+            0.0567,
+            0.2676,
+            0.2626,
+            0.1561,
+            0.1045,
+            0.1482,
+            0.266,
+            0.1543,
+            0.1971,
+            0.2099,
+            0.2657,
+            0.2292,
+            0.5077,
+            0.0094,
+            0.1371,
+            0.1255,
+            0.0946,
+            0.7507,
+            0.1193
+          ],
+          "val": {
+            "recall": 0.9506,
+            "precision": 0.1683,
+            "f1": 0.2859,
+            "f2": 0.4926,
+            "fpr": 0.72974,
+            "tp": 16479,
+            "fp": 81449,
+            "fn": 857,
+            "tn": 30164,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 15.88,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1731,
+                "rate": 92.8
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2343,
+                "rate": 91.1
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1897,
+                "rate": 99.6
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1987,
+                "rate": 92.9
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1710,
+                "rate": 95.6
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1709,
+                "rate": 99.6
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1702,
+                "rate": 92.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1545,
+                "rate": 96.9
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1855,
+                "rate": 97.3
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          },
+          "test": {
+            "recall": 0.923,
+            "precision": 0.1697,
+            "f1": 0.2867,
+            "f2": 0.489,
+            "fpr": 0.70573,
+            "tp": 16086,
+            "fp": 78697,
+            "fn": 1342,
+            "tn": 32814,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 14.27,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1841,
+                "rate": 91.8
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 2057,
+                "rate": 95.2
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 2256,
+                "rate": 99.6
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 2025,
+                "rate": 85.7
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1565,
+                "rate": 87.5
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1662,
+                "rate": 99.2
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1394,
+                "rate": 86.9
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1427,
+                "rate": 87.3
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1859,
+                "rate": 96.4
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        }
+      },
+      "courbe_pr": {
+        "val": {
+          "recall": [
+            1.0,
+            0.9807,
+            0.9768,
+            0.973,
+            0.9708,
+            0.9688,
+            0.9669,
+            0.9649,
+            0.9631,
+            0.9614,
+            0.9588,
+            0.9567,
+            0.9544,
+            0.9519,
+            0.9492,
+            0.946,
+            0.9441,
+            0.9402,
+            0.9378,
+            0.9352,
+            0.9323,
+            0.9297,
+            0.9274,
+            0.9251,
+            0.9219,
+            0.919,
+            0.916,
+            0.9132,
+            0.9103,
+            0.9072,
+            0.9042,
+            0.9018,
+            0.8992,
+            0.8966,
+            0.8939,
+            0.8902,
+            0.8873,
+            0.8837,
+            0.8807,
+            0.877,
+            0.8737,
+            0.8704,
+            0.8656,
+            0.861,
+            0.8573,
+            0.8539,
+            0.8499,
+            0.8459,
+            0.841,
+            0.8363,
+            0.8317,
+            0.8275,
+            0.8226,
+            0.8177,
+            0.8133,
+            0.8092,
+            0.8043,
+            0.8002,
+            0.7953,
+            0.7896,
+            0.7845,
+            0.7786,
+            0.773,
+            0.7664,
+            0.76,
+            0.7543,
+            0.7484,
+            0.7436,
+            0.7382,
+            0.7325,
+            0.7271,
+            0.7211,
+            0.7153,
+            0.7092,
+            0.7037,
+            0.6981,
+            0.6924,
+            0.6879,
+            0.681,
+            0.6752,
+            0.6691,
+            0.662,
+            0.6558,
+            0.6494,
+            0.6424,
+            0.6354,
+            0.6286,
+            0.6215,
+            0.6142,
+            0.606,
+            0.5981,
+            0.5897,
+            0.5804,
+            0.5721,
+            0.5644,
+            0.5547,
+            0.5457,
+            0.5357,
+            0.5262,
+            0.516,
+            0.5052,
+            0.4942,
+            0.4834,
+            0.4717,
+            0.4594,
+            0.446,
+            0.4315,
+            0.4157,
+            0.4013,
+            0.3842,
+            0.3654,
+            0.3448,
+            0.3223,
+            0.2964,
+            0.2649,
+            0.2239,
+            0.1715,
+            0.1143,
+            0.0589,
+            0.0
+          ],
+          "precision": [
+            0.1344,
+            0.133,
+            0.1336,
+            0.1342,
+            0.1351,
+            0.136,
+            0.1369,
+            0.1378,
+            0.1388,
+            0.1398,
+            0.1407,
+            0.1417,
+            0.1427,
+            0.1437,
+            0.1446,
+            0.1455,
+            0.1466,
+            0.1475,
+            0.1485,
+            0.1496,
+            0.1507,
+            0.1518,
+            0.153,
+            0.1542,
+            0.1553,
+            0.1564,
+            0.1576,
+            0.1588,
+            0.16,
+            0.1613,
+            0.1625,
+            0.164,
+            0.1654,
+            0.1668,
+            0.1682,
+            0.1695,
+            0.171,
+            0.1724,
+            0.1739,
+            0.1754,
+            0.1769,
+            0.1785,
+            0.1798,
+            0.1813,
+            0.1829,
+            0.1846,
+            0.1862,
+            0.188,
+            0.1895,
+            0.1911,
+            0.1928,
+            0.1947,
+            0.1964,
+            0.1982,
+            0.2002,
+            0.2023,
+            0.2043,
+            0.2065,
+            0.2086,
+            0.2105,
+            0.2127,
+            0.2148,
+            0.217,
+            0.219,
+            0.2211,
+            0.2235,
+            0.2259,
+            0.2288,
+            0.2316,
+            0.2344,
+            0.2374,
+            0.2403,
+            0.2435,
+            0.2466,
+            0.2502,
+            0.2538,
+            0.2576,
+            0.262,
+            0.2657,
+            0.2701,
+            0.2745,
+            0.2787,
+            0.2836,
+            0.2886,
+            0.2936,
+            0.299,
+            0.3048,
+            0.3107,
+            0.317,
+            0.3232,
+            0.33,
+            0.3369,
+            0.3439,
+            0.352,
+            0.3612,
+            0.3698,
+            0.3796,
+            0.3896,
+            0.4009,
+            0.4127,
+            0.4254,
+            0.4392,
+            0.4549,
+            0.4716,
+            0.49,
+            0.5097,
+            0.531,
+            0.5542,
+            0.5836,
+            0.6147,
+            0.6495,
+            0.6895,
+            0.7366,
+            0.7902,
+            0.8476,
+            0.8955,
+            0.9145,
+            0.9137,
+            0.9419,
+            1.0
+          ]
+        },
+        "test": {
+          "recall": [
+            1.0,
+            0.9987,
+            0.9976,
+            0.9963,
+            0.9952,
+            0.9939,
+            0.9923,
+            0.99,
+            0.9877,
+            0.9852,
+            0.9835,
+            0.9815,
+            0.9797,
+            0.9769,
+            0.9753,
+            0.9727,
+            0.9703,
+            0.9681,
+            0.9659,
+            0.9637,
+            0.9613,
+            0.9575,
+            0.9547,
+            0.9518,
+            0.9494,
+            0.9468,
+            0.9435,
+            0.9402,
+            0.9379,
+            0.935,
+            0.932,
+            0.9285,
+            0.9252,
+            0.9221,
+            0.9191,
+            0.9158,
+            0.9128,
+            0.91,
+            0.9065,
+            0.9029,
+            0.9,
+            0.8972,
+            0.8948,
+            0.8906,
+            0.8875,
+            0.8839,
+            0.8809,
+            0.8767,
+            0.872,
+            0.8676,
+            0.864,
+            0.861,
+            0.8574,
+            0.8543,
+            0.8502,
+            0.8468,
+            0.843,
+            0.8391,
+            0.8346,
+            0.8305,
+            0.8267,
+            0.8218,
+            0.8179,
+            0.8133,
+            0.809,
+            0.8042,
+            0.8,
+            0.7946,
+            0.7891,
+            0.7848,
+            0.7798,
+            0.7742,
+            0.7689,
+            0.7637,
+            0.7571,
+            0.7516,
+            0.745,
+            0.7385,
+            0.7327,
+            0.726,
+            0.7196,
+            0.7128,
+            0.7055,
+            0.6987,
+            0.6919,
+            0.683,
+            0.6748,
+            0.6666,
+            0.6578,
+            0.6495,
+            0.642,
+            0.6332,
+            0.6251,
+            0.616,
+            0.6061,
+            0.596,
+            0.5861,
+            0.5755,
+            0.5648,
+            0.5536,
+            0.5414,
+            0.5281,
+            0.5155,
+            0.5038,
+            0.4906,
+            0.4743,
+            0.4582,
+            0.4404,
+            0.424,
+            0.406,
+            0.3853,
+            0.3619,
+            0.334,
+            0.3054,
+            0.2742,
+            0.2357,
+            0.1833,
+            0.1237,
+            0.062,
+            0.0
+          ],
+          "precision": [
+            0.1352,
+            0.1361,
+            0.1372,
+            0.1382,
+            0.1392,
+            0.1402,
+            0.1412,
+            0.1422,
+            0.1431,
+            0.1441,
+            0.1451,
+            0.1462,
+            0.1473,
+            0.1482,
+            0.1494,
+            0.1504,
+            0.1515,
+            0.1527,
+            0.1538,
+            0.155,
+            0.1562,
+            0.1572,
+            0.1583,
+            0.1595,
+            0.1608,
+            0.162,
+            0.1632,
+            0.1644,
+            0.1658,
+            0.1671,
+            0.1684,
+            0.1697,
+            0.1711,
+            0.1725,
+            0.1739,
+            0.1754,
+            0.1769,
+            0.1785,
+            0.18,
+            0.1815,
+            0.1832,
+            0.185,
+            0.1869,
+            0.1885,
+            0.1903,
+            0.1921,
+            0.1941,
+            0.1958,
+            0.1976,
+            0.1993,
+            0.2014,
+            0.2037,
+            0.2058,
+            0.2082,
+            0.2104,
+            0.2128,
+            0.2152,
+            0.2177,
+            0.2201,
+            0.2226,
+            0.2254,
+            0.2279,
+            0.2308,
+            0.2336,
+            0.2366,
+            0.2395,
+            0.2428,
+            0.2458,
+            0.2489,
+            0.2525,
+            0.256,
+            0.2594,
+            0.2631,
+            0.267,
+            0.2706,
+            0.2748,
+            0.2787,
+            0.2828,
+            0.2874,
+            0.2919,
+            0.2968,
+            0.3017,
+            0.3067,
+            0.3122,
+            0.318,
+            0.3231,
+            0.3289,
+            0.335,
+            0.3413,
+            0.3482,
+            0.356,
+            0.3638,
+            0.3724,
+            0.3811,
+            0.3899,
+            0.3994,
+            0.4099,
+            0.4208,
+            0.4326,
+            0.4452,
+            0.4583,
+            0.4719,
+            0.4877,
+            0.5065,
+            0.5261,
+            0.5449,
+            0.5669,
+            0.5903,
+            0.6199,
+            0.6529,
+            0.6886,
+            0.7275,
+            0.7674,
+            0.8185,
+            0.8821,
+            0.9474,
+            0.9828,
+            0.994,
+            0.9963,
+            1.0
+          ]
+        }
+      },
       "hyperparameters": {
         "max_iter": 1000,
         "class_weight": "balanced"
       }
     },
     "MLP": {
-      "precision": 0.8546,
-      "recall": 0.7041,
-      "f1": 0.7721,
-      "fpr": 0.06931,
-      "tp": 13792,
-      "fp": 2347,
-      "fn": 5797,
-      "tn": 31513,
-      "fausses_alarmes_evenements_par_heure": 9.63,
-      "episodes": 81,
-      "episodes_detectes": 79,
-      "delai_median_min": 2.0,
+      "nom": "MLP — réseau de neurones (supervisé)",
+      "type": "supervisé",
+      "recall": 0.5186,
+      "precision": 0.4863,
+      "f1": 0.5019,
+      "f2": 0.5118,
+      "fpr": 0.08561,
+      "tp": 9038,
+      "fp": 9546,
+      "fn": 8390,
+      "tn": 101965,
+      "part_attaques": 0.1352,
+      "fausses_alarmes_evenements_par_heure": 8.36,
+      "episodes": 73,
+      "episodes_detectes": 70,
+      "delai_median_min": 2.4,
       "per_attack": {
         "MITM_gel": {
-          "n": 2891,
-          "detected": 2693,
-          "rate": 93.2
+          "n": 2006,
+          "detected": 1557,
+          "rate": 77.6
         },
         "MITM_rejeu": {
-          "n": 3245,
-          "detected": 2690,
-          "rate": 82.9
+          "n": 2161,
+          "detected": 1517,
+          "rate": 70.2
         },
         "Injection_nominale": {
-          "n": 2900,
-          "detected": 2293,
-          "rate": 79.1
+          "n": 2265,
+          "detected": 1100,
+          "rate": 48.6
+        },
+        "Injection_biais_0.5": {
+          "n": 2364,
+          "detected": 676,
+          "rate": 28.6
+        },
+        "Injection_biais_1.0": {
+          "n": 1788,
+          "detected": 674,
+          "rate": 37.7
         },
         "Injection_biais_2.0": {
-          "n": 2477,
-          "detected": 1811,
-          "rate": 73.1
+          "n": 1675,
+          "detected": 1387,
+          "rate": 82.8
         },
         "Injection_derive": {
-          "n": 2805,
-          "detected": 1004,
-          "rate": 35.8
+          "n": 1605,
+          "detected": 276,
+          "rate": 17.2
         },
         "MITM_gel_thermostat": {
-          "n": 2678,
-          "detected": 1681,
-          "rate": 62.8
+          "n": 1635,
+          "detected": 1049,
+          "rate": 64.2
         },
         "Injection_biais_thermostat": {
-          "n": 2593,
-          "detected": 1620,
-          "rate": 62.5
+          "n": 1929,
+          "detected": 802,
+          "rate": 41.6
         }
       },
       "per_episode": {
         "MITM_gel": {
-          "n": 12,
-          "detected": 12
+          "n": 8,
+          "detected": 8,
+          "delai_median_min": 1.8
         },
         "MITM_rejeu": {
-          "n": 13,
-          "detected": 13
+          "n": 9,
+          "detected": 8,
+          "delai_median_min": 1.9
         },
         "Injection_nominale": {
-          "n": 12,
-          "detected": 12
+          "n": 9,
+          "detected": 9,
+          "delai_median_min": 4.7
+        },
+        "Injection_biais_0.5": {
+          "n": 10,
+          "detected": 9,
+          "delai_median_min": 3.6
+        },
+        "Injection_biais_1.0": {
+          "n": 8,
+          "detected": 8,
+          "delai_median_min": 3.2
         },
         "Injection_biais_2.0": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 2.2
         },
         "Injection_derive": {
-          "n": 11,
-          "detected": 11
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 9.5
         },
         "MITM_gel_thermostat": {
-          "n": 11,
-          "detected": 9
+          "n": 7,
+          "detected": 7,
+          "delai_median_min": 2.0
         },
         "Injection_biais_thermostat": {
-          "n": 11,
-          "detected": 11
+          "n": 8,
+          "detected": 7,
+          "delai_median_min": 3.2
         }
       },
-      "nom": "MLP — réseau de neurones (supervisé)",
-      "val_f1": 0.7608,
-      "roc_auc": 0.8577,
-      "avg_precision": 0.8482,
+      "val_recall": 0.544,
+      "val_fausses_alarmes_par_heure": 8.21,
+      "val_delai_median_min": 3.2,
+      "val_precision": 0.4777,
+      "val_f1": 0.5087,
+      "val_f2": 0.5293,
+      "val_episodes": 73,
+      "val_episodes_detectes": 70,
+      "val_part_attaques": 0.1344,
+      "roc_auc": 0.7865,
+      "avg_precision": 0.5648,
+      "val_roc_auc": 0.7889,
+      "val_avg_precision": 0.5436,
+      "threshold": 1.0,
+      "points_fonctionnement": {
+        "max_f1": {
+          "libelle": "max F1 (validation)",
+          "seuils": [
+            1.0,
+            0.6994,
+            0.8633,
+            0.9826,
+            0.9878,
+            0.9995,
+            0.9883,
+            0.9946,
+            1.0,
+            1.0,
+            0.0,
+            0.5102,
+            0.9972,
+            0.9995,
+            0.9357,
+            0.9812,
+            1.0,
+            1.0,
+            1.0,
+            0.9976
+          ],
+          "val": {
+            "recall": 0.544,
+            "precision": 0.4777,
+            "f1": 0.5087,
+            "f2": 0.5293,
+            "fpr": 0.09239,
+            "tp": 9430,
+            "fp": 10312,
+            "fn": 7906,
+            "tn": 101301,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 8.21,
+            "episodes": 73,
+            "episodes_detectes": 70,
+            "delai_median_min": 3.2,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1376,
+                "rate": 73.8
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 1490,
+                "rate": 58.0
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1260,
+                "rate": 66.1
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 736,
+                "rate": 34.4
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 965,
+                "rate": 53.9
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1440,
+                "rate": 83.9
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 555,
+                "rate": 30.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 887,
+                "rate": 55.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 721,
+                "rate": 37.8
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 3.5
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.9
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 8,
+                "delai_median_min": 5.2
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 2.1
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.3
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 6,
+                "delai_median_min": 8.2
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 4.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 7,
+                "delai_median_min": 4.9
+              }
+            }
+          },
+          "test": {
+            "recall": 0.5186,
+            "precision": 0.4863,
+            "f1": 0.5019,
+            "f2": 0.5118,
+            "fpr": 0.08561,
+            "tp": 9038,
+            "fp": 9546,
+            "fn": 8390,
+            "tn": 101965,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 8.36,
+            "episodes": 73,
+            "episodes_detectes": 70,
+            "delai_median_min": 2.4,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1557,
+                "rate": 77.6
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1517,
+                "rate": 70.2
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 1100,
+                "rate": 48.6
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 676,
+                "rate": 28.6
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 674,
+                "rate": 37.7
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1387,
+                "rate": 82.8
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 276,
+                "rate": 17.2
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1049,
+                "rate": 64.2
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 802,
+                "rate": 41.6
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 1.8
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 8,
+                "delai_median_min": 1.9
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 4.7
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 9,
+                "delai_median_min": 3.6
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 3.2
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.2
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 9.5
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 2.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 7,
+                "delai_median_min": 3.2
+              }
+            }
+          }
+        },
+        "rappel_0.80": {
+          "libelle": "rappel cible 0.80 (validation)",
+          "seuils": [
+            0.0,
+            0.0,
+            0.0213,
+            0.8014,
+            0.0,
+            0.0251,
+            0.0,
+            0.4,
+            0.0051,
+            0.0627,
+            0.0,
+            0.0001,
+            0.002,
+            0.1376,
+            0.0,
+            0.0,
+            0.0,
+            0.0002,
+            0.9999,
+            0.2623
+          ],
+          "val": {
+            "recall": 0.8004,
+            "precision": 0.2245,
+            "f1": 0.3507,
+            "f2": 0.5291,
+            "fpr": 0.42933,
+            "tp": 13876,
+            "fp": 47919,
+            "fn": 3460,
+            "tn": 63694,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 23.51,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1690,
+                "rate": 90.6
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2001,
+                "rate": 77.8
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1644,
+                "rate": 86.3
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1435,
+                "rate": 67.1
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1468,
+                "rate": 82.1
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1638,
+                "rate": 95.5
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1154,
+                "rate": 62.3
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1307,
+                "rate": 81.9
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1539,
+                "rate": 80.7
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.5
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.2
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.1
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.2
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          },
+          "test": {
+            "recall": 0.7832,
+            "precision": 0.2277,
+            "f1": 0.3528,
+            "f2": 0.5263,
+            "fpr": 0.4152,
+            "tp": 13649,
+            "fp": 46299,
+            "fn": 3779,
+            "tn": 65212,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 23.02,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.2,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1833,
+                "rate": 91.4
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1762,
+                "rate": 81.5
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 1659,
+                "rate": 73.2
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1534,
+                "rate": 64.9
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1143,
+                "rate": 63.9
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1559,
+                "rate": 93.1
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 991,
+                "rate": 61.7
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1426,
+                "rate": 87.2
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1742,
+                "rate": 90.3
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 1.5
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 1.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 1.1
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.2
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 1.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        },
+        "rappel_0.90": {
+          "libelle": "rappel cible 0.90 (validation)",
+          "seuils": [
+            0.0,
+            0.0,
+            0.0003,
+            0.0226,
+            0.0,
+            0.0002,
+            0.0,
+            0.0023,
+            0.0,
+            0.0001,
+            0.0,
+            0.0,
+            0.0,
+            0.0007,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.3909,
+            0.0034
+          ],
+          "val": {
+            "recall": 0.9004,
+            "precision": 0.1811,
+            "f1": 0.3016,
+            "f2": 0.5019,
+            "fpr": 0.63217,
+            "tp": 15609,
+            "fp": 70558,
+            "fn": 1727,
+            "tn": 41055,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 21.33,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1788,
+                "rate": 95.9
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2258,
+                "rate": 87.8
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1804,
+                "rate": 94.7
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1790,
+                "rate": 83.7
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1642,
+                "rate": 91.8
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1674,
+                "rate": 97.6
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1501,
+                "rate": 81.1
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1448,
+                "rate": 90.8
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1704,
+                "rate": 89.4
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          },
+          "test": {
+            "recall": 0.864,
+            "precision": 0.1783,
+            "f1": 0.2956,
+            "f2": 0.4884,
+            "fpr": 0.62213,
+            "tp": 15057,
+            "fp": 69374,
+            "fn": 2371,
+            "tn": 42137,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 23.49,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1898,
+                "rate": 94.6
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 1943,
+                "rate": 89.9
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 1815,
+                "rate": 80.1
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 1833,
+                "rate": 77.5
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1352,
+                "rate": 75.6
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1626,
+                "rate": 97.1
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1163,
+                "rate": 72.5
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1541,
+                "rate": 94.3
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1886,
+                "rate": 97.8
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.1
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        },
+        "rappel_0.95": {
+          "libelle": "rappel cible 0.95 (validation)",
+          "seuils": [
+            0.0,
+            0.0,
+            0.0,
+            0.001,
+            0.0,
+            0.0,
+            0.0,
+            0.0004,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0001,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0004
+          ],
+          "val": {
+            "recall": 0.9506,
+            "precision": 0.164,
+            "f1": 0.2798,
+            "f2": 0.4852,
+            "fpr": 0.75253,
+            "tp": 16479,
+            "fp": 83992,
+            "fn": 857,
+            "tn": 27621,
+            "part_attaques": 0.1344,
+            "fausses_alarmes_evenements_par_heure": 18.14,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 1865,
+                "detected": 1832,
+                "rate": 98.2
+              },
+              "MITM_rejeu": {
+                "n": 2571,
+                "detected": 2403,
+                "rate": 93.5
+              },
+              "Injection_nominale": {
+                "n": 1905,
+                "detected": 1859,
+                "rate": 97.6
+              },
+              "Injection_biais_0.5": {
+                "n": 2138,
+                "detected": 1971,
+                "rate": 92.2
+              },
+              "Injection_biais_1.0": {
+                "n": 1789,
+                "detected": 1732,
+                "rate": 96.8
+              },
+              "Injection_biais_2.0": {
+                "n": 1716,
+                "detected": 1698,
+                "rate": 99.0
+              },
+              "Injection_derive": {
+                "n": 1851,
+                "detected": 1669,
+                "rate": 90.2
+              },
+              "MITM_gel_thermostat": {
+                "n": 1595,
+                "detected": 1535,
+                "rate": 96.2
+              },
+              "Injection_biais_thermostat": {
+                "n": 1906,
+                "detected": 1780,
+                "rate": 93.4
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          },
+          "test": {
+            "recall": 0.9056,
+            "precision": 0.1598,
+            "f1": 0.2716,
+            "f2": 0.4684,
+            "fpr": 0.7442,
+            "tp": 15782,
+            "fp": 82986,
+            "fn": 1646,
+            "tn": 28525,
+            "part_attaques": 0.1352,
+            "fausses_alarmes_evenements_par_heure": 18.89,
+            "episodes": 73,
+            "episodes_detectes": 73,
+            "delai_median_min": 0.0,
+            "per_attack": {
+              "MITM_gel": {
+                "n": 2006,
+                "detected": 1985,
+                "rate": 99.0
+              },
+              "MITM_rejeu": {
+                "n": 2161,
+                "detected": 2035,
+                "rate": 94.2
+              },
+              "Injection_nominale": {
+                "n": 2265,
+                "detected": 1942,
+                "rate": 85.7
+              },
+              "Injection_biais_0.5": {
+                "n": 2364,
+                "detected": 2022,
+                "rate": 85.5
+              },
+              "Injection_biais_1.0": {
+                "n": 1788,
+                "detected": 1409,
+                "rate": 78.8
+              },
+              "Injection_biais_2.0": {
+                "n": 1675,
+                "detected": 1652,
+                "rate": 98.6
+              },
+              "Injection_derive": {
+                "n": 1605,
+                "detected": 1223,
+                "rate": 76.2
+              },
+              "MITM_gel_thermostat": {
+                "n": 1635,
+                "detected": 1595,
+                "rate": 97.6
+              },
+              "Injection_biais_thermostat": {
+                "n": 1929,
+                "detected": 1919,
+                "rate": 99.5
+              }
+            },
+            "per_episode": {
+              "MITM_gel": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "MITM_rejeu": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_nominale": {
+                "n": 9,
+                "detected": 9,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_0.5": {
+                "n": 10,
+                "detected": 10,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_1.0": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_2.0": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_derive": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "MITM_gel_thermostat": {
+                "n": 7,
+                "detected": 7,
+                "delai_median_min": 0.0
+              },
+              "Injection_biais_thermostat": {
+                "n": 8,
+                "detected": 8,
+                "delai_median_min": 0.0
+              }
+            }
+          }
+        }
+      },
+      "courbe_pr": {
+        "val": {
+          "recall": [
+            1.0,
+            0.9922,
+            0.9901,
+            0.9869,
+            0.9846,
+            0.982,
+            0.98,
+            0.9777,
+            0.975,
+            0.9731,
+            0.9712,
+            0.9692,
+            0.9672,
+            0.9648,
+            0.962,
+            0.9593,
+            0.9569,
+            0.9539,
+            0.9507,
+            0.9475,
+            0.9448,
+            0.9416,
+            0.9389,
+            0.9358,
+            0.9327,
+            0.9302,
+            0.9273,
+            0.9244,
+            0.9205,
+            0.9177,
+            0.9143,
+            0.9111,
+            0.908,
+            0.9042,
+            0.9011,
+            0.8977,
+            0.8931,
+            0.8898,
+            0.8865,
+            0.8817,
+            0.8771,
+            0.872,
+            0.8676,
+            0.8627,
+            0.8586,
+            0.855,
+            0.8515,
+            0.8474,
+            0.8433,
+            0.8395,
+            0.8353,
+            0.8307,
+            0.8264,
+            0.8225,
+            0.8176,
+            0.8128,
+            0.8087,
+            0.8045,
+            0.7996,
+            0.7945,
+            0.7895,
+            0.7857,
+            0.7821,
+            0.7777,
+            0.7735,
+            0.769,
+            0.7659,
+            0.7612,
+            0.757,
+            0.7524,
+            0.7482,
+            0.744,
+            0.7389,
+            0.7346,
+            0.7295,
+            0.7247,
+            0.7201,
+            0.7148,
+            0.7095,
+            0.7038,
+            0.6982,
+            0.693,
+            0.6879,
+            0.6823,
+            0.6765,
+            0.6701,
+            0.6645,
+            0.6583,
+            0.6523,
+            0.6474,
+            0.6418,
+            0.6362,
+            0.6289,
+            0.6215,
+            0.6148,
+            0.6082,
+            0.6005,
+            0.5928,
+            0.5848,
+            0.5752,
+            0.566,
+            0.5542,
+            0.5414,
+            0.5287,
+            0.5158,
+            0.5028,
+            0.4885,
+            0.4727,
+            0.4578,
+            0.4415,
+            0.425,
+            0.4059,
+            0.383,
+            0.3564,
+            0.3282,
+            0.2931,
+            0.2513,
+            0.2067,
+            0.1605,
+            0.0
+          ],
+          "precision": [
+            0.1344,
+            0.1345,
+            0.1353,
+            0.1361,
+            0.1369,
+            0.1377,
+            0.1386,
+            0.1395,
+            0.1404,
+            0.1413,
+            0.1423,
+            0.1433,
+            0.1443,
+            0.1453,
+            0.1462,
+            0.1472,
+            0.1482,
+            0.1492,
+            0.1501,
+            0.1511,
+            0.1521,
+            0.1531,
+            0.1542,
+            0.1553,
+            0.1564,
+            0.1576,
+            0.1587,
+            0.1599,
+            0.161,
+            0.1622,
+            0.1634,
+            0.1646,
+            0.1659,
+            0.1671,
+            0.1684,
+            0.1697,
+            0.1709,
+            0.1723,
+            0.1737,
+            0.1749,
+            0.1761,
+            0.1772,
+            0.1786,
+            0.1798,
+            0.1813,
+            0.1829,
+            0.1846,
+            0.1862,
+            0.1878,
+            0.1896,
+            0.1913,
+            0.1929,
+            0.1947,
+            0.1966,
+            0.1984,
+            0.2002,
+            0.2022,
+            0.2043,
+            0.2063,
+            0.2083,
+            0.2104,
+            0.2128,
+            0.2154,
+            0.2179,
+            0.2206,
+            0.2232,
+            0.2263,
+            0.2291,
+            0.2321,
+            0.2351,
+            0.2384,
+            0.2418,
+            0.245,
+            0.2486,
+            0.2522,
+            0.2559,
+            0.2599,
+            0.2639,
+            0.268,
+            0.2722,
+            0.2766,
+            0.2813,
+            0.2864,
+            0.2915,
+            0.2969,
+            0.3022,
+            0.3082,
+            0.3143,
+            0.3208,
+            0.3283,
+            0.336,
+            0.3441,
+            0.3518,
+            0.3601,
+            0.3694,
+            0.3793,
+            0.3895,
+            0.4004,
+            0.4121,
+            0.4237,
+            0.4367,
+            0.4489,
+            0.4615,
+            0.4755,
+            0.491,
+            0.5083,
+            0.5266,
+            0.5458,
+            0.5688,
+            0.594,
+            0.6232,
+            0.6541,
+            0.6851,
+            0.7161,
+            0.7523,
+            0.7819,
+            0.802,
+            0.8205,
+            0.8428,
+            1.0
+          ]
+        },
+        "test": {
+          "recall": [
+            1.0,
+            0.9949,
+            0.9868,
+            0.982,
+            0.9774,
+            0.9731,
+            0.9697,
+            0.9656,
+            0.9623,
+            0.9593,
+            0.9561,
+            0.9527,
+            0.9499,
+            0.9462,
+            0.9431,
+            0.9408,
+            0.9378,
+            0.9352,
+            0.9326,
+            0.9299,
+            0.9268,
+            0.9241,
+            0.921,
+            0.9185,
+            0.9158,
+            0.913,
+            0.9103,
+            0.9074,
+            0.9044,
+            0.9015,
+            0.8984,
+            0.8955,
+            0.8924,
+            0.8893,
+            0.8869,
+            0.8838,
+            0.8809,
+            0.8781,
+            0.8745,
+            0.8715,
+            0.8684,
+            0.8649,
+            0.8618,
+            0.8584,
+            0.8557,
+            0.8525,
+            0.8492,
+            0.845,
+            0.8417,
+            0.8384,
+            0.8354,
+            0.832,
+            0.8287,
+            0.825,
+            0.8212,
+            0.8182,
+            0.8144,
+            0.8104,
+            0.8076,
+            0.8044,
+            0.8009,
+            0.7973,
+            0.7935,
+            0.7897,
+            0.7854,
+            0.7813,
+            0.7775,
+            0.7738,
+            0.7697,
+            0.766,
+            0.7619,
+            0.7577,
+            0.7533,
+            0.7493,
+            0.7441,
+            0.741,
+            0.7372,
+            0.7323,
+            0.728,
+            0.7237,
+            0.7187,
+            0.714,
+            0.7085,
+            0.7033,
+            0.6978,
+            0.6919,
+            0.6848,
+            0.678,
+            0.6712,
+            0.6646,
+            0.6575,
+            0.6492,
+            0.6415,
+            0.6338,
+            0.627,
+            0.6199,
+            0.6112,
+            0.6014,
+            0.5931,
+            0.5834,
+            0.5744,
+            0.5651,
+            0.555,
+            0.544,
+            0.5331,
+            0.521,
+            0.509,
+            0.4969,
+            0.4838,
+            0.4686,
+            0.4492,
+            0.427,
+            0.4045,
+            0.3804,
+            0.3549,
+            0.3233,
+            0.287,
+            0.2453,
+            0.1969,
+            0.0
+          ],
+          "precision": [
+            0.1352,
+            0.1356,
+            0.1356,
+            0.1361,
+            0.1366,
+            0.1372,
+            0.1379,
+            0.1385,
+            0.1392,
+            0.14,
+            0.1408,
+            0.1416,
+            0.1425,
+            0.1432,
+            0.1441,
+            0.1451,
+            0.146,
+            0.147,
+            0.148,
+            0.149,
+            0.1499,
+            0.151,
+            0.152,
+            0.1531,
+            0.1542,
+            0.1554,
+            0.1565,
+            0.1577,
+            0.1588,
+            0.16,
+            0.1612,
+            0.1625,
+            0.1637,
+            0.165,
+            0.1665,
+            0.1678,
+            0.1692,
+            0.1706,
+            0.172,
+            0.1735,
+            0.175,
+            0.1764,
+            0.178,
+            0.1796,
+            0.1813,
+            0.183,
+            0.1847,
+            0.1863,
+            0.1881,
+            0.1899,
+            0.1919,
+            0.1938,
+            0.1958,
+            0.1978,
+            0.1998,
+            0.2021,
+            0.2042,
+            0.2063,
+            0.2088,
+            0.2114,
+            0.2139,
+            0.2164,
+            0.219,
+            0.2217,
+            0.2243,
+            0.2271,
+            0.2301,
+            0.2332,
+            0.2363,
+            0.2396,
+            0.243,
+            0.2464,
+            0.2499,
+            0.2537,
+            0.2573,
+            0.2617,
+            0.2661,
+            0.2702,
+            0.2748,
+            0.2796,
+            0.2844,
+            0.2895,
+            0.2945,
+            0.3,
+            0.3056,
+            0.3113,
+            0.3168,
+            0.3227,
+            0.329,
+            0.3358,
+            0.3428,
+            0.3495,
+            0.3571,
+            0.3651,
+            0.3744,
+            0.3841,
+            0.3936,
+            0.4031,
+            0.4144,
+            0.4258,
+            0.4387,
+            0.4526,
+            0.4673,
+            0.4828,
+            0.5002,
+            0.5184,
+            0.5392,
+            0.5626,
+            0.5883,
+            0.6154,
+            0.6413,
+            0.6675,
+            0.699,
+            0.7346,
+            0.7768,
+            0.8163,
+            0.8562,
+            0.8944,
+            0.9233,
+            1.0
+          ]
+        }
+      },
       "hyperparameters": {
         "hidden_layer_sizes": [
           64,
           32
         ],
         "max_iter": 300,
-        "early_stopping": true
+        "early_stopping": true,
+        "sample_weight": "équilibré"
       }
     }
   },
-  "shap": null
+  "validation_croisee": {
+    "repetition": 0,
+    "lignes": 28903,
+    "attaques": 10178,
+    "blocs": 44,
+    "folds": 5,
+    "seuil": "predict (probabilité ≥ 0,5), modèles pondérés",
+    "methodes": {
+      "naif": {
+        "description": "StratifiedKFold(shuffle=True) : lignes mélangées — à NE PAS faire",
+        "blocs_partages": 220,
+        "modeles": {
+          "RandomForest": {
+            "recall": {
+              "mean": 0.9831,
+              "std": 0.003
+            },
+            "precision": {
+              "mean": 0.9943,
+              "std": 0.0018
+            },
+            "f1": {
+              "mean": 0.9887,
+              "std": 0.0014
+            },
+            "average_precision": {
+              "mean": 0.9995,
+              "std": 0.0001
+            }
+          },
+          "XGBoost": {
+            "recall": {
+              "mean": 0.9909,
+              "std": 0.0016
+            },
+            "precision": {
+              "mean": 0.9973,
+              "std": 0.0011
+            },
+            "f1": {
+              "mean": 0.9941,
+              "std": 0.0011
+            },
+            "average_precision": {
+              "mean": 0.9997,
+              "std": 0.0002
+            }
+          },
+          "Logistique": {
+            "recall": {
+              "mean": 0.6914,
+              "std": 0.0118
+            },
+            "precision": {
+              "mean": 0.6303,
+              "std": 0.006
+            },
+            "f1": {
+              "mean": 0.6594,
+              "std": 0.0048
+            },
+            "average_precision": {
+              "mean": 0.7728,
+              "std": 0.0048
+            }
+          },
+          "MLP": {
+            "recall": {
+              "mean": 0.9854,
+              "std": 0.0035
+            },
+            "precision": {
+              "mean": 0.9849,
+              "std": 0.0021
+            },
+            "f1": {
+              "mean": 0.9851,
+              "std": 0.0027
+            },
+            "average_precision": {
+              "mean": 0.9983,
+              "std": 0.0004
+            }
+          }
+        }
+      },
+      "groupes_blocs": {
+        "description": "StratifiedGroupKFold, groupe = bloc d'une heure",
+        "blocs_partages": 0,
+        "modeles": {
+          "RandomForest": {
+            "recall": {
+              "mean": 0.6215,
+              "std": 0.1014
+            },
+            "precision": {
+              "mean": 0.863,
+              "std": 0.0642
+            },
+            "f1": {
+              "mean": 0.716,
+              "std": 0.0741
+            },
+            "average_precision": {
+              "mean": 0.8182,
+              "std": 0.0208
+            }
+          },
+          "XGBoost": {
+            "recall": {
+              "mean": 0.5388,
+              "std": 0.1101
+            },
+            "precision": {
+              "mean": 0.7507,
+              "std": 0.0626
+            },
+            "f1": {
+              "mean": 0.6237,
+              "std": 0.0948
+            },
+            "average_precision": {
+              "mean": 0.7565,
+              "std": 0.0648
+            }
+          },
+          "Logistique": {
+            "recall": {
+              "mean": 0.6128,
+              "std": 0.078
+            },
+            "precision": {
+              "mean": 0.5838,
+              "std": 0.0679
+            },
+            "f1": {
+              "mean": 0.5964,
+              "std": 0.0652
+            },
+            "average_precision": {
+              "mean": 0.7052,
+              "std": 0.0727
+            }
+          },
+          "MLP": {
+            "recall": {
+              "mean": 0.5423,
+              "std": 0.0468
+            },
+            "precision": {
+              "mean": 0.6231,
+              "std": 0.1054
+            },
+            "f1": {
+              "mean": 0.5781,
+              "std": 0.0721
+            },
+            "average_precision": {
+              "mean": 0.675,
+              "std": 0.0729
+            }
+          }
+        }
+      }
+    },
+    "generated_at": "2026-10-22T00:19:12"
+  },
+  "shap": {
+    "n_lignes": 17428,
+    "global": [
+      {
+        "feature": "fridge_std_1min",
+        "importance": 0.091
+      },
+      {
+        "feature": "fridge_ewma_10min",
+        "importance": 0.0687
+      },
+      {
+        "feature": "fridge_mean_5min",
+        "importance": 0.0608
+      },
+      {
+        "feature": "fridge_repeat_2min",
+        "importance": 0.0548
+      },
+      {
+        "feature": "fridge_std_5min",
+        "importance": 0.0434
+      },
+      {
+        "feature": "thermostat_std_1min",
+        "importance": 0.0373
+      },
+      {
+        "feature": "fridge_mean_15min",
+        "importance": 0.0293
+      },
+      {
+        "feature": "thermostat_ewma_10min",
+        "importance": 0.0276
+      },
+      {
+        "feature": "thermostat_mean_5min",
+        "importance": 0.0253
+      },
+      {
+        "feature": "thermostat_std_5min",
+        "importance": 0.0194
+      }
+    ],
+    "par_scenario": {
+      "MITM_gel": [
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.2358
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.0984
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0724
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0666
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0267
+        },
+        {
+          "feature": "fridge_mean_1min",
+          "importance": 0.0202
+        }
+      ],
+      "MITM_rejeu": [
+        {
+          "feature": "fridge_repeat_2min",
+          "importance": 0.3396
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.029
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0289
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0279
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.0178
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0173
+        }
+      ],
+      "Injection_nominale": [
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.3402
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.1429
+        },
+        {
+          "feature": "fridge_std_15min",
+          "importance": 0.0326
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.019
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0168
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0138
+        }
+      ],
+      "Injection_biais_0.5": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0764
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0577
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0386
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.031
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.03
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.0205
+        }
+      ],
+      "Injection_biais_1.0": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.1092
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0884
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0473
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0256
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.021
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0209
+        }
+      ],
+      "Injection_biais_2.0": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.1963
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.1631
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0769
+        },
+        {
+          "feature": "fridge_mean_1min",
+          "importance": 0.0262
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0198
+        },
+        {
+          "feature": "weather_mean_15min",
+          "importance": 0.0152
+        }
+      ],
+      "Injection_derive": [
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.1064
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0976
+        },
+        {
+          "feature": "fridge_mean_15min",
+          "importance": 0.0445
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0326
+        },
+        {
+          "feature": "fridge_std_5min",
+          "importance": 0.0207
+        },
+        {
+          "feature": "fridge_std_15min",
+          "importance": 0.0194
+        }
+      ],
+      "MITM_gel_thermostat": [
+        {
+          "feature": "thermostat_std_1min",
+          "importance": 0.2909
+        },
+        {
+          "feature": "thermostat_std_5min",
+          "importance": 0.1115
+        },
+        {
+          "feature": "thermostat_std_15min",
+          "importance": 0.0291
+        },
+        {
+          "feature": "thermostat_ewma_10min",
+          "importance": 0.0243
+        },
+        {
+          "feature": "thermostat_mean_5min",
+          "importance": 0.0221
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0212
+        }
+      ],
+      "Injection_biais_thermostat": [
+        {
+          "feature": "thermostat_ewma_10min",
+          "importance": 0.146
+        },
+        {
+          "feature": "thermostat_mean_5min",
+          "importance": 0.1147
+        },
+        {
+          "feature": "thermostat_mean_15min",
+          "importance": 0.0682
+        },
+        {
+          "feature": "fridge_mean_5min",
+          "importance": 0.0318
+        },
+        {
+          "feature": "fridge_ewma_10min",
+          "importance": 0.0268
+        },
+        {
+          "feature": "fridge_std_1min",
+          "importance": 0.0253
+        }
+      ]
+    }
+  }
 }

@@ -18,7 +18,7 @@ interface PerAttack { n: number; detected: number; rate: number }
 interface PerEpisode { n: number; detected: number; delai_median_min?: number | null }
 interface Metrics {
   recall: number; fausses_alarmes_evenements_par_heure: number; delai_median_min: number | null; precision: number;
-  f1: number; f2?: number; episodes: number; episodes_detectes: number; part_attaques?: number;
+  f1: number; f2?: number; fpr?: number; episodes: number; episodes_detectes: number; part_attaques?: number;
   per_attack?: Record<string, PerAttack>; per_episode?: Record<string, PerEpisode>;
 }
 interface OperatingPoint { libelle: string; seuils: number[]; val: Metrics; test: Metrics }
@@ -348,7 +348,8 @@ export default function TransmissionPage() {
                   <tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
                     <th className="py-2 pr-3 font-normal">Modèle</th><th className={TH}>Seuil</th><th className={TH}>Rôle</th>
                     <th className={TH}>Rappel</th><th className={TH}>Fausses alertes / h</th><th className={TH}>Délai médian</th>
-                    <th className={TH}>Épisodes</th><th className={TH}>Précision</th><th className={TH}>F1</th><th className="font-normal">F2</th>
+                    <th className={TH}>Épisodes</th><th className={TH}>Précision</th><th className={TH}>F1</th><th className={TH}>F2</th>
+                    <th className="font-normal">Lignes normales signalées</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -370,7 +371,8 @@ export default function TransmissionPage() {
                           <td className="pr-3 font-mono">{m.episodes_detectes}/{m.episodes}</td>
                           <td className="pr-3 font-mono">{pct1(m.precision)}</td>
                           <td className="pr-3 font-mono">{num(m.f1, 3)}</td>
-                          <td className="font-mono">{num(m.f2, 3)}</td>
+                          <td className="pr-3 font-mono">{num(m.f2, 3)}</td>
+                          <td className="font-mono opacity-70">{pct1(m.fpr)}</td>
                         </tr>
                       );
                     }));
@@ -441,7 +443,8 @@ export default function TransmissionPage() {
                   </tbody>
                 </table>
                 <p className="text-[11px] mt-2" style={{ color: 'var(--text-secondary)' }}>
-                  Rappel = part des mesures falsifiées signalées. Les biais de −0,5 et −1 °C sont très en dessous du bruit du frigo (σ ≈ 3,4 °C par mesure) :
+                  Rappel = part des mesures falsifiées signalées. À ce seuil, {pct1(bestTest?.fpr)} des lignes normales sont aussi signalées :
+                  un rappel par scénario ne vaut que s’il dépasse nettement ce taux, et un épisode « détecté » peut l’être par une alerte fortuite. Les biais de −0,5 et −1 °C sont très en dessous du bruit du frigo (σ ≈ 3,4 °C par mesure) :
                   non détectables de façon fiable en 15–25 min à ce niveau de bruit (voir l’étude des biais longs ci-dessous).
                 </p>
               </div>

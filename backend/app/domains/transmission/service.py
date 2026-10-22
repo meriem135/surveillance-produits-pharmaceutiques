@@ -573,7 +573,8 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
         "lecture": (f"Le modèle signale {round(100 * t['recall'])} % des mesures falsifiées, déclenche environ "
                     f"{fa_h} fausse(s) alerte(s) par heure et réagit en {_fmt_delai(t.get('delai_median_min'))} "
                     f"(médiane) ; sur 100 alertes, environ {round(100 * t['precision'])} correspondent à une vraie "
-                    "attaque."),
+                    "attaque" + (f" ; {round(100 * t['fpr'])} % des mesures normales sont aussi signalées."
+                                 if t.get("fpr") is not None else ".")),
     }
     if op and "max_f1" in best.get("points_fonctionnement", {}):
         m1 = best["points_fonctionnement"]["max_f1"]["test"]
@@ -600,11 +601,20 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
 
     # Limites connues : les petits biais, et l'étude complémentaire des biais longs
     limites = []
-    for s in report["scenarios"]:
-        if s["scenario"] in ("Injection_biais_0.5", "Injection_biais_1.0") and s["taux_detection"] is not None:
-            limites.append(f"{SCENARIOS_FR[s['scenario']]} : {s['taux_detection']:.0f} % des mesures signalées, "
-                           f"épisodes {s['episodes']} — non détectable de façon fiable en 15 à 25 min à ce niveau "
-                           "de bruit (σ ≈ 3,4 °C par mesure du frigo).")
+    points = [(t, report["modele"]["point_fonctionnement"])]
+    if op and "max_f1" in best.get("points_fonctionnement", {}):
+        points.append((best["points_fonctionnement"]["max_f1"]["test"], "max F1"))
+    for name in ("Injection_biais_0.5", "Injection_biais_1.0"):
+        parts = []
+        for m, lib in points:
+            pa = (m.get("per_attack") or {}).get(name, {})
+            if pa.get("n"):
+                fpr = f" pour {100 * m['fpr']:.0f} % des mesures normales" if m.get("fpr") is not None else ""
+                parts.append(f"{pa['rate']:.0f} % des mesures signalées{fpr} (seuil {lib})")
+        if parts:
+            limites.append(f"{SCENARIOS_FR[name]} : " + " ; ".join(parts) + " — non détectable de façon fiable "
+                           "en 15 à 25 min à ce niveau de bruit (σ ≈ 3,4 °C par mesure du frigo) : un épisode "
+                           "« détecté » peut l'être par une alerte fortuite.")
     long_bias = _load_json(LONG_BIAS_RESULTS)
     if long_bias:
         for jeu, lib in (("B", "avec des moyennes sur 30 et 60 min"), ("A", "avec les features actuelles")):
@@ -613,7 +623,8 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
                 h = x.get("detectes_avant_min", {})
                 parts = ", ".join(f"{v['detectes']}/{v['n']} en moins de {k} min" for k, v in h.items() if v["n"])
                 limites.append(f"Biais long {amp} °C (1 à 3 h), {lib} : {parts} "
-                               f"(≤ {res.get('fa_h_test', '—')} fausse alerte/h au test).")
+                               f"({res.get('fa_h_test', '—')} fausse(s) alerte(s)/h mesurée(s) au test, seuil fixé sur la "
+                               "validation pour ≤ 1 par heure).")
     report["limites"] = limites
 
     md = report["modele"]

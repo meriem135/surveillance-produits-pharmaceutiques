@@ -25,13 +25,13 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
 │   │   ├── train_models.py  entraîne et compare les 4 modèles → models/
-│   │   ├── transmission_real.py    attaques de transmission sur les traces réelles (étude, 9 répétitions)
-│   │   ├── transmission_models.py  4 modèles candidats + SHAP sur ces traces → models/transmission_reel/
+│   │   ├── transmission_real.py    attaques de transmission sur les traces réelles (protocole, 20 répétitions)
+│   │   ├── transmission_models.py  4 modèles supervisés, seuils, validation croisée, SHAP → models/transmission_reel/
 │   │   └── transmission_study.py   même étude sur une année simulée (banc d'essai, hypothèses déclarées)
 │   └── tests/               pytest
 ├── frontend/                dashboard React 19 + Vite + TypeScript + Tailwind
 ├── notebook/Raw/            traces brutes TON_IoT (Normal + 9 types d'attaque)
-├── notebook/transmission/   4 notebooks : prétraitement, injection des attaques, 4 modèles, SHAP
+├── notebook/transmission/   4 notebooks : prétraitement, injection des attaques, 4 modèles supervisés, SHAP
 ├── data/                    généré (dataset_fusionne.csv, flux de démo, SQLite)
 ├── models/                  modèles entraînés + résultats JSON (versionnés)
 └── Soutenance/              notes de soutenance
@@ -91,23 +91,75 @@ Détail par type d'attaque : `models/resultats_comparaison_final.json`.
 ## Attaques de transmission (traces réelles)
 
 Volet « injection et MITM entre le capteur et le broker » sur les seules traces réelles
-TON_IoT (62 h fusionnées à 5 s), sans année simulée :
+TON_IoT (62 h fusionnées à 5 s), sans année simulée. Quatre modèles **supervisés** :
+Random Forest, XGBoost, Régression Logistique, MLP.
 
-- `notebook/transmission/01…04` : exploration et prétraitement, injection de 9 scénarios
-  (gel, rejeu, injection nominale, biais, dérive, sur le frigo et le thermostat), quatre
-  modèles candidats (Isolation Forest, One-Class SVM, Random Forest, XGBoost), SHAP.
-- `backend/scripts/transmission_models.py` : la même comparaison cumulée sur 9 répétitions
-  (chaque heure sert de test) → `models/transmission_reel/comparaison_modeles.json`.
-  Résultat : Random Forest F1 0,66 ; les petits biais (−0,5 / −1 °C) restent quasi invisibles
-  dans ce bruit (σ 3,4 °C par mesure).
+**Protocole** (`backend/scripts/transmission_real.py`, `transmission_models.py`) :
+
+- Découpage 70/15/15 **non aléatoire** par blocs d'une heure entrelacés (cycle de 20 blocs :
+  14 train / 3 val / 3 test), recalculé à l'entraînement par `block_split` (pas de colonne
+  `split` dans le CSV). Chaque épisode d'attaque (15 à 25 min) tient dans un bloc : aucune
+  attaque n'est coupée entre deux rôles.
+- **Prévalence** : un épisode dans chaque bloc d'entraînement (~36 % d'attaques mesurées : les
+  modèles supervisés ont besoin d'exemples), dans 2 blocs sur 5 en validation et en test
+  (13,4 % et 13,5 % mesurés). La précision et le F1 dépendent de la prévalence : à 33 %
+  d'attaques partout, le seuil « max F1 » glisse vers « tout signaler » et la précision est
+  flatteuse (version précédente : précision 0,94 au test).
+- **9 scénarios**, dont les biais −0,5 et −1 °C, gardés comme limite connue et mesurés scénario
+  par scénario (rappel, épisodes détectés, délai).
+- **20 répétitions** = les 20 rotations du cycle (le cycle avance d'un bloc par répétition) :
+  chaque heure sert 3 fois de test et 3 fois de validation ; résultats cumulés.
+- **Deux seuils**, choisis sur la validation de chaque répétition : « max F1 » et **« rappel
+  cible »** (0,90 par défaut, aussi 0,80 et 0,95) = le seuil le plus haut qui atteint ce
+  rappel sur la validation. Mode « rappel d'abord » : rater une attaque coûte plus qu'une
+  fausse alerte.
+- **Choix du modèle sur la validation uniquement** (F2 de validation au rappel cible) ; le
+  test ne fait que confirmer (`comparer_supervises.py` affiche les deux).
+- **Validation croisée de confirmation** : `StratifiedGroupKFold` avec le **bloc d'une heure**
+  comme groupe (une attaque et les lignes normales qui partagent ses fenêtres glissantes
+  restent du même côté), comparée au `StratifiedKFold` naïf, gardé comme contre-exemple.
+- **Déséquilibre des classes** : `class_weight`, `scale_pos_weight`, `sample_weight` ; **pas de
+  SMOTE** : sur une série temporelle, des points interpolés entre deux lignes d'attaque
+  fabriqueraient des fenêtres glissantes qui n'existent pas, et le sur-échantillonnage ne
+  change pas la prévalence réelle, qui seule fixe la précision. Le levier est le seuil.
+- Ordre des métriques partout : rappel, fausses alertes/heure, délai, précision, F1/F2.
+
+**Résultats** (20 répétitions, test cumulé, `models/transmission_reel/comparaison_modeles.json`) :
+le Random Forest est retenu sur la validation (F2 0,562 au rappel cible 0,90 ; XGBoost 0,558).
+
+| Random Forest, test | rappel | FA/h | délai médian | précision | F1 | F2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| seuil rappel cible 0,90 | 0,873 | 18,6 | 0,1 min | 0,227 | 0,361 | 0,557 |
+| seuil max F1 | 0,656 | 3,2 | 2,2 min | 0,771 | 0,709 | 0,676 |
+
+Viser 90 % de rappel coûte cher : environ 46 % des lignes normales sont alors signalées.
+Au seuil max F1, les petits biais ne sont signalés que sur 22,9 % (−0,5 °C) et 44,2 % (−1 °C)
+de leurs lignes, pour 3 % des lignes normales : **non détectables de façon fiable en 15–25 min
+à ce niveau de bruit** (σ ≈ 3,4 °C par mesure). L'étude complémentaire
+`transmission_biais_long.py` (blocs de 4 h, épisodes de 1 à 3 h, seuil ≤ 1 fausse alerte/h sur
+la validation) montre qu'ils deviennent détectables en une heure environ : biais −0,5 °C
+détecté avant 60 min dans 14 épisodes sur 15 (délai médian 20 min), −1 °C dans 15 sur 15
+(délai médian 9,5 min), sur 30 épisodes de test seulement.
+
+Validation croisée (répétition 0, rappel / précision moyens, seuil 0,5) : Random Forest
+0,622 / 0,863 groupée par bloc, contre 0,983 / 0,994 en naïf (fuite).
+
+- `notebook/transmission/01…04` : exploration et prétraitement, injection des 9 scénarios,
+  4 modèles (validation croisée naïve et groupée, deux seuils, courbe précision-rappel), SHAP.
 - Page **Transmission** du dashboard : entraînement des 4 modèles en direct (WebSocket
-  `/api/v1/transmission/train-ws`, courbe du Random Forest arbre par arbre), résultats,
-  détection par scénario, SHAP, et rapport de recommandation pour l'opérateur
-  (`GET /api/v1/transmission/report`, consigne par alerte via `POST`).
+  `/api/v1/transmission/train-ws`), sélecteur de rappel cible, résultats validation et test,
+  courbe précision-rappel, détection par scénario, validation croisée, biais longs, SHAP et
+  rapport pour l'opérateur (`GET /api/v1/transmission/report`, consigne par alerte via `POST`).
 
 ```bash
-cd backend && .venv/bin/python scripts/transmission_models.py   # ~7 min (SHAP cumulé)
+cd backend
+nice -n 10 .venv/bin/python scripts/transmission_models.py      # ~1 h 55 sur 3 cœurs (dont SHAP ~70 min, SKIP_SHAP=1)
+nice -n 10 .venv/bin/python scripts/transmission_real.py        # détecteurs non supervisés, ~31 min
+nice -n 10 .venv/bin/python scripts/transmission_biais_long.py  # ~9 min
+.venv/bin/python scripts/comparer_supervises.py                  # classement sur la validation
 ```
+
+Les trois scripts sont indépendants (seul `transmission_models.py` écrit le jeu de données).
 
 ## Tests
 

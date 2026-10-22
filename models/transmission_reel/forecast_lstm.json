@@ -13,8 +13,8 @@
         "season_sin",
         "season_cos"
       ],
-      "val_mse": 0.38958,
-      "epochs": 8
+      "val_mse": 1.45303,
+      "epochs": 4
     },
     "fridge": {
       "inputs": [
@@ -27,8 +27,8 @@
         "season_sin",
         "season_cos"
       ],
-      "val_mse": 1.02413,
-      "epochs": 5
+      "val_mse": 0.94358,
+      "epochs": 3
     },
     "thermostat": {
       "inputs": [
@@ -41,22 +41,22 @@
         "season_sin",
         "season_cos"
       ],
-      "val_mse": 1.03642,
-      "epochs": 5
+      "val_mse": 1.23753,
+      "epochs": 3
     }
   },
   "residual_norm": {
     "weather": {
-      "mean": 0.5024,
-      "std": 0.37037
+      "mean": 1.01008,
+      "std": 0.65786
     },
     "fridge": {
-      "mean": 0.85652,
-      "std": 0.53897
+      "mean": 0.81765,
+      "std": 0.52443
     },
     "thermostat": {
-      "mean": 0.81299,
-      "std": 0.61275
+      "mean": 0.88322,
+      "std": 0.67635
     }
   }
 }
