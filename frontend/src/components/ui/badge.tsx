@@ -3,11 +3,11 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:ring-offset-2',
+  'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:ring-offset-2',
   {
     variants: {
       variant: {
-        default: 'shadow-sm',
+        default: '',
         secondary: '',
         destructive: '',
         outline: 'border',
@@ -28,7 +28,7 @@ export interface BadgeProps
 
 function Badge({ className, variant, style, ...props }: BadgeProps) {
   const variantStyle = !variant || variant === 'default'
-    ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-purple))', color: '#fff' }
+    ? { background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }
     : variant === 'secondary'
     ? { background: 'color-mix(in srgb, var(--text-secondary) 15%, transparent)', color: 'var(--text-secondary)' }
     : variant === 'destructive'

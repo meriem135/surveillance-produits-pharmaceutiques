@@ -86,12 +86,12 @@ interface CveReport {
 }
 
 const GROUP_COLORS: Record<string, string> = {
-  weather: '#00E5FF',
-  fridge: '#00FFA3',
-  thermostat: '#A855F7',
-  time: '#FF2D78',
-  cross: '#FFB830',
-  other: '#8B80B0',
+  weather: '#0891B2',
+  fridge: '#0D9488',
+  thermostat: '#7C3AED',
+  time: '#E11D48',
+  cross: '#D97706',
+  other: '#64748B',
 };
 const GROUP_LABELS: Record<string, string> = {
   weather: 'Météo',
@@ -122,11 +122,11 @@ const MONTHS = [
 ];
 
 const CVE_SEV_STYLE: Record<string, string> = {
-  CRITICAL: '#FF2D78',
-  HIGH: '#FFB830',
-  MEDIUM: '#00E5FF',
-  LOW: '#00FFA3',
-  NONE: '#00FFA3',
+  CRITICAL: '#E11D48',
+  HIGH: '#D97706',
+  MEDIUM: '#0891B2',
+  LOW: '#0D9488',
+  NONE: '#0D9488',
 };
 
 export default function ShapPointReport({
@@ -139,15 +139,15 @@ export default function ShapPointReport({
   onClose?: () => void;
 }) {
   const [pdfLoading, setPdfLoading] = useState(false);
-  const accent = GROUP_COLORS[point.dominant_sensor] || '#FFB830';
+  const accent = GROUP_COLORS[point.dominant_sensor] || '#D97706';
   const severityColor =
     pharma.severity === 'critique'
-      ? '#FF2D78'
+      ? '#E11D48'
       : pharma.severity === 'élevée'
-        ? '#FFB830'
+        ? '#D97706'
         : pharma.severity === 'moyenne'
-          ? '#00E5FF'
-          : '#00FFA3';
+          ? '#0891B2'
+          : '#0D9488';
   const sv = point.sensor_values || {};
   const causes = point.top_causes.slice(0, 5);
   const normals = point.top_normal.slice(0, 4);
@@ -251,7 +251,7 @@ export default function ShapPointReport({
       doc.rect(0, 0, pageWidth, 30, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(15);
-      doc.setTextColor(0, 255, 163);
+      doc.setTextColor(13, 148, 136);
       doc.text('Recommandation Opérateur — Point du Dataset', margin, 18);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
@@ -287,15 +287,15 @@ export default function ShapPointReport({
       );
 
       // ── Domaine opérateur ──
-      sectionHeader(pharma.domain_label.toUpperCase(), [0, 255, 163]);
+      sectionHeader(pharma.domain_label.toUpperCase(), [13, 148, 136]);
       bodyText(`${pharma.sensor_role} — ${pharma.product_impact}`);
       bodyText(
         `Décision : ${pharma.disposition.label} — ${pharma.disposition.description}`,
-        [255, 45, 120],
+        [225, 29, 72],
       );
 
       // ── Pourquoi & SHAP ──
-      sectionHeader('Pourquoi ce point est signalé — explication SHAP', [255, 45, 120]);
+      sectionHeader('Pourquoi ce point est signalé — explication SHAP', [225, 29, 72]);
       bodyText(pharma.why);
       drawTable(
         ['Cause (SHAP)', 'Valeur SHAP', 'Valeur feature'],
@@ -306,7 +306,7 @@ export default function ShapPointReport({
         ]),
       );
       if (normals.length > 0) {
-        sectionHeader('Contre-arguments (vers « normal », positives)', [0, 255, 163]);
+        sectionHeader('Contre-arguments (vers « normal », positives)', [13, 148, 136]);
         normals.forEach((c) =>
           bullet(`${c.interpretation || c.feature} (${fmtSigned(c.shap_value)})`),
         );
@@ -314,7 +314,7 @@ export default function ShapPointReport({
 
       // ── Impact ──
       sectionHeader('Impact potentiel (index 0-100)', [255, 184, 48]);
-      drawBar('Production', impact.production_impact, [255, 45, 120]);
+      drawBar('Production', impact.production_impact, [225, 29, 72]);
       drawBar('Stock / Chaîne du froid', impact.stock_impact, [0, 229, 255]);
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8.5);
@@ -333,7 +333,7 @@ export default function ShapPointReport({
 
       // ── Vulnérabilités CVE ──
       if (cve) {
-        sectionHeader('Vulnérabilités CVE', [255, 45, 120]);
+        sectionHeader('Vulnérabilités CVE', [225, 29, 72]);
         if (cve.available && cve.total_cves > 0) {
           doc.setFont('helvetica', 'italic');
           doc.setFontSize(8.5);
@@ -402,7 +402,7 @@ export default function ShapPointReport({
       {/* ── En-tête ── */}
       <div
         className="px-6 py-4 flex items-center gap-3"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}
       >
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center"
@@ -442,9 +442,9 @@ export default function ShapPointReport({
           disabled={pdfLoading}
           className="inline-flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
           style={{
-            background: 'rgba(0,255,163,0.10)',
-            border: '1px solid rgba(0,255,163,0.25)',
-            color: '#00FFA3',
+            background: 'rgba(13,148,136,0.10)',
+            border: '1px solid rgba(13,148,136,0.25)',
+            color: '#0D9488',
           }}
         >
           {pdfLoading ? (
@@ -473,9 +473,9 @@ export default function ShapPointReport({
             style={{
               background:
                 point.label === 1
-                  ? 'rgba(255,45,120,0.15)'
-                  : 'rgba(0,255,163,0.10)',
-              color: point.label === 1 ? '#FF2D78' : '#00FFA3',
+                  ? 'rgba(225,29,72,0.15)'
+                  : 'rgba(13,148,136,0.10)',
+              color: point.label === 1 ? '#E11D48' : '#0D9488',
             }}
           >
             {point.label === 1 ? 'ATTaque (label=1)' : 'Normal (label=0)'}
@@ -485,10 +485,10 @@ export default function ShapPointReport({
             style={{
               background:
                 point.prediction === 1
-                  ? 'rgba(168,85,247,0.18)'
-                  : 'rgba(255,255,255,0.05)',
+                  ? 'rgba(124,58,237,0.18)'
+                  : 'color-mix(in srgb, var(--text-primary) 6%, transparent)',
               color:
-                point.prediction === 1 ? '#A855F7' : 'var(--color-text-muted)',
+                point.prediction === 1 ? '#7C3AED' : 'var(--color-text-muted)',
             }}
           >
             Modèle : {point.prediction === 1 ? 'Anomalie détectée' : 'Non détecté'}
@@ -514,7 +514,7 @@ export default function ShapPointReport({
               key={k}
               className="rounded-xl p-3 text-center"
               style={{
-                background: 'rgba(255,255,255,0.03)',
+                background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)',
                 border: `1px solid ${GROUP_COLORS[k]}25`,
               }}
             >
@@ -553,7 +553,7 @@ export default function ShapPointReport({
           <div
             className="mt-2 rounded-lg px-3 py-2 text-[9px]"
             style={{
-              background: 'rgba(255,255,255,0.03)',
+              background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)',
               color: 'var(--color-text-secondary)',
             }}
           >
@@ -574,8 +574,8 @@ export default function ShapPointReport({
           <div
             className="text-[10px] leading-relaxed rounded-lg px-3 py-2 mb-2"
             style={{
-              background: 'rgba(255,45,120,0.03)',
-              border: '1px solid rgba(255,45,120,0.10)',
+              background: 'rgba(225,29,72,0.03)',
+              border: '1px solid rgba(225,29,72,0.10)',
               color: 'var(--color-text-primary)',
             }}
           >
@@ -587,8 +587,8 @@ export default function ShapPointReport({
                 key={i}
                 className="rounded-xl p-3"
                 style={{
-                  background: 'rgba(255,45,120,0.04)',
-                  border: '1px solid rgba(255,45,120,0.12)',
+                  background: 'rgba(225,29,72,0.04)',
+                  border: '1px solid rgba(225,29,72,0.12)',
                 }}
               >
                 <div className="flex items-center justify-between mb-1">
@@ -600,7 +600,7 @@ export default function ShapPointReport({
                   </span>
                   <span
                     className="text-[9px] font-mono font-bold"
-                    style={{ color: '#FF2D78' }}
+                    style={{ color: '#E11D48' }}
                   >
                     {fmtSigned(c.shap_value)}
                   </span>
@@ -628,9 +628,9 @@ export default function ShapPointReport({
                     key={i}
                     className="text-[8px] px-2 py-1 rounded-full"
                     style={{
-                      background: 'rgba(0,255,163,0.08)',
-                      border: '1px solid rgba(0,255,163,0.15)',
-                      color: '#00FFA3',
+                      background: 'rgba(13,148,136,0.08)',
+                      border: '1px solid rgba(13,148,136,0.15)',
+                      color: '#0D9488',
                     }}
                   >
                     {c.interpretation || c.feature} ({fmtSigned(c.shap_value)})
@@ -651,7 +651,7 @@ export default function ShapPointReport({
           <div className="space-y-2">
             <div>
               <div className="flex items-center justify-between text-[9px] mb-1">
-                <span className="font-bold" style={{ color: '#FFB830' }}>
+                <span className="font-bold" style={{ color: '#D97706' }}>
                   Production
                 </span>
                 <span
@@ -669,14 +669,14 @@ export default function ShapPointReport({
                   className="h-full rounded-full"
                   style={{
                     width: `${impact.production_impact}%`,
-                    background: 'linear-gradient(90deg, #FFB830, #FF2D78)',
+                    background: 'linear-gradient(90deg, #D97706, #E11D48)',
                   }}
                 />
               </div>
             </div>
             <div>
               <div className="flex items-center justify-between text-[9px] mb-1">
-                <span className="font-bold" style={{ color: '#00E5FF' }}>
+                <span className="font-bold" style={{ color: '#0891B2' }}>
                   Stock / Chaîne du froid
                 </span>
                 <span
@@ -688,13 +688,13 @@ export default function ShapPointReport({
               </div>
               <div
                 className="h-2 rounded-full overflow-hidden"
-                style={{ background: 'rgba(0,229,255,0.10)' }}
+                style={{ background: 'rgba(8,145,178,0.10)' }}
               >
                 <div
                   className="h-full rounded-full"
                   style={{
                     width: `${impact.stock_impact}%`,
-                    background: 'linear-gradient(90deg, #00E5FF, #00FFA3)',
+                    background: 'linear-gradient(90deg, #0891B2, #0D9488)',
                   }}
                 />
               </div>
@@ -721,8 +721,8 @@ export default function ShapPointReport({
                 key={i}
                 className="flex items-start gap-2 rounded-lg px-3 py-2 text-[9px]"
                 style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.05)',
+                  background: 'color-mix(in srgb, var(--text-primary) 3%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--text-primary) 6%, transparent)',
                   color: 'var(--color-text-primary)',
                 }}
               >
@@ -752,23 +752,23 @@ export default function ShapPointReport({
                     key={c.cve_id}
                     className="rounded-lg px-3 py-2 text-[9px]"
                     style={{
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid rgba(255,255,255,0.05)',
+                      background: 'color-mix(in srgb, var(--text-primary) 3%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--text-primary) 6%, transparent)',
                       color: 'var(--color-text-primary)',
                     }}
                   >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className="font-mono font-bold"
-                        style={{ color: CVE_SEV_STYLE[c.cvss_severity] || '#00FFA3' }}
+                        style={{ color: CVE_SEV_STYLE[c.cvss_severity] || '#0D9488' }}
                       >
                         {c.cve_id}
                       </span>
                       <span
                         className="text-[8px] font-bold px-1.5 py-0.5 rounded"
                         style={{
-                          background: `color-mix(in srgb, ${CVE_SEV_STYLE[c.cvss_severity] || '#00FFA3'} 14%, transparent)`,
-                          color: CVE_SEV_STYLE[c.cvss_severity] || '#00FFA3',
+                          background: `color-mix(in srgb, ${CVE_SEV_STYLE[c.cvss_severity] || '#0D9488'} 14%, transparent)`,
+                          color: CVE_SEV_STYLE[c.cvss_severity] || '#0D9488',
                         }}
                       >
                         {c.cvss_severity || 'UNKNOWN'}
@@ -781,7 +781,7 @@ export default function ShapPointReport({
                       </span>
                       <span
                         className="ml-auto font-bold"
-                        style={{ color: CVE_SEV_STYLE[c.cvss_severity] || '#00FFA3' }}
+                        style={{ color: CVE_SEV_STYLE[c.cvss_severity] || '#0D9488' }}
                       >
                         {Math.round(c.risk_score)}/100
                       </span>

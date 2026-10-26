@@ -12,9 +12,9 @@ import {
 const API_BASE = '/api/v1';
 
 const SENSOR_META: Record<string, { icon: React.ReactNode; color: string }> = {
-  weather: { icon: <CloudSun className="w-4 h-4" />, color: '#00B8D9' },
-  fridge: { icon: <SnowflakeIcon />, color: '#00FFA3' },
-  thermostat: { icon: <Thermometer className="w-4 h-4" />, color: '#FF2D78' },
+  weather: { icon: <CloudSun className="w-4 h-4" />, color: '#0891B2' },
+  fridge: { icon: <SnowflakeIcon />, color: '#0D9488' },
+  thermostat: { icon: <Thermometer className="w-4 h-4" />, color: '#E11D48' },
 };
 
 const SENSOR_FULL: Record<string, string> = {
@@ -73,9 +73,9 @@ const ATTACK_LABEL: Record<string, string> = {
 function heatColor(v: number) {
   const t = Math.min(1, Math.max(0, v / 100));
   const stops: Array<[number, [number, number, number]]> = [
-    [0, [0, 255, 163]],
+    [0, [13, 148, 136]],
     [0.5, [255, 184, 48]],
-    [1, [255, 45, 120]],
+    [1, [225, 29, 72]],
   ];
   let lo = stops[0], hi = stops[stops.length - 1];
   for (let i = 0; i < stops.length - 1; i++) {
@@ -93,7 +93,7 @@ function heatText(v: number) {
 function levelOf(v: number) {
   if (v >= 70) return { label: 'Critique', color: 'var(--accent-danger)' };
   if (v >= 50) return { label: 'Élevé', color: 'var(--accent-warning)' };
-  if (v >= 30) return { label: 'Modéré', color: '#00B8D9' };
+  if (v >= 30) return { label: 'Modéré', color: '#0891B2' };
   return { label: 'Faible', color: 'var(--accent-success)' };
 }
 function eur(n: number) {
@@ -138,7 +138,7 @@ function AnimatedNumber({ value, format }: { value: number; format?: (n: number)
 /* Barre de progression animée */
 function AnimatedBar({ value, color, delay = 0 }: { value: number; color: string; delay?: number }) {
   return (
-    <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+    <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--text-primary) 6%, transparent)' }}>
       <motion.div
         className="h-full rounded-full"
         style={{ background: `linear-gradient(90deg, ${color}66, ${color})` }}
@@ -153,7 +153,7 @@ function AnimatedBar({ value, color, delay = 0 }: { value: number; color: string
 /* Petit encart "ce que ça veut dire" réutilisable */
 function Explication({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl px-3 py-2 flex items-start gap-2" style={{ background: 'rgba(0,255,163,0.04)', border: '1px dashed rgba(0,255,163,0.18)' }}>
+    <div className="rounded-xl px-3 py-2 flex items-start gap-2" style={{ background: 'rgba(13,148,136,0.04)', border: '1px dashed rgba(13,148,136,0.18)' }}>
       <span className="text-sm leading-none shrink-0" style={{ color: 'var(--accent-primary)' }}>💡</span>
       <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{children}</div>
     </div>
@@ -198,7 +198,7 @@ function KpiCard({ label, value, sub, color, icon }: { label: string; value: str
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
-  const c = severity === 'critique' ? 'var(--accent-danger)' : severity === 'élevée' ? 'var(--accent-warning)' : '#00B8D9';
+  const c = severity === 'critique' ? 'var(--accent-danger)' : severity === 'élevée' ? 'var(--accent-warning)' : '#0891B2';
   return (
     <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase" style={{ background: `${c}18`, color: c, border: `1px solid ${c}30` }}>
       {severity}
@@ -324,7 +324,7 @@ function SensorCard({ sensor }: { sensor: SensorInfo }) {
 
       <motion.div
         className="text-[10px] leading-relaxed rounded-xl p-2.5"
-        style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)' }}
+        style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)', color: 'var(--text-secondary)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
@@ -362,7 +362,7 @@ function InfluenceMatrix({ payload }: { payload: ImpactPayload }) {
       </div>
       <div className="flex justify-end items-center gap-1 mt-3 text-[8px]" style={{ color: 'var(--text-secondary)' }}>
         <span>Peu d'impact </span>
-        <div className="h-2 w-28 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(0,255,163,0.16), rgba(255,184,48,0.16), rgba(255,45,120,0.16))', border: '1px solid var(--border)' }} />
+        <div className="h-2 w-28 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(13,148,136,0.16), rgba(255,184,48,0.16), rgba(225,29,72,0.16))', border: '1px solid var(--border)' }} />
         <span> Fort impact</span>
       </div>
     </div>
@@ -427,13 +427,13 @@ function AttackDetail({ attack }: { attack: AttackType }) {
       initial="hidden"
       animate="visible"
       className="rounded-2xl p-4 glass glass-border card-hover"
-      style={{ borderColor: isInjection ? 'rgba(255,45,120,0.4)' : 'rgba(0,255,163,0.15)', boxShadow: isInjection ? '0 0 40px rgba(255,45,120,0.08)' : 'none' }}
+      style={{ borderColor: isInjection ? 'rgba(225,29,72,0.4)' : 'rgba(13,148,136,0.15)', boxShadow: isInjection ? '0 0 40px rgba(225,29,72,0.08)' : 'none' }}
     >
       {isInjection && (
         <motion.div
           variants={fadeUp}
           className="flex items-center gap-2 px-3 py-2 rounded-xl mb-3 text-[11px] font-bold"
-          style={{ background: 'rgba(255,45,120,0.1)', border: '1px dashed rgba(255,45,120,0.45)', color: '#FF2D78' }}
+          style={{ background: 'rgba(225,29,72,0.1)', border: '1px dashed rgba(225,29,72,0.45)', color: '#E11D48' }}
         >
           <Flame className="w-4 h-4" />
           Injection de données — fausses températures extrêmes injectées dans la télémétrie (chambre froide, lignes)
@@ -442,7 +442,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
       <motion.div className="flex items-start gap-3 mb-3" variants={fadeUp}>
         <motion.div
           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: 'rgba(255,45,120,0.12)', color: 'var(--accent-danger)' }}
+          style={{ background: 'rgba(225,29,72,0.12)', color: 'var(--accent-danger)' }}
           whileHover={{ rotate: [0, -10, 10, 0] }}
           transition={{ duration: 0.6 }}
         >
@@ -469,7 +469,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Radar du mode opératoire */}
-        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <div className="rounded-xl p-3" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
           <div className="text-[10px] font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Quel « dégât » l'attaque provoque-t-elle ?</div>
           <ResponsiveContainer width="100%" height={170}>
             <Radar data={radarData} cx="50%" cy="50%" outerRadius="72%">
@@ -486,7 +486,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
         </div>
 
         {/* Mesures par capteur */}
-        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <div className="rounded-xl p-3" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
           <div className="text-[10px] font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Que se passe-t-il sur les capteurs ?</div>
           <div className="text-[9px] mb-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             C'est mesuré dans le dataset : quand cette attaque a eu lieu, voilà à quel point le signal du capteur
@@ -496,7 +496,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
             {cells.map(([sid, cell]) => (
               <div key={sid} className="flex items-center gap-2">
                 <div className="w-24 text-[9px] truncate" style={{ color: 'var(--text-secondary)' }}>{SENSOR_FULL[sid]}</div>
-                <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--text-primary) 6%, transparent)' }}>
                   <div className="h-full rounded-full" style={{ width: `${cell.index}%`, background: heatColor(cell.index) }} />
                 </div>
                 <NiveauBadge value={cell.index} />
@@ -511,7 +511,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
         </div>
 
         {/* Impact business, onglets stock/production */}
-        <div className="rounded-xl p-3 flex flex-col" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <div className="rounded-xl p-3 flex flex-col" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
           <div className="text-[10px] font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Conséquences pour votre entreprise</div>
           <div className="text-[9px] mb-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             Si cette attaque réussit, voici ce qui peut arriver :
@@ -521,7 +521,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
               <button key={t} onClick={() => setTab(t)}
                 className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all hover:scale-[1.04] ${tab === t ? '' : 'opacity-50'}`}
                 style={tab === t
-                  ? { background: t === 'stock' ? 'rgba(0,255,163,0.15)' : 'rgba(168,85,247,0.15)', color: t === 'stock' ? 'var(--accent-success)' : 'var(--accent-purple)', border: `1px solid ${t === 'stock' ? 'rgba(0,255,163,0.3)' : 'rgba(168,85,247,0.3)'}` }
+                  ? { background: t === 'stock' ? 'rgba(13,148,136,0.15)' : 'rgba(124,58,237,0.15)', color: t === 'stock' ? 'var(--accent-success)' : 'var(--accent-purple)', border: `1px solid ${t === 'stock' ? 'rgba(13,148,136,0.3)' : 'rgba(124,58,237,0.3)'}` }
                   : { border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                 {t === 'stock' ? 'Surtout les stocks' : 'Surtout la production'}
               </button>
@@ -552,7 +552,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <div className="rounded-xl p-3" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
           <div className="text-[9px] uppercase tracking-wider mb-1.5 font-bold" style={{ color: 'var(--accent-danger)' }}>Quels produits sont touchés ?</div>
           <div className="text-[9px] mb-1.5 leading-relaxed" style={{ color: 'var(--text-secondary)', opacity: 0.85 }}>Les produits les plus exposés à cette attaque :</div>
           <div className="text-[10px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{attack.stock.products}</div>
@@ -566,7 +566,7 @@ function AttackDetail({ attack }: { attack: AttackType }) {
             ))}
           </ul>
         </div>
-        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <div className="rounded-xl p-3" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
           <div className="text-[9px] uppercase tracking-wider mb-1.5 font-bold" style={{ color: 'var(--accent-success)' }}>Comment se protéger ?</div>
           <div className="text-[9px] mb-1.5 leading-relaxed" style={{ color: 'var(--text-secondary)', opacity: 0.85 }}>Voici ce qu'on peut mettre en place pour éviter ou limiter cette attaque :</div>
           <ul className="space-y-1">
@@ -587,7 +587,7 @@ function ImpactRow({ label, value, color }: { label: string; value: number; colo
   return (
     <div className="flex items-center gap-2">
       <div className="text-[9px] w-20 shrink-0" style={{ color: 'var(--text-secondary)' }}>{label}</div>
-      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--text-primary) 6%, transparent)' }}>
         <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${color}55, ${color})` }}
           initial={{ width: 0 }} animate={{ width: `${value}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} />
       </div>
@@ -648,7 +648,7 @@ export default function PharmaImpactPage() {
         <AlertTriangle className="w-10 h-10" style={{ color: 'var(--accent-warning)' }} />
         <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Impossible de charger l'analyse. Vérifiez que le backend est démarré.</div>
         <button onClick={load} className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
-          style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+          style={{ background: 'color-mix(in srgb, var(--text-primary) 6%, transparent)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
           <RefreshCw className="w-3 h-3" /> Réessayer
         </button>
       </div>
@@ -658,14 +658,14 @@ export default function PharmaImpactPage() {
   return (
     <motion.div className="space-y-4" variants={pageStagger} initial="hidden" animate="visible">
       {/* En-tête */}
-      <motion.div variants={fadeUp} className="rounded-2xl overflow-hidden glass glass-border card-hover" style={{ borderColor: 'rgba(0,255,163,0.2)', boxShadow: '0 0 40px rgba(0,255,163,0.07)' }}>
+      <motion.div variants={fadeUp} className="rounded-2xl overflow-hidden glass glass-border card-hover" style={{ borderColor: 'rgba(13,148,136,0.2)', boxShadow: '0 0 40px rgba(13,148,136,0.07)' }}>
         <div className="px-5 py-5">
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #00FFA320, #A855F708)', color: '#00FFA3', boxShadow: '0 0 30px #00FFA325' }}>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #0D948820, #7C3AED08)', color: '#0D9488', boxShadow: '0 0 30px #0D948825' }}>
               <Pill className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-display text-lg font-bold" style={{ background: 'linear-gradient(135deg, #00FFA3, #A855F7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <h1 className="font-display text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
                 Impact des attaques du dataset — Industrie 4.0 pharmaceutique
               </h1>
               <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
@@ -674,7 +674,7 @@ export default function PharmaImpactPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap text-[9px] font-mono mt-2" style={{ color: 'var(--text-secondary)' }}>
-            <span className="px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,255,163,0.1)', color: 'var(--accent-success)' }}>{payload.meta.dataset} · {payload.meta.normal_rows.toLocaleString('fr-FR')} normal / {payload.meta.attack_rows.toLocaleString('fr-FR')} attaques</span>
+            <span className="px-2 py-0.5 rounded-full" style={{ background: 'rgba(13,148,136,0.1)', color: 'var(--accent-success)' }}>{payload.meta.dataset} · {payload.meta.normal_rows.toLocaleString('fr-FR')} normal / {payload.meta.attack_rows.toLocaleString('fr-FR')} attaques</span>
             <span>Indice affiché en temps quasi réel</span>
             <span>· {new Date(payload.meta.generated_at).toLocaleString('fr-FR')}</span>
           </div>
@@ -683,7 +683,7 @@ export default function PharmaImpactPage() {
 
       {/* KPIs */}
       <motion.div className="grid grid-cols-2 gap-3" variants={pageStagger} initial="hidden" animate="visible">
-        <KpiCard label="Capteurs étudiés" value={String(payload.meta.sensors_analyzed)} sub="météo · chambre froide · thermostat — usine pharma" color="#00B8D9" icon={<Server className="w-4 h-4" />} />
+        <KpiCard label="Capteurs étudiés" value={String(payload.meta.sensors_analyzed)} sub="météo · chambre froide · thermostat — usine pharma" color="#0891B2" icon={<Server className="w-4 h-4" />} />
         <KpiCard label="Attaques étudiées" value={String(payload.meta.attack_types_analyzed)} sub="DoS, injection, MitM, ransomware…" color="var(--accent-warning)" icon={<TrendingUp className="w-4 h-4" />} />
       </motion.div>
 
@@ -721,12 +721,12 @@ export default function PharmaImpactPage() {
               className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${active ? '' : 'opacity-60 hover:opacity-100'}`}
               style={active
                 ? {
-                    background: isInjection ? 'rgba(255,45,120,0.2)' : 'var(--accent-danger)18',
-                    color: isInjection ? '#FF2D78' : 'var(--accent-danger)',
+                    background: isInjection ? 'rgba(225,29,72,0.2)' : 'var(--accent-danger)18',
+                    color: isInjection ? '#E11D48' : 'var(--accent-danger)',
                     border: isInjection
-                      ? '1px solid rgba(255,45,120,0.6)'
+                      ? '1px solid rgba(225,29,72,0.6)'
                       : '1px solid var(--accent-danger)40',
-                    boxShadow: isInjection ? '0 0 22px rgba(255,45,120,0.35)' : 'none',
+                    boxShadow: isInjection ? '0 0 22px rgba(225,29,72,0.35)' : 'none',
                   }
                 : { border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
               {ATTACK_LABEL[a.id] ?? a.id}

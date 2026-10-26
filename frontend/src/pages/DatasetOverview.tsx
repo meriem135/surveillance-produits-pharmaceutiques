@@ -22,7 +22,7 @@ interface TooltipItem { color: string; name: string; value: number }
 function Tip({ active, payload, label }: { active?: boolean; payload?: TooltipItem[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
       {label && <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</div>}
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
@@ -40,7 +40,7 @@ function Tip({ active, payload, label }: { active?: boolean; payload?: TooltipIt
 function PctTip({ active, payload, label }: { active?: boolean; payload?: TooltipItem[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
       {label && <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</div>}
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
@@ -135,11 +135,11 @@ function StatCard({ icon: Icon, label, value, color, sub }: { icon: React.Compon
 }
 
 function SensorCard({ k, stats, split }: { k: string; stats: { min: number; max: number; mean: number; std: number; median: number }; split: { normal: { mean: number; std: number }; attack: { mean: number; std: number } } }) {
-  const colors: Record<string, string> = { weather: '#38BDF8', fridge: '#00E676', thermostat: '#FF9100' };
+  const colors: Record<string, string> = { weather: '#0284C7', fridge: '#16A34A', thermostat: '#EA580C' };
   const labels: Record<string, string> = { weather: 'Weather', fridge: 'Fridge', thermostat: 'Thermostat' };
   const icons: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = { weather: CloudSun, fridge: Snowflake, thermostat: Thermometer };
   const Icon = icons[k] || Database;
-  const c = colors[k] || '#818cf8';
+  const c = colors[k] || '#6366F1';
   return (
     <div className="rounded-2xl p-5" style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${c} 4%, var(--bg-card)), var(--bg-card))`, border: `1px solid color-mix(in srgb, ${c} 15%, var(--border))` }}>
       <div className="flex items-center gap-2 mb-3">
@@ -178,11 +178,11 @@ function VueGlobale({ data }: { data: DatasetPayload }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <StatCard icon={Database} label="Total" value={g.total.toLocaleString()} color="#818cf8" />
+        <StatCard icon={Database} label="Total" value={g.total.toLocaleString()} color="#6366F1" />
         <StatCard icon={Target} label="Normal" value={g.normal.toLocaleString()} color="#22C55E" sub={`${(100 - g.attack_pct).toFixed(1)}%`} />
         <StatCard icon={TrendingUp} label="Attaques" value={g.attack.toLocaleString()} color="#EF4444" sub={`${g.attack_pct}%`} />
         <StatCard icon={Calendar} label="Durée" value={`${g.duration_days}j`} color="#F97316" />
-        <StatCard icon={BarChart2} label="Capteurs" value={g.sensors.length} color="#38BDF8" sub={g.sensors.join(', ')} />
+        <StatCard icon={BarChart2} label="Capteurs" value={g.sensors.length} color="#0284C7" sub={g.sensors.join(', ')} />
       </div>
       <SectionTitle>Statistiques par capteur</SectionTitle>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -205,7 +205,7 @@ function VueGlobale({ data }: { data: DatasetPayload }) {
                   <stop offset="100%" stopColor="#EF4444" stopOpacity={0.3} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
               <Tooltip content={<Tip />} />
@@ -227,7 +227,7 @@ function VueGlobale({ data }: { data: DatasetPayload }) {
                   <stop offset="100%" stopColor="#EF4444" stopOpacity={0.3} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
               <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} label={{ value: 'Attaques', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: 'var(--text-secondary)' } }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} label={{ value: '% Attaque', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: 'var(--text-secondary)' } }} />
@@ -235,17 +235,17 @@ function VueGlobale({ data }: { data: DatasetPayload }) {
                 if (!active || !payload?.length) return null;
                 const d = payload[0]?.payload;
                 return (
-                  <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+                  <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
                     <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{d?.label}</div>
                     <div className="text-[11px] font-mono" style={{ color: '#EF4444' }}>Attaques : {d?.attack}</div>
                     <div className="text-[11px] font-mono" style={{ color: '#22C55E' }}>Normal : {d?.normal}</div>
-                    <div className="text-[11px] font-mono mt-1" style={{ color: '#A855F7' }}>% Attaque : {d?.attack_pct}%</div>
+                    <div className="text-[11px] font-mono mt-1" style={{ color: '#7C3AED' }}>% Attaque : {d?.attack_pct}%</div>
                   </div>
                 );
               }} />
               <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
               <Bar yAxisId="left" dataKey="attack" fill="url(#atkBarGrad)" name="Attaques" radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="attack_pct" stroke="#A855F7" strokeWidth={2.5} dot={{ r: 3, fill: '#A855F7', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#A855F7', strokeWidth: 2, stroke: 'var(--bg-base)' }} name="% Attaque" />
+              <Line yAxisId="right" type="monotone" dataKey="attack_pct" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 3, fill: '#7C3AED', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#7C3AED', strokeWidth: 2, stroke: 'var(--bg-base)' }} name="% Attaque" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -271,9 +271,9 @@ function Tendances({ data }: { data: DatasetPayload }) {
   }, [data]);
 
   const sensors = [
-    { key: 'Weather', color: '#38BDF8', grad: '#0EA5E9', icon: '☁' },
-    { key: 'Fridge', color: '#00E676', grad: '#00C853', icon: '❄' },
-    { key: 'Thermostat', color: '#FF9100', grad: '#FF6D00', icon: '♨' },
+    { key: 'Weather', color: '#0284C7', grad: '#0EA5E9', icon: '☁' },
+    { key: 'Fridge', color: '#16A34A', grad: '#00C853', icon: '❄' },
+    { key: 'Thermostat', color: '#EA580C', grad: '#EA580C', icon: '♨' },
   ];
 
   return (
@@ -302,14 +302,14 @@ function Tendances({ data }: { data: DatasetPayload }) {
                       <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                     </filter>
                   </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} minTickGap={80} />
                   <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                   <Tooltip content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
                     const d = payload[0]?.payload;
                     return (
-                      <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+                      <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
                         <div className="text-[10px] font-mono mb-1" style={{ color: 'var(--text-secondary)' }}>{d?.label}</div>
                         <div className="text-sm font-bold" style={{ color: s.color }}>{d?.[s.key]?.toFixed(2)}</div>
                         {d?.isAttack && <div className="text-[10px] font-bold mt-1" style={{ color: '#EF4444' }}>● ATTAQUE</div>}
@@ -331,9 +331,9 @@ function Tendances({ data }: { data: DatasetPayload }) {
 
 function Distributions({ data }: { data: DatasetPayload }) {
   const sensorMeta: Record<string, { color: string; grad: string; label: string }> = {
-    weather: { color: '#38BDF8', grad: '#0EA5E9', label: 'Weather' },
-    fridge: { color: '#00E676', grad: '#00C853', label: 'Fridge' },
-    thermostat: { color: '#FF9100', grad: '#FF6D00', label: 'Thermostat' },
+    weather: { color: '#0284C7', grad: '#0EA5E9', label: 'Weather' },
+    fridge: { color: '#16A34A', grad: '#00C853', label: 'Fridge' },
+    thermostat: { color: '#EA580C', grad: '#EA580C', label: 'Thermostat' },
   };
 
   return (
@@ -369,7 +369,7 @@ function Distributions({ data }: { data: DatasetPayload }) {
                         <stop offset="100%" stopColor="#EF4444" stopOpacity={0.1} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
                     <XAxis dataKey="bin" tick={{ fontSize: 8 }} tickLine={false} axisLine={false} interval={3} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <Tooltip content={<Tip />} />
@@ -395,7 +395,7 @@ function Distributions({ data }: { data: DatasetPayload }) {
                   <stop offset="100%" stopColor="#EF4444" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
               <XAxis dataKey="hour" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} interval={3} />
               <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}%`} />
               <Tooltip content={<PctTip />} />
@@ -414,9 +414,9 @@ function Distributions({ data }: { data: DatasetPayload }) {
 function Correlations({ data }: { data: DatasetPayload }) {
   const corr = data.correlations;
   const scatterPairs = [
-    { x: 'weather', y: 'fridge', xLabel: 'Weather', yLabel: 'Fridge', color1: '#38BDF8', color2: '#00E676', corrVal: corr.matrix[0][1] },
-    { x: 'weather', y: 'thermostat', xLabel: 'Weather', yLabel: 'Thermostat', color1: '#38BDF8', color2: '#FF9100', corrVal: corr.matrix[0][2] },
-    { x: 'fridge', y: 'thermostat', xLabel: 'Fridge', yLabel: 'Thermostat', color1: '#00E676', color2: '#FF9100', corrVal: corr.matrix[1][2] },
+    { x: 'weather', y: 'fridge', xLabel: 'Weather', yLabel: 'Fridge', color1: '#0284C7', color2: '#16A34A', corrVal: corr.matrix[0][1] },
+    { x: 'weather', y: 'thermostat', xLabel: 'Weather', yLabel: 'Thermostat', color1: '#0284C7', color2: '#EA580C', corrVal: corr.matrix[0][2] },
+    { x: 'fridge', y: 'thermostat', xLabel: 'Fridge', yLabel: 'Thermostat', color1: '#16A34A', color2: '#EA580C', corrVal: corr.matrix[1][2] },
   ];
 
   const scatterSeries = useMemo(() => {
@@ -452,14 +452,14 @@ function Correlations({ data }: { data: DatasetPayload }) {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 10, right: 10, left: -15, bottom: 10 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" />
+                    <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" />
                     <XAxis type="number" dataKey="x" name={pair.xLabel} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis type="number" dataKey="y" name={pair.yLabel} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]?.payload;
                       return (
-                        <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+                        <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
                           <div className="text-[11px] font-mono" style={{ color: pair.color1 }}>{pair.xLabel}: {d?.x?.toFixed(2)}</div>
                           <div className="text-[11px] font-mono" style={{ color: pair.color2 }}>{pair.yLabel}: {d?.y?.toFixed(2)}</div>
                         </div>
@@ -486,7 +486,7 @@ function Correlations({ data }: { data: DatasetPayload }) {
                 <div className="text-[10px] font-mono font-bold text-right pr-2 flex items-center justify-end" style={{ color: 'var(--text-secondary)' }}>{corr.labels[i]}</div>
                 {row.map((v, j) => {
                   const abs = Math.abs(v);
-                  const bg = i === j ? 'rgba(168,85,247,0.3)' : v > 0 ? `rgba(34,197,94,${0.15 + abs * 0.6})` : `rgba(239,68,68,${0.15 + abs * 0.6})`;
+                  const bg = i === j ? 'rgba(124,58,237,0.3)' : v > 0 ? `rgba(34,197,94,${0.15 + abs * 0.6})` : `rgba(239,68,68,${0.15 + abs * 0.6})`;
                   return (
                     <div key={j} className="h-10 rounded flex items-center justify-center text-[11px] font-mono font-bold" style={{ background: bg, color: abs > 0.5 ? '#fff' : 'var(--text-primary)' }}>
                       {v.toFixed(2)}
@@ -515,7 +515,7 @@ function Profils({ data, fusion }: { data: DatasetPayload; fusion: FusionExtra |
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
                 <th className="text-left py-2 px-3 font-bold" style={{ color: 'var(--text-primary)' }}>Saison</th>
                 {['weather', 'fridge', 'thermostat'].map(k => (
-                  <th key={k} colSpan={3} className="text-center py-2 px-3 font-bold" style={{ color: k === 'weather' ? '#38BDF8' : k === 'fridge' ? '#00E676' : '#FF9100' }}>{k}</th>
+                  <th key={k} colSpan={3} className="text-center py-2 px-3 font-bold" style={{ color: k === 'weather' ? '#0284C7' : k === 'fridge' ? '#16A34A' : '#EA580C' }}>{k}</th>
                 ))}
               </tr>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -561,7 +561,7 @@ function Profils({ data, fusion }: { data: DatasetPayload; fusion: FusionExtra |
                   <stop offset="100%" stopColor="#EF4444" stopOpacity={0.25} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
@@ -569,18 +569,18 @@ function Profils({ data, fusion }: { data: DatasetPayload; fusion: FusionExtra |
                 if (!active || !payload?.length) return null;
                 const d = payload[0]?.payload;
                 return (
-                  <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+                  <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
                     <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{d?.label}</div>
                     <div className="text-[11px] font-mono" style={{ color: '#22C55E' }}>Normal : {d?.normal}</div>
                     <div className="text-[11px] font-mono" style={{ color: '#EF4444' }}>Attaques : {d?.attack}</div>
-                    <div className="text-[11px] font-mono mt-1" style={{ color: '#A855F7' }}>% Attaque : {d?.pct}%</div>
+                    <div className="text-[11px] font-mono mt-1" style={{ color: '#7C3AED' }}>% Attaque : {d?.pct}%</div>
                   </div>
                 );
               }} />
               <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
               <Bar yAxisId="left" dataKey="normal" stackId="a" fill="url(#seasonNormGrad)" name="Normal" />
               <Bar yAxisId="left" dataKey="attack" stackId="a" fill="url(#seasonAtkGrad)" name="Attaque" radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="pct" stroke="#A855F7" strokeWidth={2.5} dot={{ r: 4, fill: '#A855F7', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#A855F7', strokeWidth: 2, stroke: 'var(--bg-base)' }} name="% Attaque" />
+              <Line yAxisId="right" type="monotone" dataKey="pct" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 4, fill: '#7C3AED', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#7C3AED', strokeWidth: 2, stroke: 'var(--bg-base)' }} name="% Attaque" />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -598,7 +598,7 @@ function Profils({ data, fusion }: { data: DatasetPayload; fusion: FusionExtra |
                   <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(3, minmax(34px, 1fr))` }}>
                     {s.matrix.map((rowArr, i) => rowArr.map((v, j) => {
                       const abs = Math.abs(v);
-                      const bg = i === j ? 'rgba(168,85,247,0.3)' : v > 0 ? `rgba(34,197,94,${0.12 + abs * 0.55})` : `rgba(239,68,68,${0.12 + abs * 0.55})`;
+                      const bg = i === j ? 'rgba(124,58,237,0.3)' : v > 0 ? `rgba(34,197,94,${0.12 + abs * 0.55})` : `rgba(239,68,68,${0.12 + abs * 0.55})`;
                       return (
                         <div key={`${i}-${j}`} className="h-7 rounded flex items-center justify-center text-[9px] font-mono font-bold"
                           style={{ background: bg, color: abs > 0.5 ? '#fff' : 'var(--text-primary)' }}>

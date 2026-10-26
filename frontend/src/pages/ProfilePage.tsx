@@ -54,11 +54,11 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
+    <div className="space-y-6 max-w-xl">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, var(--color-accent-primary, #6366f1), #8b5cf6)' }}>
-          <User className="w-5 h-5 text-white" />
+          style={{ background: 'var(--accent-glow)', color: 'var(--accent-primary)' }}>
+          <User className="w-5 h-5" />
         </div>
         <div>
           <h1 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Mon profil</h1>
@@ -101,7 +101,7 @@ export default function ProfilePage() {
         <h2 className="text-sm font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>Informations</h2>
         <form onSubmit={handleProfile} className="space-y-4">
           <div>
-            <label className="block text-[10px] font-mono mb-1" style={{ color: 'var(--color-text-secondary)' }}>NOM COMPLET</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>NOM COMPLET</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input value={fullName} onChange={e => setFullName(e.target.value)}
@@ -109,7 +109,7 @@ export default function ProfilePage() {
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-mono mb-1" style={{ color: 'var(--color-text-secondary)' }}>EMAIL</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>EMAIL</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -118,7 +118,7 @@ export default function ProfilePage() {
           </div>
           <button type="submit" disabled={saving}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff' }}>
+            style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Enregistrer
           </button>
         </form>
@@ -129,7 +129,7 @@ export default function ProfilePage() {
         <h2 className="text-sm font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>Changer le mot de passe</h2>
         <form onSubmit={handlePassword} className="space-y-4">
           <div>
-            <label className="block text-[10px] font-mono mb-1" style={{ color: 'var(--color-text-secondary)' }}>MOT DE PASSE ACTUEL</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>MOT DE PASSE ACTUEL</label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input type="password" value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} required
@@ -137,7 +137,7 @@ export default function ProfilePage() {
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-mono mb-1" style={{ color: 'var(--color-text-secondary)' }}>NOUVEAU MOT DE PASSE (6+)</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>NOUVEAU MOT DE PASSE (6+)</label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={6}
@@ -146,7 +146,7 @@ export default function ProfilePage() {
           </div>
           <button type="submit" disabled={saving}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff' }}>
+            style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />} Changer
           </button>
         </form>

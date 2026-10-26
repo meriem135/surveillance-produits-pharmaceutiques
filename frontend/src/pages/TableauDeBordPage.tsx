@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Database, ShieldAlert, Target, Calendar,
+  Database, ShieldAlert, Target, Calendar,
   Clock, Cpu, Brain, Activity, Gauge, AlertTriangle, CheckCircle2,
   Sparkles, Loader2, RefreshCw, Bug, Layers, Thermometer, Snowflake, CloudSun,
 } from 'lucide-react';
@@ -69,9 +69,9 @@ interface KpiResponse {
 // ═══════════════════════════════════════════════════════════
 
 const SENSOR_META: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
-  weather: { label: 'Weather', color: '#38BDF8', icon: CloudSun },
-  fridge: { label: 'Fridge', color: '#00E676', icon: Snowflake },
-  thermostat: { label: 'Thermostat', color: '#FF9100', icon: Thermometer },
+  weather: { label: 'Weather', color: '#0284C7', icon: CloudSun },
+  fridge: { label: 'Fridge', color: '#16A34A', icon: Snowflake },
+  thermostat: { label: 'Thermostat', color: '#EA580C', icon: Thermometer },
 };
 
 const staggerItem = {
@@ -129,7 +129,7 @@ function KpiCard({ label, value, color, icon, sub, delay = 0 }: KpiCardProps) {
             {icon}
           </div>
         </div>
-        <div className="font-display text-xl font-black tracking-tight" style={{ color }}>{value}</div>
+        <div className="text-xl font-semibold tracking-tight tabular-nums truncate" style={{ color: 'var(--text-primary)' }}>{value}</div>
         <div className="text-[10px] font-bold uppercase tracking-wider mt-0.5" style={{ color: 'var(--text-secondary)' }}>{label}</div>
         {sub && <div className="text-[10px] font-mono mt-1" style={{ color: 'var(--text-muted, var(--text-secondary))' }}>{sub}</div>}
       </div>
@@ -141,7 +141,7 @@ interface TooltipItem { color: string; name: string; value: number }
 function ChartTip({ active, payload, label, format }: { active?: boolean; payload?: TooltipItem[]; label?: string; format?: 'number' | 'percent' }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
       {label && <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</div>}
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
@@ -159,7 +159,7 @@ function ChartTip({ active, payload, label, format }: { active?: boolean; payloa
 function PctTip({ active, payload, label }: { active?: boolean; payload?: TooltipItem[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
       {label && <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</div>}
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
@@ -235,7 +235,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
   const splitRows = t.split ? [
     { label: 'Train (normales)', value: (t.split.n_train ?? 0), color: '#22C55E' },
     { label: 'Validation', value: (t.split.n_val ?? 0), color: '#F59E0B' },
-    { label: 'Test', value: (t.split.n_test ?? 0), color: '#818cf8' },
+    { label: 'Test', value: (t.split.n_test ?? 0), color: '#6366F1' },
   ] : [];
 
   const splitMax = Math.max(...splitRows.map(r => r.value), 1);
@@ -243,16 +243,16 @@ function TabKpis({ data }: { data: KpiResponse }) {
   return (
     <div className="space-y-5">
       {/* ── KPIs du dataset (valeurs calculées sur dataset_fusionne.csv) ── */}
-      <SectionTitle color="#818cf8">Dataset d'entrainement — {d.filename}</SectionTitle>
+      <SectionTitle color="#6366F1">Jeu d’entraînement — {d.filename}</SectionTitle>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-        <KpiCard label="Échantillons" value={d.total.toLocaleString()} color="#818cf8" icon={<Database className="w-4 h-4" />} delay={0} />
+        <KpiCard label="Échantillons" value={d.total.toLocaleString()} color="#6366F1" icon={<Database className="w-4 h-4" />} delay={0} />
         <KpiCard label="Normaux" value={d.normal.toLocaleString()} color="#22C55E" icon={<CheckCircle2 className="w-4 h-4" />} sub={`${d.normal_pct.toFixed(1)}%`} delay={0.05} />
         <KpiCard label="Attaques" value={d.attack.toLocaleString()} color="#EF4444" icon={<AlertTriangle className="w-4 h-4" />} sub={`${d.attack_pct.toFixed(2)}%`} delay={0.1} />
         <KpiCard label="Taux d'attaque" value={`${d.attack_pct.toFixed(2)}%`} color={attackColor} icon={<Target className="w-4 h-4" />} sub={`≈ 1 attaque pour ${d.imbalance_ratio} normaux`} delay={0.15} />
         <KpiCard label="Durée" value={`${d.duration_days}j`} color="#F59E0B" icon={<Calendar className="w-4 h-4" />} sub={`${d.start} → ${d.end}`} delay={0.2} />
-        <KpiCard label="Intervalle" value={`${d.interval_min} min`} color="#38BDF8" icon={<Clock className="w-4 h-4" />} delay={0.25} />
-        <KpiCard label="Capteurs" value={d.sensors.length} color="#00E676" icon={<Cpu className="w-4 h-4" />} sub={d.sensors.join(', ')} delay={0.3} />
-        <KpiCard label="Features ML" value={d.features} color="#A855F7" icon={<Brain className="w-4 h-4" />} sub="multivariées" delay={0.35} />
+        <KpiCard label="Intervalle" value={`${d.interval_min} min`} color="#0284C7" icon={<Clock className="w-4 h-4" />} delay={0.25} />
+        <KpiCard label="Capteurs" value={d.sensors.length} color="#16A34A" icon={<Cpu className="w-4 h-4" />} sub={d.sensors.join(', ')} delay={0.3} />
+        <KpiCard label="Features ML" value={d.features} color="#7C3AED" icon={<Brain className="w-4 h-4" />} sub="multivariées" delay={0.35} />
       </div>
 
       {/* ── Pics d'attaques ── */}
@@ -260,7 +260,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
         {[
           { title: "Mois le plus attaqué", peak: d.peaks.month, color: '#EF4444' },
           { title: "Heure la plus attaquée", peak: d.peaks.hour, color: '#F59E0B' },
-          { title: "Saison la plus attaquée", peak: d.peaks.season, color: '#A855F7' },
+          { title: "Saison la plus attaquée", peak: d.peaks.season, color: '#7C3AED' },
         ].map(({ title, peak, color }) => (
           <Card key={title}>
             <div className="flex items-center justify-between mb-3">
@@ -314,7 +314,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
           <div className="h-[220px] mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={monthlyData} margin={{ top: 10, right: 30, left: -10, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                 <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
@@ -322,17 +322,17 @@ function TabKpis({ data }: { data: KpiResponse }) {
                   if (!active || !payload?.length) return null;
                   const dRow = payload[0]?.payload;
                   return (
-                    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+                    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
                       <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{dRow?.label}</div>
                       <div className="text-[11px] font-mono" style={{ color: '#EF4444' }}>Attaques : {dRow?.attack}</div>
                       <div className="text-[11px] font-mono" style={{ color: '#22C55E' }}>Normal : {dRow?.normal}</div>
-                      <div className="text-[11px] font-mono mt-1" style={{ color: '#A855F7' }}>% attaque : {dRow?.attack_pct}%</div>
+                      <div className="text-[11px] font-mono mt-1" style={{ color: '#7C3AED' }}>% attaque : {dRow?.attack_pct}%</div>
                     </div>
                   );
                 }} />
                 <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
                 <Bar yAxisId="left" dataKey="attack" name="Attaques" fill="#EF4444" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="attack_pct" name="% attaque" stroke="#A855F7" strokeWidth={2.5} dot={{ r: 3, fill: '#A855F7', strokeWidth: 0 }} />
+                <Line yAxisId="right" type="monotone" dataKey="attack_pct" name="% attaque" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 3, fill: '#7C3AED', strokeWidth: 0 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -341,7 +341,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <SectionTitle color="#00E5FF">Profil d'attaque par heure</SectionTitle>
+          <SectionTitle color="#0891B2">Profil d'attaque par heure</SectionTitle>
           <div className="h-[200px] mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={hourlyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
@@ -351,7 +351,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
                     <stop offset="100%" stopColor="#EF4444" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} interval={3} />
                 <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
                 <Tooltip content={<PctTip />} />
@@ -367,7 +367,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
           <div className="h-[200px] mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={sensorChartData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                 <Tooltip content={<ChartTip />} />
@@ -382,10 +382,10 @@ function TabKpis({ data }: { data: KpiResponse }) {
 
       {/* ── Statistiques par capteur ── */}
       <div>
-        <SectionTitle color="#00E676">Statistiques par capteur</SectionTitle>
+        <SectionTitle color="#16A34A">Statistiques par capteur</SectionTitle>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {d.sensors.map(k => {
-            const meta = SENSOR_META[k] || { label: k, color: '#818cf8', icon: Database };
+            const meta = SENSOR_META[k] || { label: k, color: '#6366F1', icon: Database };
             const Icon = meta.icon;
             const s = d.sensor_stats[k];
             const nv = d.normal_vs_attack.find(n => n.sensor === k);
@@ -414,7 +414,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
                       <span>A</span><span className="font-mono" style={{ color: '#EF4444' }}>{nv?.attack_mean}</span>
                     </div>
                     <div className="flex justify-between" style={{ color: 'var(--text-secondary)' }}>
-                      <span>Δ</span><span className="font-mono font-bold" style={{ color: '#A855F7' }}>{nv?.delta}</span>
+                      <span>Δ</span><span className="font-mono font-bold" style={{ color: '#7C3AED' }}>{nv?.delta}</span>
                     </div>
                   </div>
                 </div>
@@ -425,15 +425,15 @@ function TabKpis({ data }: { data: KpiResponse }) {
       </div>
 
       {/* ── Performance du modele (valeurs réelles d'entrainement) ── */}
-      <SectionTitle color="#F59E0B">Performance du modele entraîné</SectionTitle>
+      <SectionTitle color="#F59E0B">Performance du modèle entraîné</SectionTitle>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         {t.available && m ? (
           <>
             <KpiCard label="Modèle" value={t.best_model || '—'} color="#F59E0B" icon={<Brain className="w-4 h-4" />} delay={0} />
             <KpiCard label="F1 Score" value={`${fmt(m.f1)}%`} color="#22C55E" icon={<Target className="w-4 h-4" />} delay={0.05} />
-            <KpiCard label="ROC AUC" value={`${fmt(m.roc_auc)}%`} color="#A855F7" icon={<Activity className="w-4 h-4" />} delay={0.1} />
-            <KpiCard label="Precision" value={`${fmt(m.precision)}%`} color="#38BDF8" icon={<Gauge className="w-4 h-4" />} delay={0.15} />
-            <KpiCard label="Recall" value={`${fmt(m.recall)}%`} color="#00E676" icon={<Target className="w-4 h-4" />} delay={0.2} />
+            <KpiCard label="ROC AUC" value={`${fmt(m.roc_auc)}%`} color="#7C3AED" icon={<Activity className="w-4 h-4" />} delay={0.1} />
+            <KpiCard label="Precision" value={`${fmt(m.precision)}%`} color="#0284C7" icon={<Gauge className="w-4 h-4" />} delay={0.15} />
+            <KpiCard label="Recall" value={`${fmt(m.recall)}%`} color="#16A34A" icon={<Target className="w-4 h-4" />} delay={0.2} />
             <KpiCard label="Taux F.P." value={`${(m.fpr * 100).toFixed(2)}%`} color="#EF4444" icon={<ShieldAlert className="w-4 h-4" />} delay={0.25} />
             <KpiCard label="Détection attaques" value={`${avgDetection.toFixed(1)}%`} color="#F97316" icon={<AlertTriangle className="w-4 h-4" />} delay={0.3} />
             <KpiCard label="Attaques test" value={m.tp + m.fn} color="#DC2626" icon={<Bug className="w-4 h-4" />} sub={`${m.tp} détectées`} delay={0.35} />
@@ -451,7 +451,7 @@ function TabKpis({ data }: { data: KpiResponse }) {
       {t.available && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card>
-            <SectionTitle color="#818cf8">Split train / validation / test</SectionTitle>
+            <SectionTitle color="#6366F1">Split train / validation / test</SectionTitle>
             <div className="space-y-3 mt-3">
               {splitRows.map(r => (
                 <div key={r.label}>
@@ -471,16 +471,16 @@ function TabKpis({ data }: { data: KpiResponse }) {
           </Card>
 
           <Card className="lg:col-span-2">
-            <SectionTitle color="#00E5FF">Top features SHAP après entrainement</SectionTitle>
+            <SectionTitle color="#0891B2">Variables les plus influentes (SHAP)</SectionTitle>
             <div className="h-[200px] mt-2">
               {shapData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={shapData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                    <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 9, fill: 'var(--text-secondary)' }} tickLine={false} axisLine={false} tickFormatter={(v: number) => v.toFixed(4)} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: 'var(--text-secondary)' }} tickLine={false} axisLine={false} width={120} />
                     <Tooltip content={<ChartTip />} />
-                    <Bar dataKey="importance" name="SHAP" fill="#00E5FF" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="importance" name="SHAP" fill="#0891B2" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -501,8 +501,8 @@ function TabKpis({ data }: { data: KpiResponse }) {
 type TabId = 'kpis' | 'dataset';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode; color: string }[] = [
-  { id: 'kpis', label: 'KPIs', icon: <Gauge className="w-4 h-4" />, color: '#818cf8' },
-  { id: 'dataset', label: 'Dataset', icon: <Layers className="w-4 h-4" />, color: '#00E676' },
+  { id: 'kpis', label: 'KPIs', icon: <Gauge className="w-4 h-4" />, color: '#6366F1' },
+  { id: 'dataset', label: 'Dataset', icon: <Layers className="w-4 h-4" />, color: '#16A34A' },
 ];
 
 export default function TableauDeBordPage() {
@@ -535,13 +535,12 @@ export default function TableauDeBordPage() {
   }, [loadKpis]);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <LayoutDashboard className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-            Tableau de bord
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            Jeu de données — année simulée
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
             KPIs du jeu annuel 2019 (dataset_fusionne.csv), simulé à partir des traces réelles TON_IoT, et performance du modèle One-Class SVM
@@ -549,9 +548,9 @@ export default function TableauDeBordPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={loadKpis}
-            className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-2 rounded-xl cursor-pointer transition-all"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-            <RefreshCw className="w-3 h-3" /> Actualiser
+            className="h-9 flex items-center gap-2 text-sm font-medium px-3 rounded-md cursor-pointer"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+            <RefreshCw className="w-4 h-4" /> Actualiser
           </button>
           <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted, var(--text-secondary))' }}>
             Mis à jour: {lastRefresh.toLocaleTimeString('fr-FR')}

@@ -44,7 +44,7 @@ function CurveTooltip({ active, payload, label, isRoc }: {
   const p = payload[0];
   const x = p.payload.fprKey ?? p.payload.recKey ?? label;
   return (
-    <div className="rounded-xl p-3 shadow-2xl text-xs" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+    <div className="rounded-xl p-3 shadow-2xl text-xs" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
       <div className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
         {isRoc ? 'FPR' : 'Rappel'} : {Number(x).toFixed(3)}
       </div>
@@ -107,12 +107,12 @@ function ModelKpis({ analysis }: { analysis: ModelAnalysis }) {
   const m = analysis.model_meta;
   const kpis = [
     { label: 'ROC-AUC', value: fmtNum(m?.metrics.roc_auc) },
-    { label: 'AP (PR)', value: fmtNum(m?.metrics.ap), color: '#FF2D78' },
+    { label: 'AP (PR)', value: fmtNum(m?.metrics.ap), color: '#E11D48' },
     { label: 'F1', value: fmtNum(m?.metrics.f1) },
     { label: 'Rappel', value: fmtPct(m?.metrics.recall, 1) },
     { label: 'Précision', value: fmtPct(m?.metrics.precision, 1) },
     { label: 'FPR', value: fmtPct(m?.metrics.fpr, 2) },
-    { label: 'Seuil (score)', value: fmtNum(m?.threshold, 2), color: '#FFC400' },
+    { label: 'Seuil (score)', value: fmtNum(m?.threshold, 2), color: '#CA8A04' },
     { label: 'Échantillons', value: (analysis.sampled?.n_total ?? 0).toLocaleString('fr-FR') },
   ];
   return (
@@ -148,9 +148,9 @@ function RocCurveSection({ roc, pr }: { roc: ModelAnalysis['roc']; pr: ModelAnal
   return (
     <div className="grid lg:grid-cols-2 gap-4">
       <Card>
-        <SectionTitle color="#00FFA3">Courbe ROC</SectionTitle>
+        <SectionTitle color="#0D9488">Courbe ROC</SectionTitle>
         <div className="text-xs font-mono mb-3" style={{ color: 'var(--text-secondary)' }}>
-          AUC = <span className="text-[#00FFA3] font-bold">{fmtNum(roc?.auc)}</span>
+          AUC = <span className="text-[#0D9488] font-bold">{fmtNum(roc?.auc)}</span>
           {' '}· <span style={{ color: 'var(--text-muted)' }}>taux de vrais positifs vs taux de faux positifs</span>
         </div>
         {rocData.length ? (
@@ -161,25 +161,25 @@ function RocCurveSection({ roc, pr }: { roc: ModelAnalysis['roc']; pr: ModelAnal
               <YAxis type="number" domain={[0, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} stroke="var(--border)" />
               <Tooltip content={<CurveTooltip isRoc />} />
               <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]} stroke="rgba(148,163,184,0.35)" strokeDasharray="4 4" />
-              <Line type="monotone" dataKey="y" name="TPR" stroke="#00FFA3" strokeWidth={2} dot={false} isAnimationActive={false} legendType="none" />
-              <Scatter data={rocOp} dataKey="y" name="Point de fonctionnement" fill="#FFFFFF" stroke="#00FFA3" shape={<circle r={5} />}>
-                <Cell fill="#FFFFFF" stroke="#00FFA3" strokeWidth={2} />
+              <Line type="monotone" dataKey="y" name="TPR" stroke="#0D9488" strokeWidth={2} dot={false} isAnimationActive={false} legendType="none" />
+              <Scatter data={rocOp} dataKey="y" name="Point de fonctionnement" fill="#FFFFFF" stroke="#0D9488" shape={<circle r={5} />}>
+                <Cell fill="#FFFFFF" stroke="#0D9488" strokeWidth={2} />
               </Scatter>
             </ComposedChart>
           </ResponsiveContainer>
         ) : <ErrorBlock message="Courbe ROC indisponible." />}
         {roc?.op && (
           <div className="mt-3 text-xs font-mono flex flex-wrap gap-3" style={{ color: 'var(--text-secondary)' }}>
-            <span>Point : TPR <b style={{ color: '#00FFA3' }}>{fmtNum(roc.op.tpr)}</b></span>
-            <span>FPR <b style={{ color: '#FF2D78' }}>{fmtNum(roc.op.fpr)}</b></span>
+            <span>Point : TPR <b style={{ color: '#0D9488' }}>{fmtNum(roc.op.tpr)}</b></span>
+            <span>FPR <b style={{ color: '#E11D48' }}>{fmtNum(roc.op.fpr)}</b></span>
           </div>
         )}
       </Card>
 
       <Card>
-        <SectionTitle color="#FF2D78">Courbe Precision-Rappel</SectionTitle>
+        <SectionTitle color="#E11D48">Courbe Precision-Rappel</SectionTitle>
         <div className="text-xs font-mono mb-3" style={{ color: 'var(--text-secondary)' }}>
-          AP = <span className="text-[#FF2D78] font-bold">{fmtNum(pr?.ap)}</span>
+          AP = <span className="text-[#E11D48] font-bold">{fmtNum(pr?.ap)}</span>
           {' '}· <span style={{ color: 'var(--text-muted)' }}>précision selon le rappel (classe d'attaque minoritaire)</span>
         </div>
         {prData.length ? (
@@ -189,17 +189,17 @@ function RocCurveSection({ roc, pr }: { roc: ModelAnalysis['roc']; pr: ModelAnal
               <XAxis dataKey="x" type="number" domain={[0, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} stroke="var(--border)" />
               <YAxis type="number" domain={[0, 1]} tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} stroke="var(--border)" />
               <Tooltip content={<CurveTooltip />} />
-              <Line type="monotone" dataKey="y" name="Précision" stroke="#FF2D78" strokeWidth={2} dot={false} isAnimationActive={false} legendType="none" />
-              <Scatter data={prOp} dataKey="y" name="Point de fonctionnement" fill="#FFFFFF" stroke="#FF2D78" shape={<circle r={5} />}>
-                <Cell fill="#FFFFFF" stroke="#FF2D78" strokeWidth={2} />
+              <Line type="monotone" dataKey="y" name="Précision" stroke="#E11D48" strokeWidth={2} dot={false} isAnimationActive={false} legendType="none" />
+              <Scatter data={prOp} dataKey="y" name="Point de fonctionnement" fill="#FFFFFF" stroke="#E11D48" shape={<circle r={5} />}>
+                <Cell fill="#FFFFFF" stroke="#E11D48" strokeWidth={2} />
               </Scatter>
             </ComposedChart>
           </ResponsiveContainer>
         ) : <ErrorBlock message="Courbe Precision-Rappel indisponible." />}
         {pr?.op && (
           <div className="mt-3 text-xs font-mono flex flex-wrap gap-3" style={{ color: 'var(--text-secondary)' }}>
-            <span>Rappel <b style={{ color: '#00FFA3' }}>{fmtNum(pr.op.recall)}</b></span>
-            <span>Précision <b style={{ color: '#FF2D78' }}>{fmtNum(pr.op.precision)}</b></span>
+            <span>Rappel <b style={{ color: '#0D9488' }}>{fmtNum(pr.op.recall)}</b></span>
+            <span>Précision <b style={{ color: '#E11D48' }}>{fmtNum(pr.op.precision)}</b></span>
           </div>
         )}
       </Card>
@@ -214,7 +214,7 @@ function RocCurveSection({ roc, pr }: { roc: ModelAnalysis['roc']; pr: ModelAnal
 function DistTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ color?: string; name?: string; value?: number; payload?: { atThreshold?: boolean } }>; label?: string | number }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 shadow-2xl text-xs" style={{ background: 'rgba(9,9,26,0.95)', border: '1px solid var(--border)' }}>
+    <div className="rounded-xl p-3 shadow-2xl text-xs" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
       <div className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Score ≈ {label}</div>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 py-0.5">
@@ -224,7 +224,7 @@ function DistTooltip({ active, payload, label }: { active?: boolean; payload?: A
         </div>
       ))}
       {payload[0]?.payload?.atThreshold && (
-        <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: '#FFC400' }}>
+        <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: '#CA8A04' }}>
           <Sparkles className="w-3 h-3" /> Seuil de détection
         </div>
       )}
@@ -253,16 +253,16 @@ function DistributionSection({ distribution }: { distribution: ModelAnalysis['di
 
   return (
     <Card>
-      <SectionTitle color="#FFC400">
+      <SectionTitle color="#CA8A04">
         Distribution des scores d'anomalie — seuil de détection
       </SectionTitle>
       <div className="text-xs font-mono mb-3" style={{ color: 'var(--text-secondary)' }}>
-        Seuil : <span className="text-[#FFC400] font-bold">{fmtNum(distribution?.threshold_value, 2)}</span>
-        {' '}· tout score ≥ seuil est signalé comme <span style={{ color: '#FF2D78' }}>attaque</span>
+        Seuil : <span className="text-[#CA8A04] font-bold">{fmtNum(distribution?.threshold_value, 2)}</span>
+        {' '}· tout score ≥ seuil est signalé comme <span style={{ color: '#E11D48' }}>attaque</span>
         <div className="mt-1 flex flex-wrap gap-2">
-          <Badge variant="outline" className="text-[10px]"><span className="w-2 h-2 rounded-full bg-[#00FFA3] inline-block mr-1" /> Normal</Badge>
-          <Badge variant="outline" className="text-[10px]"><span className="w-2 h-2 rounded-full bg-[#FF2D78] inline-block mr-1" /> Attaque</Badge>
-          <Badge variant="outline" className="text-[10px]"><span className="w-2 h-2 rounded-full bg-[#FFC400] inline-block mr-1" /> Au-delà du seuil</Badge>
+          <Badge variant="outline" className="text-[10px]"><span className="w-2 h-2 rounded-full bg-[#0D9488] inline-block mr-1" /> Normal</Badge>
+          <Badge variant="outline" className="text-[10px]"><span className="w-2 h-2 rounded-full bg-[#E11D48] inline-block mr-1" /> Attaque</Badge>
+          <Badge variant="outline" className="text-[10px]"><span className="w-2 h-2 rounded-full bg-[#CA8A04] inline-block mr-1" /> Au-delà du seuil</Badge>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={280}>
@@ -274,16 +274,16 @@ function DistributionSection({ distribution }: { distribution: ModelAnalysis['di
           <Legend wrapperStyle={{ fontSize: 11 }} iconSize={9} />
           <ReferenceLine ifOverflow="extendDomain"
             x={data[data.findIndex(d => d.atThreshold)]?.bin ?? data[0]?.bin}
-            stroke="#FFC400" strokeWidth={1.5} strokeDasharray="5 4"
-            label={{ value: 'SEUIL', position: 'insideTopRight', fill: '#FFC400', fontSize: 10, fontFamily: 'monospace' }} />
-          <Bar dataKey="Normal" fill="#00FFA3" fillOpacity={0.75} radius={[2, 2, 0, 0]} maxBarSize={10}>
+            stroke="#CA8A04" strokeWidth={1.5} strokeDasharray="5 4"
+            label={{ value: 'SEUIL', position: 'insideTopRight', fill: '#CA8A04', fontSize: 10, fontFamily: 'monospace' }} />
+          <Bar dataKey="Normal" fill="#0D9488" fillOpacity={0.75} radius={[2, 2, 0, 0]} maxBarSize={10}>
             {data.map((d, i) => (
-              <Cell key={i} fill="#00FFA3" fillOpacity={d.above ? 0.35 : 0.85} />
+              <Cell key={i} fill="#0D9488" fillOpacity={d.above ? 0.35 : 0.85} />
             ))}
           </Bar>
-          <Bar dataKey="Attaque" fill="#FF2D78" radius={[2, 2, 0, 0]} maxBarSize={10}>
+          <Bar dataKey="Attaque" fill="#E11D48" radius={[2, 2, 0, 0]} maxBarSize={10}>
             {data.map((d, i) => (
-              <Cell key={i} fill="#FF2D78" fillOpacity={d.above ? 1 : 0.4} />
+              <Cell key={i} fill="#E11D48" fillOpacity={d.above ? 1 : 0.4} />
             ))}
           </Bar>
         </BarChart>
@@ -292,13 +292,13 @@ function DistributionSection({ distribution }: { distribution: ModelAnalysis['di
         <div className="absolute inset-y-0 left-0 rounded-full" style={{
           right: distribution && distribution.threshold_bin !== null && distribution.bins.length
             ? `${(distribution.threshold_bin / distribution.bins.length) * 100}%` : '0%',
-          background: 'linear-gradient(90deg, rgba(0,255,163,0.5), rgba(255,45,120,0.35))',
+          background: 'linear-gradient(90deg, rgba(13,148,136,0.5), rgba(225,29,72,0.35))',
         }} />
-        <div className="absolute w-px bg-[#FFC400] inset-y-0 rounded"
+        <div className="absolute w-px bg-[#CA8A04] inset-y-0 rounded"
           style={{ left: distribution && distribution.threshold_bin !== null && distribution.bins.length
             ? `${(distribution.threshold_bin / distribution.bins.length) * 100}%` : '0%' }} />
         <div className="absolute top-4 text-[9px] font-mono left-0" style={{ color: 'var(--text-secondary)' }}>Normal</div>
-        <div className="absolute top-4 text-[9px] font-mono right-0" style={{ color: '#FF2D78' }}>Attaque →</div>
+        <div className="absolute top-4 text-[9px] font-mono right-0" style={{ color: '#E11D48' }}>Attaque →</div>
       </div>
       <div className="text-[10px] font-mono mt-6 text-right" style={{ color: 'var(--text-muted)' }}>
         bin {maxCount.toLocaleString('fr-FR')} occurrences max
@@ -337,7 +337,7 @@ function CorrelationNetwork({ correlations }: { correlations: ModelAnalysis['cor
         x1: a.x, y1: a.y, x2: b.x, y2: b.y,
         weight: e.weight,
         w: 0.5 + w * 3.5,
-        c: e.weight >= 0 ? 'rgba(0,255,163,0.8)' : 'rgba(255,45,120,0.8)',
+        c: e.weight >= 0 ? 'rgba(13,148,136,0.8)' : 'rgba(225,29,72,0.8)',
         o: 0.15 + w * 0.7,
         label: `${a.label}→${b.label}`,
       };
@@ -354,12 +354,12 @@ function CorrelationNetwork({ correlations }: { correlations: ModelAnalysis['cor
         <span className="flex items-center gap-2"><GitBranch className="w-4 h-4" /> Corrélation inter-capteurs</span>
       </SectionTitle>
       <div className="flex flex-wrap gap-3 mb-3 text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
-        <span><span className="w-2 h-2 rounded-full inline-block mr-1" style={{ background: 'rgba(0,255,163,0.9)' }} /> Corrélation positive</span>
-        <span><span className="w-2 h-2 rounded-full inline-block mr-1" style={{ background: 'rgba(255,45,120,0.9)' }} /> Corrélation négative</span>
+        <span><span className="w-2 h-2 rounded-full inline-block mr-1" style={{ background: 'rgba(13,148,136,0.9)' }} /> Corrélation positive</span>
+        <span><span className="w-2 h-2 rounded-full inline-block mr-1" style={{ background: 'rgba(225,29,72,0.9)' }} /> Corrélation négative</span>
         <span>épaisseur ∝ |r|</span>
       </div>
       <div className="overflow-hidden rounded-xl" style={{ border: '1px solid var(--border)' }}>
-        <svg viewBox="0 0 800 380" className="w-full h-auto" style={{ background: 'rgba(2,6,23,0.5)' }}>
+        <svg viewBox="0 0 800 380" className="w-full h-auto" style={{ background: 'var(--bg-subtle)' }}>
           <defs>
             <radialGradient id="nodeHalo" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.35" />
@@ -392,7 +392,7 @@ function CorrelationNetwork({ correlations }: { correlations: ModelAnalysis['cor
                   x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
                   strokeLinecap="round"
                   animate={{
-                    stroke: isHover ? '#FFFFFF' : e.c,
+                    stroke: isHover ? '#64748B' : e.c,
                     strokeWidth: isHover ? Math.min(16, e.w * 2.4) : e.w,
                     strokeOpacity: isHover ? 1 : e.o,
                   }}
@@ -402,7 +402,7 @@ function CorrelationNetwork({ correlations }: { correlations: ModelAnalysis['cor
                 </motion.line>
                 <motion.line
                   x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
-                  stroke="#FFFFFF" strokeOpacity={isHover ? 0.95 : 0.65}
+                  stroke="var(--bg-card)" strokeOpacity={isHover ? 0.95 : 0.65}
                   strokeWidth={isHover ? Math.max(2.5, e.w * 0.9) : Math.max(1.5, e.w * 0.6)}
                   strokeLinecap="round"
                   pathLength={1} strokeDasharray="0.09 0.91"
@@ -425,11 +425,11 @@ function CorrelationNetwork({ correlations }: { correlations: ModelAnalysis['cor
                   >
                     <rect
                       x={mx - 78} y={my - 13} width="156" height="24" rx="12"
-                      fill="rgba(9,9,26,0.95)" stroke={e.c} strokeWidth="1"
+                      fill="var(--bg-panel)" stroke={e.c} strokeWidth="1"
                     />
                     <text x={mx} y={my + 3.5} textAnchor="middle" fontSize="11"
                       fontFamily="monospace" fontWeight="bold"
-                      fill={e.weight >= 0 ? '#00FFA3' : '#FF2D78'}>
+                      fill={e.weight >= 0 ? '#0D9488' : '#E11D48'}>
                       {e.label} · r = {e.weight.toFixed(3)}
                     </text>
                   </motion.g>
@@ -441,7 +441,7 @@ function CorrelationNetwork({ correlations }: { correlations: ModelAnalysis['cor
           {/* Nœuds — halo pulsant + anneau tournant + apparition en pop */}
           {Object.entries(layout.positions).map(([id, p], i) => {
             const delay = 0.5 + i * 0.09;
-            const ringColor = p.group === 'delta' ? '#00FFA3' : '#8B5CF6';
+            const ringColor = p.group === 'delta' ? '#0D9488' : '#8B5CF6';
             return (
               <motion.g
                 key={id}

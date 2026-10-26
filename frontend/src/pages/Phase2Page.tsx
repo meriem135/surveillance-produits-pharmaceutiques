@@ -266,7 +266,7 @@ export default function Phase2Page() {
       <div ref={containerRef} className="relative z-10 space-y-4 pb-8 px-1">
 
         {/* ═══ UPLOAD & TRAINING ═══ */}
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,255,163,0.15)' }}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(13,148,136,0.15)' }}>
           <FileUploadPanel key={uploadKey} onTrainingComplete={handleTrainingComplete} />
         </div>
 
@@ -287,13 +287,13 @@ export default function Phase2Page() {
               <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-accent-cyan)' }}>
                 Visualisations Data Science
               </span>
-              <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(0,245,255,0.3), transparent)' }} />
+              <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(8,145,178,0.3), transparent)' }} />
               <button onClick={refreshVizData}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-bold cursor-pointer transition-all hover:scale-105"
                 style={{
-                  background: 'rgba(0,245,255,0.08)',
+                  background: 'rgba(8,145,178,0.08)',
                   color: 'var(--color-accent-cyan)',
-                  border: '1px solid rgba(0,245,255,0.2)',
+                  border: '1px solid rgba(8,145,178,0.2)',
                 }}>
                 <RefreshCw className="w-3 h-3" />
                 Recharger

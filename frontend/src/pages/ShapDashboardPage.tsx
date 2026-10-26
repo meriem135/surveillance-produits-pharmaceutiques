@@ -192,12 +192,12 @@ interface AttackDatasetResponse {
   filters_applied?: Record<string, unknown>;
 }
 const GROUP_COLORS: Record<string, string> = {
-  weather: '#00E5FF',
-  fridge: '#00FFA3',
-  thermostat: '#A855F7',
-  time: '#FF2D78',
-  cross: '#FFB830',
-  other: '#8B80B0',
+  weather: '#0891B2',
+  fridge: '#0D9488',
+  thermostat: '#7C3AED',
+  time: '#E11D48',
+  cross: '#D97706',
+  other: '#64748B',
 };
 const hexToRgb = (hex: string) => {
   const n = parseInt(hex.slice(1), 16);
@@ -217,10 +217,10 @@ const SEASON_LABELS: Record<string, string> = {
   autumn: 'Automne',
 };
 const SEASON_COLORS: Record<string, string> = {
-  winter: '#00E5FF',
-  spring: '#00FFA3',
-  summer: '#FFB830',
-  autumn: '#FF2D78',
+  winter: '#0891B2',
+  spring: '#0D9488',
+  summer: '#D97706',
+  autumn: '#E11D48',
 };
 function KpiCard({
   label,
@@ -237,11 +237,11 @@ function KpiCard({
 }) {
   return (
     <motion.div
-      whileHover={{ scale: 1.03 }}
-      className="rounded-2xl p-4 relative overflow-hidden"
+      className="rounded-xl p-4 relative overflow-hidden"
       style={{
-        background: `linear-gradient(135deg, ${color}08 0%, ${color}12 100%)`,
-        border: `1px solid ${color}20`,
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--shadow-card)',
         minWidth: 140,
       }}
     >
@@ -290,35 +290,35 @@ function BackgroundOrbs() {
         className="absolute w-[600px] h-[600px] rounded-full -top-40 -left-40 animate-orb"
         style={{
           background:
-            'radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%)',
+            'radial-gradient(circle, rgba(8,145,178,0.06) 0%, transparent 70%)',
         }}
       />{' '}
       <div
         className="absolute w-[500px] h-[500px] rounded-full top-1/3 -right-32 animate-orb-reverse"
         style={{
           background:
-            'radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 70%)',
+            'radial-gradient(circle, rgba(124,58,237,0.05) 0%, transparent 70%)',
         }}
       />{' '}
       <div
         className="absolute w-[450px] h-[450px] rounded-full bottom-10 left-1/4 animate-orb-slow"
         style={{
           background:
-            'radial-gradient(circle, rgba(0,255,163,0.04) 0%, transparent 70%)',
+            'radial-gradient(circle, rgba(13,148,136,0.04) 0%, transparent 70%)',
         }}
       />{' '}
       <div
         className="absolute w-[300px] h-[300px] rounded-full top-2/3 right-1/3 animate-orb"
         style={{
           background:
-            'radial-gradient(circle, rgba(255,45,120,0.03) 0%, transparent 70%)',
+            'radial-gradient(circle, rgba(225,29,72,0.03) 0%, transparent 70%)',
         }}
       />{' '}
       <div
         className="absolute inset-0"
         style={{
           backgroundImage:
-            'radial-gradient(rgba(0,229,255,0.03) 0.5px, transparent 0.5px)',
+            'radial-gradient(rgba(8,145,178,0.03) 0.5px, transparent 0.5px)',
           backgroundSize: '40px 40px',
         }}
       />{' '}
@@ -329,7 +329,7 @@ function Section({
   title,
   desc,
   children,
-  color = '#FFB830',
+  color = '#D97706',
 }: {
   title: string;
   desc?: string;
@@ -340,25 +340,21 @@ function Section({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl overflow-hidden relative"
+      className="rounded-xl overflow-hidden relative"
       style={{
-        background:
-          'linear-gradient(160deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.015) 100%)',
-        border: `1px solid ${color}25`,
-        boxShadow: `0 0 30px ${color}08, inset 0 1px 0 ${color}10`,
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--shadow-card)',
       }}
     >
       {' '}
       <div
-        className="absolute top-0 left-0 right-0 h-[2px]"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
-          boxShadow: `0 0 12px ${color}`,
-        }}
+        className="absolute top-0 left-0 right-0 h-[2px] hidden"
+        style={{ background: color }}
       />{' '}
       <div
         className="px-5 py-3.5 flex items-center gap-2"
-        style={{ borderBottom: `1px solid ${color}15` }}
+        style={{ borderBottom: '1px solid var(--border)' }}
       >
         {' '}
         <Brain
@@ -391,12 +387,12 @@ function Section({
 function ShapImportanceTip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ShapGlobalItem }> }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload as ShapGlobalItem;
-  const color = GROUP_COLORS[item.group] || '#8B80B0';
+  const color = GROUP_COLORS[item.group] || '#64748B';
   return (
     <div
       className="px-3 py-2 rounded-lg text-[10px]"
       style={{
-        background: 'rgba(0,0,0,0.88)',
+        background: 'var(--bg-panel)',
         border: `1px solid ${color}55`,
         boxShadow: `0 0 16px ${color}30`,
       }}
@@ -420,7 +416,7 @@ function GlobalImportanceChart({ data }: { data: ShapGlobalItem[] }) {
         margin={{ top: 0, right: 32, left: 0, bottom: 0 }}
       >
         {' '}
-        <CartesianGrid stroke="rgba(255,255,255,0.04)" horizontal={false} />
+        <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" horizontal={false} />
         <XAxis
           type="number"
           tick={{ fontSize: 9, fill: 'var(--color-text-secondary)' }}
@@ -435,10 +431,10 @@ function GlobalImportanceChart({ data }: { data: ShapGlobalItem[] }) {
           axisLine={false}
           width={100}
         />{' '}
-        <Tooltip content={<ShapImportanceTip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+        <Tooltip content={<ShapImportanceTip />} cursor={{ fill: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }} />
         <Bar dataKey="shap_importance" name="Importance SHAP" radius={[0, 4, 4, 0]}>
           {data.map((entry, i) => (
-            <Cell key={i} fill={GROUP_COLORS[entry.group] || '#8B80B0'} />
+            <Cell key={i} fill={GROUP_COLORS[entry.group] || '#64748B'} />
           ))}
         </Bar>{' '}
       </BarChart>{' '}
@@ -464,8 +460,8 @@ function GlobalImportanceGallery({ data }: { data: ShapGlobalItem[] }) {
             key={v.key}
             className="rounded-xl p-3"
             style={{
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: 'color-mix(in srgb, var(--text-primary) 3%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--text-primary) 9%, transparent)',
             }}
           >
             {' '}
@@ -554,10 +550,10 @@ function MonthlyShapHeatmap({
                   style={{
                     width: 60,
                     height: 18,
-                    background: `rgba(${hexToRgb(GROUP_COLORS[group] || '#8B80B0')}, ${Math.max(0.08, intensity)})`,
+                    background: `rgba(${hexToRgb(GROUP_COLORS[group] || '#64748B')}, ${Math.max(0.08, intensity)})`,
                     border:
                       val === 0
-                        ? '1px solid rgba(255,255,255,0.04)'
+                        ? '1px solid color-mix(in srgb, var(--text-primary) 5%, transparent)'
                         : undefined,
                   }}
                 />
@@ -578,11 +574,11 @@ function MonthlyShapHeatmap({
           className="w-20 h-2 rounded"
           style={{
             background:
-              'linear-gradient(90deg, rgba(255,255,255,0.04), #FFB830)',
-            boxShadow: '0 0 6px #FFB83040',
+              'linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 5%, transparent), #D97706)',
+            boxShadow: '0 0 6px #D9770640',
           }}
         />{' '}
-        <span className="text-[8px]" style={{ color: '#FFB830' }}>
+        <span className="text-[8px]" style={{ color: '#D97706' }}>
           Fort
         </span>{' '}
       </div>{' '}
@@ -610,7 +606,7 @@ function HourlyShapHeatmap({
           : feat.includes('diff')
             ? 'cross'
             : 'time';
-  const rgbOf = (group: string) => hexToRgb(GROUP_COLORS[group] || '#8B80B0');
+  const rgbOf = (group: string) => hexToRgb(GROUP_COLORS[group] || '#64748B');
   return (
     <div className="overflow-x-auto">
       {' '}
@@ -660,7 +656,7 @@ function HourlyShapHeatmap({
                     background: `rgba(${rgbOf(groupOf(f))}, ${Math.max(0.08, intensity)})`,
                     border:
                       val === 0
-                        ? '1px solid rgba(255,255,255,0.04)'
+                        ? '1px solid color-mix(in srgb, var(--text-primary) 5%, transparent)'
                         : undefined,
                   }}
                 />
@@ -680,11 +676,11 @@ function HourlyShapHeatmap({
             className="w-20 h-2 rounded"
             style={{
               background:
-                'linear-gradient(90deg, rgba(255,255,255,0.04), #FFB830)',
-              boxShadow: '0 0 6px #FFB83040',
+                'linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 5%, transparent), #D97706)',
+              boxShadow: '0 0 6px #D9770640',
             }}
           />{' '}
-          <span className="text-[8px]" style={{ color: '#FFB830' }}>
+          <span className="text-[8px]" style={{ color: '#D97706' }}>
             Fort
           </span>{' '}
         </div>{' '}
@@ -739,7 +735,7 @@ function SeasonalShapChart({ data }: { data: ShapSeasonal }) {
         >
           {' '}
           <CartesianGrid
-            stroke="rgba(255,255,255,0.04)"
+            stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)"
             horizontal={false}
           />{' '}
           <XAxis
@@ -754,7 +750,7 @@ function SeasonalShapChart({ data }: { data: ShapSeasonal }) {
           />{' '}
           <Tooltip
             contentStyle={{
-              background: 'rgba(0,0,0,0.85)',
+              background: 'var(--bg-panel)',
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 8,
               fontSize: 10,
@@ -1103,7 +1099,7 @@ export default function ShapDashboardPage() {
         {' '}
         <Loader2
           className="w-6 h-6 animate-spin"
-          style={{ color: '#00E5FF' }}
+          style={{ color: '#0891B2' }}
         />{' '}
         <span
           className="text-xs text-center px-8"
@@ -1119,7 +1115,7 @@ export default function ShapDashboardPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         {' '}
-        <AlertTriangle className="w-6 h-6" style={{ color: '#FF2D78' }} />{' '}
+        <AlertTriangle className="w-6 h-6" style={{ color: '#E11D48' }} />{' '}
         <span
           className="text-xs text-center px-8 max-w-md"
           style={{ color: 'var(--color-text-secondary)' }}
@@ -1131,7 +1127,7 @@ export default function ShapDashboardPage() {
           onClick={() => window.location.reload()}
           className="text-[10px] font-bold px-3 py-1.5 rounded-lg cursor-pointer"
           style={{
-            color: '#FFB830',
+            color: '#D97706',
             background: 'rgba(255,184,48,0.1)',
             border: '1px solid rgba(255,184,48,0.3)',
           }}
@@ -1168,7 +1164,7 @@ export default function ShapDashboardPage() {
               {' '}
               <Brain
                 className="w-5 h-5 inline mr-2"
-                style={{ color: '#FFB830' }}
+                style={{ color: '#D97706' }}
               />{' '}
               Analyse SHAP — Interprétabilité IA{' '}
             </h1>{' '}
@@ -1189,7 +1185,7 @@ export default function ShapDashboardPage() {
               style={{
                 background: 'rgba(255,184,48,0.10)',
                 border: '1px solid rgba(255,184,48,0.30)',
-                color: '#FFB830',
+                color: '#D97706',
               }}
             >
               {' '}
@@ -1201,8 +1197,8 @@ export default function ShapDashboardPage() {
         <div
           className="flex gap-1 p-1 rounded-xl overflow-x-auto"
           style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--text-primary) 10%, transparent)',
           }}
         >
           {' '}
@@ -1211,13 +1207,13 @@ export default function ShapDashboardPage() {
               id: 'analysis' as const,
               label: 'KPIs / Analyse SHAP',
               icon: Brain,
-              color: '#FFB830',
+              color: '#D97706',
             },
             {
               id: 'dataset' as const,
               label: 'Dataset',
               icon: Database,
-              color: '#00FFA3',
+              color: '#0D9488',
             },
 
           ].map((d) => (
@@ -1248,7 +1244,7 @@ export default function ShapDashboardPage() {
           <KpiCard
             label="Échantillons analysés"
             value={yearly?.n_samples.toLocaleString() || '0'}
-            color="#00E5FF"
+            color="#0891B2"
             icon={<Brain className="w-3.5 h-3.5" />}
           />{' '}
           <KpiCard
@@ -1258,7 +1254,7 @@ export default function ShapDashboardPage() {
               yearly?.n_anomalies.toLocaleString() ||
               '0'
             }
-            color="#FF2D78"
+            color="#E11D48"
             icon={<AlertTriangle className="w-3.5 h-3.5" />}
             sub={
               yearly?.stratified
@@ -1271,7 +1267,7 @@ export default function ShapDashboardPage() {
           <KpiCard
             label="Top Feature"
             value={topFeature?.label || 'N/A'}
-            color="#FFB830"
+            color="#D97706"
             icon={<Sparkles className="w-3.5 h-3.5" />}
             sub={`SHAP: ${topFeature?.shap_importance.toFixed(5) || ''}`}
           />{' '}
@@ -1284,14 +1280,14 @@ export default function ShapDashboardPage() {
               groupEntries.sort((a, b) => b[1] - a[1])[0]?.[0] ||
               'N/A'
             }
-            color="#00FFA3"
+            color="#0D9488"
             icon={<Thermometer className="w-3.5 h-3.5" />}
             sub={`Score: ${(groupEntries.sort((a, b) => b[1] - a[1])[0]?.[1] || 0).toFixed(5)}`}
           />{' '}
           <KpiCard
             label="Modèle & Méthode"
             value={(yearly?.model_kind ?? '').toUpperCase() || 'OCSVM'}
-            color="#A855F7"
+            color="#7C3AED"
             icon={<Zap className="w-3.5 h-3.5" />}
             sub={yearly?.shap_method || 'KernelExplainer'}
           />{' '}
@@ -1304,7 +1300,7 @@ export default function ShapDashboardPage() {
                 )[0]?.[0] ?? ''
               ] || 'N/A'
             }
-            color="#FFB830"
+            color="#D97706"
             icon={<CloudSun className="w-3.5 h-3.5" />}
             sub={`${Object.entries(yearly?.seasonal_breakdown || {}).sort((a, b) => b[1].count - a[1].count)[0]?.[1]?.count || 0} éch.`}
           />{' '}
@@ -1315,7 +1311,7 @@ export default function ShapDashboardPage() {
             style={{
               background: 'rgba(255,184,48,0.06)',
               border: '1px solid rgba(255,184,48,0.20)',
-              color: '#FFB830',
+              color: '#D97706',
             }}
           >
             {' '}
@@ -1331,25 +1327,25 @@ export default function ShapDashboardPage() {
               key: 'global' as const,
               label: 'Importance Globale',
               icon: Sparkles,
-              color: '#FFB830',
+              color: '#D97706',
             },
             {
               key: 'monthly' as const,
               label: 'Évolution Mensuelle',
               icon: Clock,
-              color: '#00E5FF',
+              color: '#0891B2',
             },
             {
               key: 'seasonal' as const,
               label: 'Breakdown Saisonnier',
               icon: CloudSun,
-              color: '#00FFA3',
+              color: '#0D9488',
             },
             {
               key: 'hourly' as const,
               label: 'Profil Horaire',
               icon: Clock,
-              color: '#00E5FF',
+              color: '#0891B2',
             },
           ].map((t) => (
             <button
@@ -1360,10 +1356,10 @@ export default function ShapDashboardPage() {
                 background:
                   activeTab === t.key
                     ? `${t.color}15`
-                    : 'rgba(255,255,255,0.04)',
+                    : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                 color:
                   activeTab === t.key ? t.color : 'var(--color-text-secondary)',
-                border: `1px solid ${activeTab === t.key ? `${t.color}40` : 'rgba(255,255,255,0.06)'}`,
+                border: `1px solid ${activeTab === t.key ? `${t.color}40` : 'color-mix(in srgb, var(--text-primary) 8%, transparent)'}`,
                 boxShadow:
                   activeTab === t.key ? `0 0 12px ${t.color}30` : 'none',
               }}
@@ -1391,10 +1387,10 @@ export default function ShapDashboardPage() {
                       : yearly.global_importance;
                 const viewColor =
                   impView === 'attacks'
-                    ? '#A855F7'
+                    ? '#7C3AED'
                     : impView === 'normals'
-                      ? '#00FFA3'
-                      : '#FFB830';
+                      ? '#0D9488'
+                      : '#D97706';
                 const viewTitle =
                   impView === 'attacks'
                     ? 'Importance SHAP — Attaques seules'
@@ -1415,17 +1411,17 @@ export default function ShapDashboardPage() {
                         {
                           key: 'attacks' as const,
                           label: '🔥 Attaques',
-                          color: '#A855F7',
+                          color: '#7C3AED',
                         },
                         {
                           key: 'normals' as const,
                           label: '✅ Normales',
-                          color: '#00FFA3',
+                          color: '#0D9488',
                         },
                         {
                           key: 'all' as const,
                           label: '🌐 Tout',
-                          color: '#FFB830',
+                          color: '#D97706',
                         },
                       ].map((opt) => (
                         <button
@@ -1436,12 +1432,12 @@ export default function ShapDashboardPage() {
                             background:
                               impView === opt.key
                                 ? `${opt.color}18`
-                                : 'rgba(255,255,255,0.04)',
+                                : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                             color:
                               impView === opt.key
                                 ? opt.color
                                 : 'var(--color-text-secondary)',
-                            border: `1px solid ${impView === opt.key ? `${opt.color}45` : 'rgba(255,255,255,0.06)'}`,
+                            border: `1px solid ${impView === opt.key ? `${opt.color}45` : 'color-mix(in srgb, var(--text-primary) 8%, transparent)'}`,
                             boxShadow:
                               impView === opt.key
                                 ? `0 0 10px ${opt.color}30`
@@ -1472,7 +1468,7 @@ export default function ShapDashboardPage() {
                       {impView === 'attacks' ? (
                         <>
                           Impact SHAP moyen des features{' '}
-                          <b style={{ color: '#A855F7' }}>
+                          <b style={{ color: '#7C3AED' }}>
                             uniquement sur les attaques détectées
                           </b>{' '}
                           — c'est ce qui déclenche réellement le modèle.
@@ -1480,7 +1476,7 @@ export default function ShapDashboardPage() {
                       ) : impView === 'normals' ? (
                         <>
                           Impact SHAP moyen des features{' '}
-                          <b style={{ color: '#00FFA3' }}>
+                          <b style={{ color: '#0D9488' }}>
                             uniquement sur les points normaux
                           </b>{' '}
                           — référence du comportement sain.
@@ -1489,7 +1485,7 @@ export default function ShapDashboardPage() {
                         <>
                           Impact moyen absolu de chaque feature (échantillon
                           stratifié). Préférez la vue{' '}
-                          <b style={{ color: '#A855F7' }}>Attaques</b> pour
+                          <b style={{ color: '#7C3AED' }}>Attaques</b> pour
                           comprendre les attaques.
                         </>
                       )}{' '}
@@ -1541,7 +1537,7 @@ export default function ShapDashboardPage() {
               <Section
                 title="Évolution Mensuelle SHAP"
                 desc="Importance par mois"
-                color="#00E5FF"
+                color="#0891B2"
               >
                 {' '}
                 <p
@@ -1575,7 +1571,7 @@ export default function ShapDashboardPage() {
               <Section
                 title="Breakdown Saisonnier SHAP"
                 desc="4 saisons"
-                color="#00FFA3"
+                color="#0D9488"
               >
                 {' '}
                 <p
@@ -1594,7 +1590,7 @@ export default function ShapDashboardPage() {
               <Section
                 title="Profil Horaire SHAP"
                 desc={hourlyData ? `${hourlyData.n_samples} éch.` : ''}
-                color="#00E5FF"
+                color="#0891B2"
               >
                 {' '}
                 <p
@@ -1623,7 +1619,7 @@ export default function ShapDashboardPage() {
                         style={{
                           background: 'rgba(255,184,48,0.06)',
                           border: '1px solid rgba(255,184,48,0.20)',
-                          color: '#FFB830',
+                          color: '#D97706',
                         }}
                       >
                         {' '}
@@ -1673,7 +1669,7 @@ export default function ShapDashboardPage() {
                       : '')
                   : ''
               }
-              color="#00FFA3"
+              color="#0D9488"
             >
               {' '}
               <p
@@ -1681,7 +1677,7 @@ export default function ShapDashboardPage() {
                 style={{ color: 'var(--color-text-secondary)' }}
               >
                 {' '}
-                <Database className="w-3.5 h-3.5" style={{ color: '#00FFA3' }} />{' '}
+                <Database className="w-3.5 h-3.5" style={{ color: '#0D9488' }} />{' '}
                 Données du dataset affichées par défaut. Utilisez les filtres
                 ci-dessous (mois, saison, jour 1-365, heure) pour restreindre le
                 contenu affiché.{' '}
@@ -1690,8 +1686,8 @@ export default function ShapDashboardPage() {
               <div
                 className="rounded-2xl p-3 mb-3"
                 style={{
-                  background: 'rgba(0,255,163,0.03)',
-                  border: '1px solid rgba(0,255,163,0.12)',
+                  background: 'rgba(13,148,136,0.03)',
+                  border: '1px solid rgba(13,148,136,0.12)',
                 }}
               >
                 {' '}
@@ -1699,7 +1695,7 @@ export default function ShapDashboardPage() {
                   {' '}
                   <span
                     className="text-[9px] font-bold uppercase tracking-widest"
-                    style={{ color: '#00FFA3' }}
+                    style={{ color: '#0D9488' }}
                   >
                     Filtres
                   </span>{' '}
@@ -1784,10 +1780,10 @@ export default function ShapDashboardPage() {
                     className="flex items-center gap-1.5 text-[10px] font-black px-4 py-1.5 rounded-lg cursor-pointer transition-all hover:brightness-110"
                     style={{
                       background: hasFilterChanges()
-                        ? 'linear-gradient(135deg, #00FFA3, #00E5FF)'
-                        : 'rgba(0,255,163,0.10)',
-                      border: `1px solid ${hasFilterChanges() ? 'transparent' : '#00FFA355'}`,
-                      color: hasFilterChanges() ? '#fff' : '#00FFA3',
+                        ? 'linear-gradient(135deg, #0D9488, #0891B2)'
+                        : 'rgba(13,148,136,0.10)',
+                      border: `1px solid ${hasFilterChanges() ? 'transparent' : '#0D948855'}`,
+                      color: hasFilterChanges() ? '#fff' : '#0D9488',
                     }}
                   >
                     {' '}
@@ -1798,7 +1794,7 @@ export default function ShapDashboardPage() {
                       onClick={resetFilters}
                       className="flex items-center gap-1 text-[9px] px-2 py-1.5 rounded-lg cursor-pointer hover:brightness-110"
                       style={{
-                        color: '#FFB830',
+                        color: '#D97706',
                         background: 'rgba(255,184,48,0.08)',
                         border: '1px solid rgba(255,184,48,0.25)',
                       }}
@@ -1810,7 +1806,7 @@ export default function ShapDashboardPage() {
                   {hasFilterChanges() && anyFilterSet() && (
                     <span
                       className="text-[8px]"
-                      style={{ color: '#FFB830' }}
+                      style={{ color: '#D97706' }}
                     >
                       ⚡ Filtres non appliqués — cliquez sur « Filtrer »
                     </span>
@@ -1846,13 +1842,13 @@ export default function ShapDashboardPage() {
                       style={{
                         background:
                           (opt === 'toutes') === showAllRows
-                            ? 'rgba(0,255,163,0.15)'
-                            : 'rgba(255,255,255,0.04)',
+                            ? 'rgba(13,148,136,0.15)'
+                            : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                         color:
                           (opt === 'toutes') === showAllRows
-                            ? '#00FFA3'
+                            ? '#0D9488'
                             : 'var(--color-text-secondary)',
-                        border: `1px solid ${(opt === 'toutes') === showAllRows ? '#00FFA345' : 'rgba(255,255,255,0.06)'}`,
+                        border: `1px solid ${(opt === 'toutes') === showAllRows ? '#0D948845' : 'color-mix(in srgb, var(--text-primary) 8%, transparent)'}`,
                       }}
                     >
                       {' '}
@@ -1873,7 +1869,7 @@ export default function ShapDashboardPage() {
                   {' '}
                   <Loader2
                     className="w-5 h-5 animate-spin"
-                    style={{ color: '#00FFA3' }}
+                    style={{ color: '#0D9488' }}
                   />{' '}
                 </div>
               ) : attackData && attackData.rows.length > 0 ? (
@@ -1885,9 +1881,9 @@ export default function ShapDashboardPage() {
                       <div
                         className="px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1.5"
                         style={{
-                          background: 'rgba(255,45,120,0.10)',
-                          border: '1px solid rgba(255,45,120,0.35)',
-                          color: '#FF2D78',
+                          background: 'rgba(225,29,72,0.10)',
+                          border: '1px solid rgba(225,29,72,0.35)',
+                          color: '#E11D48',
                         }}
                       >
                         {' '}
@@ -1897,9 +1893,9 @@ export default function ShapDashboardPage() {
                       <div
                         className="px-2 py-1 rounded-lg text-[9px] font-bold flex items-center gap-1.5"
                         style={{
-                          background: 'rgba(0,255,163,0.08)',
-                          border: '1px solid rgba(0,255,163,0.30)',
-                          color: '#00FFA3',
+                          background: 'rgba(13,148,136,0.08)',
+                          border: '1px solid rgba(13,148,136,0.30)',
+                          color: '#0D9488',
                         }}
                       >
                         {' '}
@@ -1909,9 +1905,9 @@ export default function ShapDashboardPage() {
                       <div
                         className="px-2 py-1 rounded-lg text-[9px] font-bold"
                         style={{
-                          background: 'rgba(0,229,255,0.08)',
-                          border: '1px solid rgba(0,229,255,0.25)',
-                          color: '#00E5FF',
+                          background: 'rgba(8,145,178,0.08)',
+                          border: '1px solid rgba(8,145,178,0.25)',
+                          color: '#0891B2',
                         }}
                       >
                         {' '}
@@ -1927,8 +1923,8 @@ export default function ShapDashboardPage() {
                         {' '}
                         <tr
                           style={{
-                            background: 'rgba(0,255,163,0.08)',
-                            color: '#00FFA3',
+                            background: 'rgba(13,148,136,0.08)',
+                            color: '#0D9488',
                           }}
                         >
                           {' '}
@@ -1954,10 +1950,10 @@ export default function ShapDashboardPage() {
                             className="border-t cursor-pointer transition-all hover:brightness-125"
                             title="Cliquer pour ouvrir le rapport de recommandation du point (SHAP, impact, CVE, recommandations)"
                             style={{
-                              borderColor: 'rgba(0,255,163,0.08)',
+                              borderColor: 'rgba(13,148,136,0.08)',
                               background:
                                 ri % 2 === 0
-                                  ? 'rgba(255,255,255,0.02)'
+                                  ? 'color-mix(in srgb, var(--text-primary) 3%, transparent)'
                                   : 'transparent',
                               color: 'var(--color-text-secondary)',
                             }}
@@ -1989,10 +1985,10 @@ export default function ShapDashboardPage() {
                                 style={{
                                   background:
                                     row.label === 1
-                                      ? 'rgba(255,45,120,0.15)'
-                                      : 'rgba(0,255,163,0.10)',
+                                      ? 'rgba(225,29,72,0.15)'
+                                      : 'rgba(13,148,136,0.10)',
                                   color:
-                                    row.label === 1 ? '#FF2D78' : '#00FFA3',
+                                    row.label === 1 ? '#E11D48' : '#0D9488',
                                 }}
                               >
                                 {' '}
@@ -2006,11 +2002,11 @@ export default function ShapDashboardPage() {
                                 style={{
                                   background:
                                     row.prediction === 1
-                                      ? 'rgba(168,85,247,0.18)'
-                                      : 'rgba(255,255,255,0.05)',
+                                      ? 'rgba(124,58,237,0.18)'
+                                      : 'color-mix(in srgb, var(--text-primary) 6%, transparent)',
                                   color:
                                     row.prediction === 1
-                                      ? '#A855F7'
+                                      ? '#7C3AED'
                                       : 'var(--color-text-muted)',
                                 }}
                               >
@@ -2030,9 +2026,9 @@ export default function ShapDashboardPage() {
                                 }}
                                 className="inline-flex items-center gap-1 text-[8px] font-bold px-2 py-1 rounded-lg whitespace-nowrap cursor-pointer hover:brightness-125"
                                 style={{
-                                  background: 'rgba(0,255,163,0.08)',
-                                  border: '1px solid rgba(0,255,163,0.25)',
-                                  color: '#00FFA3',
+                                  background: 'rgba(13,148,136,0.08)',
+                                  border: '1px solid rgba(13,148,136,0.25)',
+                                  color: '#0D9488',
                                 }}
                                 title="Voir le rapport détaillé du point (SHAP, impact, CVE, recommandations)"
                               >
@@ -2064,9 +2060,9 @@ export default function ShapDashboardPage() {
                         disabled={attackData.page <= 1}
                         className="text-[9px] font-bold px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         style={{
-                          background: 'rgba(0,255,163,0.08)',
-                          border: '1px solid rgba(0,255,163,0.25)',
-                          color: '#00FFA3',
+                          background: 'rgba(13,148,136,0.08)',
+                          border: '1px solid rgba(13,148,136,0.25)',
+                          color: '#0D9488',
                         }}
                       >
                         {' '}
@@ -2081,9 +2077,9 @@ export default function ShapDashboardPage() {
                         disabled={attackData.page >= attackData.total_pages}
                         className="text-[9px] font-bold px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         style={{
-                          background: 'rgba(0,255,163,0.08)',
-                          border: '1px solid rgba(0,255,163,0.25)',
-                          color: '#00FFA3',
+                          background: 'rgba(13,148,136,0.08)',
+                          border: '1px solid rgba(13,148,136,0.25)',
+                          color: '#0D9488',
                         }}
                       >
                         {' '}
@@ -2095,7 +2091,7 @@ export default function ShapDashboardPage() {
               ) : attackData && attackData.error ? (
                 <div
                   className="text-[10px] text-center py-10 flex flex-col items-center gap-2"
-                  style={{ color: '#FF2D78' }}
+                  style={{ color: '#E11D48' }}
                 >
                   {' '}
                   <Database className="w-5 h-5" /> {attackData.error}{' '}
@@ -2103,7 +2099,7 @@ export default function ShapDashboardPage() {
               ) : attackError ? (
                 <div
                   className="text-[10px] text-center py-10 flex flex-col items-center gap-2"
-                  style={{ color: '#FF2D78' }}
+                  style={{ color: '#E11D48' }}
                 >
                   {' '}
                   <Database className="w-5 h-5" /> {attackError}{' '}
@@ -2114,7 +2110,7 @@ export default function ShapDashboardPage() {
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
                   {' '}
-                  <Database className="w-5 h-5" style={{ color: '#00FFA3' }} />{' '}
+                  <Database className="w-5 h-5" style={{ color: '#0D9488' }} />{' '}
                   Aucune donnée pour ces filtres — élargissez les filtres.{' '}
                 </div>
               )}{' '}

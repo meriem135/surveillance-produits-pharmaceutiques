@@ -11,7 +11,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex h-10 items-center justify-center rounded-xl p-1',
+      'inline-flex h-10 max-w-full items-center justify-start overflow-x-auto rounded-lg p-1',
       className
     )}
     style={{
@@ -29,10 +29,9 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm data-[state=active]:text-[var(--accent-primary)]',
+      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-[var(--text-secondary)] data-[state=active]:shadow-sm data-[state=active]:bg-[var(--bg-card)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
-    style={{ color: 'var(--text-secondary)' }}
     {...props}
   />
 ));

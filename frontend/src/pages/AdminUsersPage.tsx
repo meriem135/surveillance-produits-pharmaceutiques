@@ -112,13 +112,13 @@ export default function AdminUsersPage() {
   );
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-            <Users className="w-5 h-5 text-white" />
+            style={{ background: 'var(--accent-glow)' }}>
+            <Users className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
           </div>
           <div>
             <h1 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Gestion des comptes</h1>
@@ -127,7 +127,7 @@ export default function AdminUsersPage() {
         </div>
         <button onClick={() => { setShowForm(!showForm); setEditing(null); setResetting(null); }}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-          style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff' }}>
+          style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
           <Plus className="w-4 h-4" /> Nouveau compte
         </button>
       </div>
@@ -170,7 +170,7 @@ export default function AdminUsersPage() {
               <Input label="Mot de passe * (6+)" type="password" value={form.password} onChange={v => setForm(f => ({ ...f, password: v }))} required minLength={6} />
               <Input label="Nom complet" value={form.full_name} onChange={v => setForm(f => ({ ...f, full_name: v }))} />
               <div>
-                <label className="block text-[10px] font-mono mb-1" style={{ color: 'var(--color-text-secondary)' }}>Rôle *</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Rôle *</label>
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                   style={{ background: 'var(--color-bg-base)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}>
@@ -181,7 +181,7 @@ export default function AdminUsersPage() {
               <div className="flex items-end">
                 <button type="submit" disabled={creating}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }}>
+                  style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
                   {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />} Créer
                 </button>
               </div>
@@ -205,7 +205,7 @@ export default function AdminUsersPage() {
               <Input label="Email" type="email" value={editForm.email} onChange={v => setEditForm(f => ({ ...f, email: v }))} />
               <Input label="Nom complet" value={editForm.full_name} onChange={v => setEditForm(f => ({ ...f, full_name: v }))} />
               <div>
-                <label className="block text-[10px] font-mono mb-1" style={{ color: 'var(--color-text-secondary)' }}>Rôle</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Rôle</label>
                 <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                   style={{ background: 'var(--color-bg-base)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}>
@@ -215,7 +215,7 @@ export default function AdminUsersPage() {
               </div>
               <div className="flex items-end">
                 <button type="submit" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-                  style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff' }}>
+                  style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
                   <Pencil className="w-4 h-4" /> Enregistrer
                 </button>
               </div>
@@ -240,7 +240,7 @@ export default function AdminUsersPage() {
                 <Input label="Nouveau mot de passe (6+)" type="password" value={resetPwd} onChange={setResetPwd} required minLength={6} />
               </div>
               <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff' }}>
+                style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
                 <KeyRound className="w-4 h-4 inline mr-1" /> Réinitialiser
               </button>
             </form>
@@ -249,15 +249,15 @@ export default function AdminUsersPage() {
       </AnimatePresence>
 
       {/* Users table */}
-      <div className="rounded-xl overflow-hidden" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
-        <table className="w-full text-sm">
+      <div className="rounded-xl overflow-x-auto" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-              <th className="text-left px-5 py-3 text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>Utilisateur</th>
-              <th className="text-left px-5 py-3 text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>Email</th>
-              <th className="text-left px-5 py-3 text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>Rôle</th>
-              <th className="text-left px-5 py-3 text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>Statut</th>
-              <th className="text-right px-5 py-3 text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>Actions</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Utilisateur</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Email</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Rôle</th>
+              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Statut</th>
+              <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -318,7 +318,7 @@ function Input({ label, value, onChange, type = 'text', ...props }: {
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'>) {
   return (
     <div>
-      <label className="block text-[10px] font-mono mb-1" style={{ color: 'var(--color-text-secondary)' }}>{label}</label>
+      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)}
         className="w-full px-3 py-2 rounded-lg text-sm outline-none"
         style={{ background: 'var(--color-bg-base)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}

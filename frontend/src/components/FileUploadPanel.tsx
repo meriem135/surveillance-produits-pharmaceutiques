@@ -159,7 +159,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
         throw new Error(detail);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur lors de l'entrainement");
+      setError(err instanceof Error ? err.message : "Erreur lors de l'entraînement");
       setTraining(false);
       trainingRef.current = false;
       ws.close();
@@ -192,7 +192,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
         <div style={{ fontSize: 22 }}>&#128274;</div>
         <div>
           <div className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            Entrainement reserve aux administrateurs
+            Entraînement réservé aux administrateurs
           </div>
           <div className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
             Les resultats du dernier modele entraine restent visibles ci-dessous.
@@ -207,7 +207,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
       {/* UPLOAD + TRAIN */}
       <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
         style={{
-          borderColor: dragOver ? 'rgba(0,245,255,0.5)' : training ? 'rgba(34,197,94,0.5)' : 'rgba(0,245,255,0.12)',
+          borderColor: dragOver ? 'rgba(8,145,178,0.5)' : training ? 'rgba(34,197,94,0.5)' : 'rgba(8,145,178,0.12)',
           position: 'relative',
         }}>
         {training && (
@@ -216,14 +216,14 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
         )}
         <div className="absolute top-0 left-0 right-0 h-[2px]"
           style={{
-            background: training ? 'linear-gradient(90deg, transparent, #22C55E, #10B981, #22C55E, transparent)' : 'linear-gradient(90deg, transparent, #00F5FF, #A78BFA, transparent)',
+            background: training ? 'linear-gradient(90deg, transparent, #22C55E, #10B981, #22C55E, transparent)' : 'linear-gradient(90deg, transparent, #0891B2, #8B5CF6, transparent)',
             backgroundSize: training ? '200% 100%' : undefined,
             animation: training ? 'shimmer 2s linear infinite' : undefined,
           }} />
-        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
           <Upload className="w-4 h-4" style={{ color: training ? '#22C55E' : 'var(--color-accent-cyan)' }} />
           <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            {training ? 'Entrainement en cours...' : 'Uploader & Entrainer'}
+            {training ? 'Entraînement en cours…' : 'Importer et entraîner'}
           </h3>
           {training && (
             <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full" style={{ background: 'rgba(34,197,94,0.15)', color: '#22C55E', animation: 'pulse-text 1.5s ease-in-out infinite' }}>
@@ -233,19 +233,19 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
           )}
           {!training && (
             <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: 'var(--color-accent-cyan)' }}>
-              One-Class SVM Multivarie
+              One-Class SVM multivarié
             </span>
           )}
         </div>
 
         <div className="p-5">
           <p className="text-[11px] mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-            Uploadez vos CSV de capteurs (Weather, Fridge, Thermostat) ou entrainez depuis les donnees disque.
+            Importez les CSV des capteurs (météo, chambre froide, thermostat) ou entraînez sur les données déjà présentes sur le serveur.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             {[
-              { label: 'Station Meteo', icon: '\u{1F324}\uFE0F', file: weatherFile, setter: setWeatherFile, blobSetter: setWeatherBlob, color: '#FF6B6B' },
+              { label: 'Station météo', icon: '\u{1F324}\uFE0F', file: weatherFile, setter: setWeatherFile, blobSetter: setWeatherBlob, color: '#FF6B6B' },
               { label: 'Chambre Froide', icon: '\u2744\uFE0F', file: fridgeFile, setter: setFridgeFile, blobSetter: setFridgeBlob, color: '#4ECDC4' },
               { label: 'Thermostat', icon: '\u{1F321}\uFE0F', file: thermostatFile, setter: setThermostatFile, blobSetter: setThermostatBlob, color: '#45B7D1' },
             ].map(slot => (
@@ -255,7 +255,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
                 onDrop={e => handleDrop(e, slot.setter, slot.blobSetter)}
                 className="relative rounded-xl p-4 text-center cursor-pointer transition-all group"
                 style={{
-                  background: slot.file ? `${slot.color}10` : 'rgba(255,255,255,0.02)',
+                  background: slot.file ? `${slot.color}10` : 'color-mix(in srgb, var(--text-primary) 3%, transparent)',
                   border: `2px dashed ${slot.file ? slot.color : 'rgba(255,255,255,0.1)'}`,
                 }}>
                 {slot.file ? (
@@ -287,13 +287,13 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
             <button onClick={() => runTraining(!canRun)} disabled={training}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all"
               style={{
-                background: !training ? 'linear-gradient(135deg, rgba(34,197,94,0.2), rgba(16,185,129,0.2))' : 'rgba(255,255,255,0.04)',
+                background: !training ? 'linear-gradient(135deg, rgba(34,197,94,0.2), rgba(16,185,129,0.2))' : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                 color: !training ? '#22C55E' : 'var(--color-text-secondary)',
-                border: `1px solid ${!training ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                border: `1px solid ${!training ? 'rgba(34,197,94,0.3)' : 'color-mix(in srgb, var(--text-primary) 8%, transparent)'}`,
                 opacity: training ? 0.5 : 1,
               }}>
               {training ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
-              {training ? 'Entrainement en cours...' : canRun ? 'Entrainer (upload)' : 'Entrainer (disque)'}
+              {training ? 'Entraînement en cours…' : canRun ? 'Entraîner (fichiers importés)' : 'Entraîner (données serveur)'}
             </button>
             {error && (
               <div className="flex items-center gap-1.5 text-[10px]" style={{ color: '#EF4444' }}>
@@ -339,7 +339,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
               </div>
 
               {/* Barre de progression */}
-              <div className="h-2.5 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-2.5 rounded-full overflow-hidden mb-3" style={{ background: 'color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
                 <div className="h-full rounded-full transition-all duration-500 ease-out relative"
                   style={{
                     width: `${progress.progress}%`,
@@ -393,7 +393,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
               {/* Grid live */}
               {progress.step === 'grid' && progress.trial && (
                 <div className="flex items-center gap-3 flex-wrap p-2 rounded-lg" style={{ background: 'rgba(168,139,250,0.06)' }}>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#A78BFA' }}>
+                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#8B5CF6' }}>
                     <Grid3x3 className="w-2.5 h-2.5 inline mr-1" />
                     Config {progress.trial}/{progress.total_trials}
                   </span>
@@ -411,7 +411,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
                   {[
                     { label: 'F1', val: progress.metrics.f1, color: '#22C55E' },
                     { label: 'Recall', val: progress.metrics.recall, color: '#3B82F6' },
-                    { label: 'Precision', val: progress.metrics.precision, color: '#A78BFA' },
+                    { label: 'Precision', val: progress.metrics.precision, color: '#8B5CF6' },
                     { label: 'ROC-AUC', val: progress.metrics.roc_auc, color: '#F59E0B' },
                   ].map(m => (
                     <div key={m.label} className="rounded-lg p-2 text-center" style={{ background: `${m.color}10`, border: `1px solid ${m.color}30` }}>
@@ -431,16 +431,16 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
         <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
           style={{ borderColor: 'rgba(34,197,94,0.3)' }}>
           <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #22C55E, #10B981, transparent)' }} />
-          <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
             <Brain className="w-4 h-4" style={{ color: '#22C55E' }} />
             <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-              Entrainement Termine
+              Entraînement terminé
             </h3>
             <span className="ml-auto flex items-center gap-2">
               <span className="text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: '#22C55E' }}>
                 {trainResult.training_info?.duration_seconds}s
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#A78BFA' }}>
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#8B5CF6' }}>
                 One-Class SVM
               </span>
             </span>
@@ -450,7 +450,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
               {[
                 { label: 'F1 Score', value: trainResult.model_metrics?.f1, color: '#22C55E' },
                 { label: 'Recall', value: trainResult.model_metrics?.recall, color: '#3B82F6' },
-                { label: 'Precision', value: trainResult.model_metrics?.precision, color: '#A78BFA' },
+                { label: 'Precision', value: trainResult.model_metrics?.precision, color: '#8B5CF6' },
                 { label: 'ROC-AUC', value: trainResult.model_metrics?.roc_auc, color: '#F59E0B' },
               ].map(m => (
                 <div key={m.label} className="rounded-xl p-3 text-center" style={{ background: `${m.color}10`, border: `1px solid ${m.color}30` }}>
@@ -469,9 +469,9 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
             {trainResult.grid_search && (
               <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(168,139,250,0.06)', border: '1px solid rgba(168,139,250,0.15)' }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Grid3x3 className="w-3.5 h-3.5" style={{ color: '#A78BFA' }} />
-                  <span className="text-xs font-bold" style={{ color: '#A78BFA' }}>Grille manuelle hyperparamètres</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#A78BFA' }}>
+                  <Grid3x3 className="w-3.5 h-3.5" style={{ color: '#8B5CF6' }} />
+                  <span className="text-xs font-bold" style={{ color: '#8B5CF6' }}>Grille manuelle hyperparamètres</span>
+                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#8B5CF6' }}>
                     {trainResult.grid_search.n_trials} configs
                   </span>
                 </div>
@@ -480,16 +480,16 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>
                   {Object.entries(trainResult.grid_search.best_params || {}).map(([k, v]) => (
-                    <div key={k}>{k}: <span style={{ color: '#A78BFA', fontFamily: 'monospace' }}>{String(v)}</span></div>
+                    <div key={k}>{k}: <span style={{ color: '#8B5CF6', fontFamily: 'monospace' }}>{String(v)}</span></div>
                   ))}
                 </div>
                 {trainResult.grid_search.history?.length > 0 && (
                   <div className="h-24">
                     <BarChart data={trainResult.grid_search.history.slice(0, 15).map((t: any) => ({ trial: `C${t.config}`, value: t.value }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-primary) 6%, transparent)" />
                       <XAxis dataKey="trial" tick={{ fontSize: 8, fill: 'var(--color-text-secondary)' }} />
                       <YAxis tick={{ fontSize: 8, fill: 'var(--color-text-secondary)' }} domain={['dataMin - 0.01', 'dataMax + 0.01']} />
-                      <Bar dataKey="value" fill="#A78BFA" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="value" fill="#8B5CF6" radius={[2, 2, 0, 0]} />
                     </BarChart>
                   </div>
                 )}
@@ -512,7 +512,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
                     return (
                       <div key={f.feature} className="flex items-center gap-2 text-[10px]">
                         <span className="w-32 truncate" style={{ color: 'var(--color-text-secondary)' }}>{f.feature}</span>
-                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--text-primary) 6%, transparent)' }}>
                           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #F59E0B, #F97316)' }} />
                         </div>
                         <span className="w-12 text-right" style={{ color: '#F59E0B', fontFamily: 'monospace' }}>{f.shap_importance.toFixed(4)}</span>
@@ -525,10 +525,10 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
 
             {trainResult.best_params && (
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex-1 p-2 rounded-lg text-[10px]" style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--color-text-secondary)' }}>
+                <div className="flex-1 p-2 rounded-lg text-[10px]" style={{ background: 'color-mix(in srgb, var(--text-primary) 3%, transparent)', color: 'var(--color-text-secondary)' }}>
                   <span className="font-bold" style={{ color: 'var(--color-text-primary)' }}>Hyperparams: </span>
                   {JSON.stringify(trainResult.best_params)}
-                  <span className="ml-3">Registry: <span style={{ color: '#A78BFA' }}>{trainResult.registry_version || 'N/A'}</span></span>
+                  <span className="ml-3">Registry: <span style={{ color: '#8B5CF6' }}>{trainResult.registry_version || 'N/A'}</span></span>
                 </div>
                 <button onClick={downloadModel}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold cursor-pointer transition-all hover:scale-105 no-underline"

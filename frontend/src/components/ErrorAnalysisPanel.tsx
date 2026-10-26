@@ -87,7 +87,7 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
       <div className="rounded-2xl overflow-hidden glass glass-border" style={{ borderColor: 'rgba(239,68,68,0.12)' }}>
         <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #EF4444, #FBBF24, transparent)' }} />
-        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
           <AlertTriangle className="w-4 h-4" style={{ color: '#EF4444' }} />
           <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>⚠️ Analyse des Erreurs</h3>
           <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: '#FBBF24' }}>
@@ -117,19 +117,19 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
             <button onClick={() => setErrorType('all')}
               className="text-[10px] px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all"
               style={{
-                background: errorType === 'all' ? 'rgba(0,245,255,0.15)' : 'rgba(255,255,255,0.04)',
+                background: errorType === 'all' ? 'rgba(8,145,178,0.15)' : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                 color: errorType === 'all' ? 'var(--color-accent-cyan)' : 'var(--color-text-secondary)',
               }}>Tous</button>
             <button onClick={() => setErrorType('fp')}
               className="text-[10px] px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all flex items-center gap-1"
               style={{
-                background: errorType === 'fp' ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)',
+                background: errorType === 'fp' ? 'rgba(251,191,36,0.15)' : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                 color: errorType === 'fp' ? '#FBBF24' : 'var(--color-text-secondary)',
               }}><Filter className="w-3 h-3" /> FP</button>
             <button onClick={() => setErrorType('fn')}
               className="text-[10px] px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all flex items-center gap-1"
               style={{
-                background: errorType === 'fn' ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.04)',
+                background: errorType === 'fn' ? 'rgba(239,68,68,0.15)' : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                 color: errorType === 'fn' ? '#EF4444' : 'var(--color-text-secondary)',
               }}><Filter className="w-3 h-3" /> FN</button>
             <div className="w-px h-4" style={{ background: 'rgba(255,255,255,0.1)' }} />
@@ -137,7 +137,7 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
               <button key={s} onClick={() => setSensorFilter(sensorFilter === s ? null : s)}
                 className="text-[10px] px-2.5 py-1 rounded-lg font-bold cursor-pointer"
                 style={{
-                  background: sensorFilter === s ? 'rgba(0,245,255,0.15)' : 'rgba(255,255,255,0.04)',
+                  background: sensorFilter === s ? 'rgba(8,145,178,0.15)' : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
                   color: sensorFilter === s ? 'var(--color-accent-cyan)' : 'var(--color-text-secondary)',
                 }}>{s}</button>
             ))}
@@ -157,10 +157,10 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
               <p className="text-[10px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>Taux d'erreur par heure</p>
               <ResponsiveContainer width="100%" height={200}>
                 <ComposedChart data={errorData.hourlyData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" />
+                  <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" />
                   <XAxis dataKey="hour" tick={{ fill: 'var(--color-text-secondary)', fontSize: 9 }} />
                   <YAxis tick={{ fill: 'var(--color-text-secondary)', fontSize: 9 }} />
-                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(0,245,255,0.2)', borderRadius: 12, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 12, fontSize: 11 }} />
                   <Bar dataKey="fpRate" name="FP %" fill="#FBBF24" fillOpacity={0.6} maxBarSize={12} radius={[2, 2, 0, 0]} />
                   <Bar dataKey="fnRate" name="FN %" fill="#EF4444" fillOpacity={0.6} maxBarSize={12} radius={[2, 2, 0, 0]} />
                   <Area type="monotone" dataKey="total" name="Total" fill="#3B82F6" fillOpacity={0.05} stroke="#3B82F6" strokeWidth={1} />
@@ -173,10 +173,10 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
               <p className="text-[10px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>Évolution des erreurs (30 derniers jours)</p>
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={errorTimeline}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" />
+                  <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" />
                   <XAxis dataKey="date" tick={{ fill: 'var(--color-text-secondary)', fontSize: 8 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fill: 'var(--color-text-secondary)', fontSize: 9 }} />
-                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(0,245,255,0.2)', borderRadius: 12, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 12, fontSize: 11 }} />
                   <Area type="monotone" dataKey="fp" name="FP" fill="#FBBF24" fillOpacity={0.2} stroke="#FBBF24" strokeWidth={2} />
                   <Area type="monotone" dataKey="fn" name="FN" fill="#EF4444" fillOpacity={0.2} stroke="#EF4444" strokeWidth={2} />
                 </AreaChart>
@@ -188,10 +188,10 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
               <p className="text-[10px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>Taux d'erreur par capteur</p>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={errorData.bySensor} layout="vertical" margin={{ left: 60 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" horizontal={false} />
                   <XAxis type="number" tick={{ fill: 'var(--color-text-secondary)', fontSize: 9 }} />
                   <YAxis dataKey="sensor" type="category" tick={{ fill: 'var(--color-text-secondary)', fontSize: 10 }} />
-                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(0,245,255,0.2)', borderRadius: 12, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 12, fontSize: 11 }} />
                   <Bar dataKey="fpRate" name="FP" fill="#FBBF24" fillOpacity={0.7} radius={[0, 3, 3, 0]} maxBarSize={16} />
                   <Bar dataKey="fnRate" name="FN" fill="#EF4444" fillOpacity={0.7} radius={[0, 3, 3, 0]} maxBarSize={16} />
                 </BarChart>
@@ -204,10 +204,10 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
                 <p className="text-[10px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>Taux de détection par type d'attaque</p>
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={attackMetrics.map(a => ({ name: a.attack_type.replace('IoT_', '').replace('_normal', ''), rate: (a.detection_rate ?? a.taux_detection ?? 0), total: a.n_total }))} layout="vertical" margin={{ left: 70 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                    <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" horizontal={false} />
                     <XAxis type="number" domain={[0, 100]} tick={{ fill: 'var(--color-text-secondary)', fontSize: 9 }} />
                     <YAxis dataKey="name" type="category" tick={{ fill: 'var(--color-text-secondary)', fontSize: 9 }} width={70} />
-                    <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(0,245,255,0.2)', borderRadius: 12, fontSize: 11 }} formatter={(v: unknown) => [`${Number(v).toFixed(1)}%`, 'Détection']} />
+                    <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.95)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 12, fontSize: 11 }} formatter={(v: unknown) => [`${Number(v).toFixed(1)}%`, 'Détection']} />
                     <Bar dataKey="rate" name="Détection" fill="#22C55E" fillOpacity={0.7} radius={[0, 3, 3, 0]} maxBarSize={16} />
                   </BarChart>
                 </ResponsiveContainer>

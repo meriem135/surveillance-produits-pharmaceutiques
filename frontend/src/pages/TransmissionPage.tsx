@@ -101,7 +101,7 @@ const SMALL_BIASES = ['Injection_biais_0.5', 'Injection_biais_1.0'];
 const TARGETS = [0.8, 0.9, 0.95];
 const PHASE: PhaseItem = {
   num: 2, label: 'Attaques de transmission', subtitle: 'Traces réelles TON_IoT · MITM & injection · 4 modèles supervisés',
-  icon: '\u{1F4E1}', color: '#00FFA3', status: 'active', progress: 100,
+  icon: '\u{1F4E1}', color: '#0D9488', status: 'active', progress: 100,
 };
 
 const pct = (v: number | undefined | null) => (v == null ? '—' : `${Math.round(v * 100)} %`);
@@ -129,7 +129,7 @@ async function getJson<T>(url: string): Promise<T | null> {
 }
 
 const TH = 'pr-3 font-normal';
-const cellBorder = { borderColor: 'rgba(255,255,255,0.06)' };
+const cellBorder = { borderColor: 'color-mix(in srgb, var(--text-primary) 8%, transparent)' };
 
 /* ═══════════════════════════════════════════
    PAGE
@@ -227,10 +227,10 @@ export default function TransmissionPage() {
   }, [best, op]);
 
   const stats = [
-    { icon: <Database className="w-4 h-4" />, label: 'Mesures réelles', value: summary?.dataset ? summary.dataset.lignes.toLocaleString('fr-FR') : '—', color: '#00FFA3', sub: summary?.dataset ? `${summary.dataset.heures} h, pas de 5 s` : 'jeu non construit' },
-    { icon: <AlertTriangle className="w-4 h-4" />, label: 'Part d’attaques (val / test)', value: prevalence ? `${pct1(prevalence.val.part)} / ${pct1(prevalence.test.part)}` : '—', color: '#FF2D78', sub: prevalence ? `train ${pct1(prevalence.train.part)} · ${summary?.dataset?.scenarios.length ?? 9} scénarios` : '' },
-    { icon: <Activity className="w-4 h-4" />, label: 'Meilleur modèle (validation)', value: bestKey ? MODEL_LABEL[bestKey] ?? bestKey : '—', color: '#00F5FF', sub: bestTest ? `test : rappel ${pct(bestTest.recall)} · précision ${pct(bestTest.precision)}` : '' },
-    { icon: <Sparkles className="w-4 h-4" />, label: 'Fausses alertes / h', value: bestTest ? num(bestTest.fausses_alarmes_evenements_par_heure, 1) : '—', color: '#A855F7', sub: `au rappel cible ${target.toFixed(2)} (test)` },
+    { icon: <Database className="w-4 h-4" />, label: 'Mesures réelles', value: summary?.dataset ? summary.dataset.lignes.toLocaleString('fr-FR') : '—', color: '#0D9488', sub: summary?.dataset ? `${summary.dataset.heures} h, pas de 5 s` : 'jeu non construit' },
+    { icon: <AlertTriangle className="w-4 h-4" />, label: 'Part d’attaques (val / test)', value: prevalence ? `${pct1(prevalence.val.part)} / ${pct1(prevalence.test.part)}` : '—', color: '#E11D48', sub: prevalence ? `train ${pct1(prevalence.train.part)} · ${summary?.dataset?.scenarios.length ?? 9} scénarios` : '' },
+    { icon: <Activity className="w-4 h-4" />, label: 'Meilleur modèle (validation)', value: bestKey ? MODEL_LABEL[bestKey] ?? bestKey : '—', color: '#0891B2', sub: bestTest ? `test : rappel ${pct(bestTest.recall)} · précision ${pct(bestTest.precision)}` : '' },
+    { icon: <Sparkles className="w-4 h-4" />, label: 'Fausses alertes / h', value: bestTest ? num(bestTest.fausses_alarmes_evenements_par_heure, 1) : '—', color: '#7C3AED', sub: `au rappel cible ${target.toFixed(2)} (test)` },
   ];
 
   const downloadReport = () => {
@@ -249,7 +249,7 @@ export default function TransmissionPage() {
       {/* ── Entraînement en temps réel ── */}
       <Card className="glass glass-border">
         <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
-          <CardTitle className="text-sm flex items-center gap-2"><Radio className="w-4 h-4" style={{ color: '#00FFA3' }} />Entraînement en temps réel des 4 modèles supervisés</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><Radio className="w-4 h-4" style={{ color: '#0D9488' }} />Entraînement en temps réel des 4 modèles supervisés</CardTitle>
           <Button size="sm" onClick={startTraining} disabled={running}>
             {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
             {running ? 'Entraînement en cours…' : 'Lancer l’entraînement'}
@@ -261,8 +261,8 @@ export default function TransmissionPage() {
             ils apprennent sur les attaques étiquetées des blocs d’entraînement (~33 % d’attaques). Validation et test gardent une
             prévalence réaliste (≈ 14 %). Seuils choisis sur la validation, résultat mesuré sur le test.
           </p>
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-            <div className="h-full transition-all duration-500" style={{ width: `${progress?.progress ?? (summary?.web ? 100 : 0)}%`, background: 'linear-gradient(90deg,#00FFA3,#00F5FF)' }} />
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
+            <div className="h-full transition-all duration-500" style={{ width: `${progress?.progress ?? (summary?.web ? 100 : 0)}%`, background: 'var(--accent-primary)' }} />
           </div>
           <div className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
             {progress?.message ?? (summary?.web ? `Dernier entraînement : ${new Date(summary.web.generated_at).toLocaleString('fr-FR')} (${summary.web.duree_s} s)` : 'Aucun entraînement lancé.')}
@@ -274,10 +274,10 @@ export default function TransmissionPage() {
               const m = r ? metricsAt(r, r.points_fonctionnement?.[op] ? op : 'max_f1', 'test') : null;
               const active = running && progress?.model === k && !r;
               return (
-                <div key={k} className="rounded-xl p-3 glass-border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: r ? '#00FFA340' : 'rgba(255,255,255,0.08)' }}>
+                <div key={k} className="rounded-xl p-3 glass-border" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)', borderColor: r ? '#0D948840' : 'color-mix(in srgb, var(--text-primary) 10%, transparent)' }}>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold">{MODEL_LABEL[k]}</span>
-                    {r ? <CheckCircle2 className="w-4 h-4" style={{ color: '#00FFA3' }} /> : active ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="text-[10px] opacity-50">en attente</span>}
+                    {r ? <CheckCircle2 className="w-4 h-4" style={{ color: '#0D9488' }} /> : active ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="text-[10px] opacity-50">en attente</span>}
                   </div>
                   <div className="text-lg font-mono font-bold mt-1">{m ? `rappel ${pct(m.recall)}` : '—'}</div>
                   <div className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
@@ -294,21 +294,21 @@ export default function TransmissionPage() {
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={rfCurve} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-primary) 8%, transparent)" />
                     <XAxis dataKey="arbres" tick={{ fontSize: 10 }} label={{ value: 'arbres', position: 'insideBottomRight', fontSize: 10, offset: -4 }} />
                     <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} />
                     <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v) => Number(v).toFixed(3)} />
-                    <Line type="monotone" dataKey={rfCurve.some((p) => p.f2_validation != null) ? 'f2_validation' : 'f1_validation'} name="F2 validation" stroke="#00FFA3" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="auc_validation" name="AUC validation" stroke="#00F5FF" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey={rfCurve.some((p) => p.f2_validation != null) ? 'f2_validation' : 'f1_validation'} name="F2 validation" stroke="#0D9488" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="auc_validation" name="AUC validation" stroke="#0891B2" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
             <div>
               <div className="text-xs font-bold mb-2">Journal</div>
-              <div className="rounded-xl p-3 h-52 overflow-auto text-[11px] font-mono space-y-1" style={{ background: 'rgba(0,0,0,0.25)' }}>
+              <div className="rounded-xl p-3 h-52 overflow-auto text-[11px] font-mono space-y-1" style={{ background: 'var(--bg-subtle)' }}>
                 {log.length === 0 && <div style={{ color: 'var(--text-secondary)' }}>Les étapes s’affichent ici pendant l’entraînement.</div>}
-                {log.map((m, i) => <div key={i}><span style={{ color: '#00FFA3' }}>[{String(m.progress).padStart(3, ' ')} %]</span> {m.message}</div>)}
+                {log.map((m, i) => <div key={i}><span style={{ color: '#0D9488' }}>[{String(m.progress).padStart(3, ' ')} %]</span> {m.message}</div>)}
               </div>
             </div>
           </div>
@@ -318,7 +318,7 @@ export default function TransmissionPage() {
       {/* ── Résultats ── */}
       <Card className="glass glass-border">
         <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
-          <CardTitle className="text-sm flex items-center gap-2"><Target className="w-4 h-4" style={{ color: '#00F5FF' }} />Résultats : validation (choix) et test (confirmation)</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><Target className="w-4 h-4" style={{ color: '#0891B2' }} />Résultats : validation (choix) et test (confirmation)</CardTitle>
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Rappel cible</span>
             {TARGETS.map((t) => (
@@ -343,7 +343,7 @@ export default function TransmissionPage() {
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Aucun résultat : lancez un entraînement, ou exécutez <code>backend/scripts/transmission_models.py</code> pour la référence.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" data-testid="table-resultats">
+              <table className="w-full text-xs min-w-[860px] whitespace-nowrap" data-testid="table-resultats">
                 <thead>
                   <tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
                     <th className="py-2 pr-3 font-normal">Modèle</th><th className={TH}>Seuil</th><th className={TH}>Rôle</th>
@@ -361,7 +361,7 @@ export default function TransmissionPage() {
                       if (!m) return null;
                       const first = o === ops[0] && role === 'val';
                       return (
-                        <tr key={`${k}-${o}-${role}`} className={first ? 'border-t' : ''} style={{ ...cellBorder, background: isBest ? 'rgba(0,255,163,0.06)' : undefined, opacity: o === 'max_f1' ? 0.75 : 1 }}>
+                        <tr key={`${k}-${o}-${role}`} className={first ? 'border-t' : ''} style={{ ...cellBorder, background: isBest ? 'rgba(13,148,136,0.06)' : undefined, opacity: o === 'max_f1' ? 0.75 : 1 }}>
                           <td className="py-1 pr-3 font-bold whitespace-nowrap">{first ? <>{MODEL_LABEL[k] ?? r.nom} {isBest && <Badge className="ml-1" variant="secondary">retenu</Badge>}</> : ''}</td>
                           <td className="pr-3 whitespace-nowrap">{role === 'val' ? (o === 'max_f1' ? 'max F1' : `rappel ${target.toFixed(2).replace('.', ',')}`) : ''}</td>
                           <td className="pr-3">{role === 'val' ? 'validation' : 'test'}</td>
@@ -399,16 +399,16 @@ export default function TransmissionPage() {
               <div className="h-72" data-testid="courbe-pr">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 8, right: 16, left: -10, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-primary) 8%, transparent)" />
                     <XAxis type="number" dataKey="recall" domain={[0, 1]} tick={{ fontSize: 10 }} label={{ value: 'rappel', position: 'insideBottomRight', fontSize: 10, offset: -4 }} />
                     <YAxis type="number" dataKey="precision" domain={[0, 1]} tick={{ fontSize: 10 }} />
                     <ZAxis range={[60, 60]} />
                     <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v) => Number(v).toFixed(3)} />
                     <Legend wrapperStyle={{ fontSize: 10 }} />
-                    <Scatter name="test (cumulé)" data={prData.test} line={{ stroke: '#00F5FF', strokeWidth: 2 }} shape={() => <g />} fill="#00F5FF" isAnimationActive={false} />
+                    <Scatter name="test (cumulé)" data={prData.test} line={{ stroke: '#0891B2', strokeWidth: 2 }} shape={() => <g />} fill="#0891B2" isAnimationActive={false} />
                     <Scatter name="validation (cumulé)" data={prData.val} line={{ stroke: '#64748B', strokeWidth: 1, strokeDasharray: '4 3' }} shape={() => <g />} fill="#64748B" isAnimationActive={false} />
                     <Scatter name="max F1 (test)" data={prData.f1Test} fill="#F59E0B" shape="diamond" isAnimationActive={false} />
-                    <Scatter name={`rappel cible ${target.toFixed(2)} (test)`} data={prData.tgTest} fill="#00FFA3" shape="star" isAnimationActive={false} />
+                    <Scatter name={`rappel cible ${target.toFixed(2)} (test)`} data={prData.tgTest} fill="#0D9488" shape="star" isAnimationActive={false} />
                     <Scatter name="points de validation" data={[...prData.f1Val, ...prData.tgVal]} fill="#94A3B8" shape="circle" isAnimationActive={false} />
                   </ScatterChart>
                 </ResponsiveContainer>
@@ -422,7 +422,7 @@ export default function TransmissionPage() {
           <CardContent>
             {scenarioRows.length === 0 ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>—</p> : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs" data-testid="table-scenarios">
+                <table className="w-full text-xs min-w-[520px] whitespace-nowrap" data-testid="table-scenarios">
                   <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
                     <th className="py-1.5 pr-3 font-normal">Scénario</th><th className={TH}>Rappel</th><th className={TH}>Épisodes détectés</th>
                     <th className={TH}>Délai médian</th><th className="font-normal">Rappel au max F1</th>
@@ -431,7 +431,7 @@ export default function TransmissionPage() {
                     {scenarioRows.map((s) => {
                       const small = SMALL_BIASES.includes(s.key);
                       return (
-                        <tr key={s.key} className="border-t" style={{ ...cellBorder, background: small ? 'rgba(255,45,120,0.06)' : undefined }}>
+                        <tr key={s.key} className="border-t" style={{ ...cellBorder, background: small ? 'rgba(225,29,72,0.06)' : undefined }}>
                           <td className="py-1.5 pr-3 font-bold whitespace-nowrap">{s.scenario}{small && <Badge className="ml-1" variant="destructive">limite connue</Badge>}</td>
                           <td className="pr-3 font-mono font-bold">{s.rate.toFixed(1)} %</td>
                           <td className="pr-3 font-mono">{s.ep ? `${s.ep.detected}/${s.ep.n}` : '—'}</td>
@@ -456,11 +456,11 @@ export default function TransmissionPage() {
       {/* ── Validation croisée + biais longs ── */}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card className="glass glass-border">
-          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Layers className="w-4 h-4" style={{ color: '#38BDF8' }} />Validation croisée de confirmation (5 folds)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Layers className="w-4 h-4" style={{ color: '#0284C7' }} />Validation croisée de confirmation (5 folds)</CardTitle></CardHeader>
           <CardContent>
             {!cv ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Lancer <code>transmission_models.py</code> (sans SKIP_CV).</p> : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs" data-testid="table-cv">
+                <table className="w-full text-xs min-w-[560px]" data-testid="table-cv">
                   <thead>
                     <tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
                       <th className="py-1.5 pr-3 font-normal" rowSpan={2}>Modèle</th>
@@ -496,14 +496,14 @@ export default function TransmissionPage() {
         </Card>
 
         <Card className="glass glass-border">
-          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" style={{ color: '#FF2D78' }} />Étude complémentaire : petits biais longs (1 à 3 h)</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" style={{ color: '#E11D48' }} />Étude complémentaire : petits biais longs (1 à 3 h)</CardTitle></CardHeader>
           <CardContent>
             {!lb ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Lancer <code>backend/scripts/transmission_biais_long.py</code>.</p> : (
               <div className="space-y-2" data-testid="biais-long">
                 {(['A', 'B'] as const).filter((j) => lb.resultats[j]).map((j) => (
                   <div key={j}>
                     <div className="text-[11px] font-bold">{j === 'A' ? 'Features actuelles (≤ 15 min)' : '+ moyennes 30 / 60 min, EWMA 1 h'} <span className="opacity-60 font-normal">· {num(lb.resultats[j].fa_h_test, 2)} FA/h au test</span></div>
-                    <table className="w-full text-xs mt-1">
+                    <div className="overflow-x-auto"><table className="w-full text-xs mt-1 min-w-[480px] whitespace-nowrap">
                       <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
                         <th className="py-1 pr-3 font-normal">Biais</th><th className={TH}>Détectés</th>
                         {Object.keys(Object.values(lb.resultats[j].par_amplitude)[0]?.detectes_avant_min ?? {}).map((h) => <th key={h} className={TH}>≤ {h} min</th>)}
@@ -519,7 +519,7 @@ export default function TransmissionPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
                 ))}
                 <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
@@ -534,7 +534,7 @@ export default function TransmissionPage() {
 
       {/* ── SHAP ── */}
       <Card className="glass glass-border">
-        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="w-4 h-4" style={{ color: '#A855F7' }} />SHAP — ce que le modèle regarde{shap?.modele ? ` (${MODEL_LABEL[shap.modele] ?? shap.modele})` : ''}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="w-4 h-4" style={{ color: '#7C3AED' }} />SHAP — ce que le modèle regarde{shap?.modele ? ` (${MODEL_LABEL[shap.modele] ?? shap.modele})` : ''}</CardTitle></CardHeader>
         <CardContent className="grid lg:grid-cols-2 gap-4">
           {!shap ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>SHAP disponible après un entraînement d’un modèle arborescent.</p> : (
             <>
@@ -544,7 +544,7 @@ export default function TransmissionPage() {
                     <XAxis type="number" tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 9 }} />
                     <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v) => Number(v).toFixed(3)} />
-                    <Bar dataKey="importance" fill="#A855F7" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="importance" fill="#7C3AED" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -566,11 +566,11 @@ export default function TransmissionPage() {
 
       {/* ── Historique (entraînements enregistrés en base) ── */}
       <Card className="glass glass-border">
-        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Database className="w-4 h-4" style={{ color: '#38BDF8' }} />Historique des entraînements</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Database className="w-4 h-4" style={{ color: '#0284C7' }} />Historique des entraînements</CardTitle></CardHeader>
         <CardContent>
           {history.length === 0 ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Aucun entraînement enregistré en base pour l’instant.</p> : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs min-w-[560px] whitespace-nowrap">
                 <thead><tr className="text-left" style={{ color: 'var(--text-secondary)' }}>
                   <th className="py-1.5 pr-3 font-normal">Date</th><th className={TH}>Lancé par</th><th className={TH}>Statut</th>
                   <th className={TH}>Durée</th><th className={TH}>Meilleur modèle</th><th className="font-normal">F1 (test, max F1)</th>
@@ -580,7 +580,7 @@ export default function TransmissionPage() {
                     <tr key={h.id} className="border-t" style={cellBorder} title={h.erreur ?? undefined}>
                       <td className="py-1.5 pr-3 whitespace-nowrap">{new Date(`${h.debut}Z`).toLocaleString('fr-FR')}</td>
                       <td className="pr-3">{h.lance_par ?? '—'}</td>
-                      <td className="pr-3"><Badge variant={h.statut === 'termine' ? 'default' : h.statut === 'en_cours' ? 'secondary' : 'destructive'}>{h.statut.replace('_', ' ')}</Badge></td>
+                      <td className="pr-3"><Badge variant={h.statut === 'termine' ? 'success' : h.statut === 'en_cours' ? 'secondary' : 'destructive'}>{({ termine: 'terminé', en_cours: 'en cours', erreur: 'erreur', interrompu: 'interrompu' } as Record<string, string>)[h.statut] ?? h.statut}</Badge></td>
                       <td className="pr-3">{h.duree_s != null ? `${Math.round(h.duree_s)} s` : '—'}</td>
                       <td className="pr-3">{h.meilleur_modele ? MODEL_LABEL[h.meilleur_modele] ?? h.meilleur_modele : '—'}</td>
                       <td>{num(h.meilleur_f1, 3)}</td>
@@ -596,13 +596,13 @@ export default function TransmissionPage() {
       {/* ── Rapport opérateur ── */}
       <Card className="glass glass-border">
         <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
-          <CardTitle className="text-sm flex items-center gap-2"><FileText className="w-4 h-4" style={{ color: '#00F5FF' }} />Rapport de recommandation pour l’opérateur</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><FileText className="w-4 h-4" style={{ color: '#0891B2' }} />Rapport de recommandation pour l’opérateur</CardTitle>
           <Button size="sm" variant="outline" onClick={downloadReport} disabled={!report?.markdown}><Download className="w-4 h-4 mr-2" />Télécharger (.md)</Button>
         </CardHeader>
         <CardContent className="space-y-4">
           {!report || !report.modele ? <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{report?.message ?? 'Rapport indisponible.'}</p> : (
             <>
-              <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(0,245,255,0.05)' }}>
+              <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(8,145,178,0.05)' }}>
                 <div className="font-bold">Modèle en service : {report.modele.nom} ({report.modele.type}){report.modele.point_fonctionnement ? `, seuil « ${report.modele.point_fonctionnement} »` : ''} · source : {report.source}</div>
                 <div>{report.modele.lecture}</div>
                 {report.modele.seuil && <div style={{ color: 'var(--text-secondary)' }}>{report.modele.seuil}</div>}
@@ -610,7 +610,7 @@ export default function TransmissionPage() {
               </div>
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {report.scenarios.map((s) => (
-                  <div key={s.scenario} className="rounded-xl p-3 glass-border text-[11px] space-y-1" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <div key={s.scenario} className="rounded-xl p-3 glass-border text-[11px] space-y-1" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold">{SCENARIO_LABEL[s.scenario] ?? s.scenario} <span className="opacity-60">· {s.capteur}</span></span>
                       <Badge variant={s.taux_detection != null && s.taux_detection >= 80 ? 'default' : s.taux_detection != null && s.taux_detection >= 40 ? 'secondary' : 'destructive'}>

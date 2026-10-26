@@ -8,26 +8,30 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'dark',
+  theme: 'light',
   setTheme: () => {},
   nextTheme: () => {},
 });
 
 const STORAGE_KEY = 'pfe-theme';
-const THEME_ORDER: ThemeMode[] = ['dark', 'cyberpunk', 'matrix', 'light'];
+const THEME_ORDER: ThemeMode[] = ['light', 'dark'];
+
+/** Thème mémorisé ; les anciens thèmes « cyberpunk » / « matrix » deviennent « sombre ». */
+function initialTheme(): ThemeMode {
+  if (typeof window === 'undefined') return 'light';
+  let stored: string | null = null;
+  try { stored = localStorage.getItem(STORAGE_KEY); } catch { /* stockage indisponible */ }
+  if (stored === 'light' || stored === 'dark') return stored;
+  if (stored === 'cyberpunk' || stored === 'matrix') return 'dark';
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
-      return stored && THEME_ORDER.includes(stored) ? stored : 'dark';
-    }
-    return 'dark';
-  });
+  const [theme, setThemeState] = useState<ThemeMode>(initialTheme);
 
   const setTheme = useCallback((t: ThemeMode) => {
     setThemeState(t);
-    localStorage.setItem(STORAGE_KEY, t);
+    try { localStorage.setItem(STORAGE_KEY, t); } catch { /* stockage indisponible */ }
   }, []);
 
   const nextTheme = useCallback(() => {

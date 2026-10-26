@@ -1,106 +1,75 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════
-   AURORA DEEP SPACE — Default Theme
-   Primary:  #00FFA3  (aurora green-cyan)
-   Purple:   #A855F7  (electric violet)
-   Pink:     #FF2D78  (plasma rose)
+   VigiloChain — thème « instrument de supervision »
+   Clair (par défaut) et sombre. Une seule teinte d'accent (cyan
+   industriel) ; les couleurs d'état restent sémantiques.
    ══════════════════════════════════════════════════════════ */
-:root, [data-theme="dark"] {
-  --bg-base:    #05050F;
-  --bg-panel:   #09091A;
-  --bg-card:    rgba(168, 85, 247, 0.04);
-  --bg-sidebar: #070714;
-  --border:     rgba(168, 85, 247, 0.15);
-  --text-primary:   #F0EEFF;
-  --text-secondary: #8B80B0;
-  --accent-primary: #00FFA3;
-  --accent-success: #00FFA3;
-  --accent-danger:  #FF2D78;
-  --accent-warning: #FFB830;
-  --accent-purple:  #A855F7;
-  --accent-pink:    #FF2D78;
-  --accent-glow:    rgba(0, 255, 163, 0.08);
-}
-
-/* ══════════════════════════════════════════════════════════
-   NEON TOKYO — Cyberpunk Theme
-   ══════════════════════════════════════════════════════════ */
-[data-theme="cyberpunk"] {
-  --bg-base:    #020010;
-  --bg-panel:   #07001E;
-  --bg-card:    rgba(255, 45, 120, 0.05);
-  --bg-sidebar: #04000F;
-  --border:     rgba(255, 45, 120, 0.25);
-  --text-primary:   #FFE8F5;
-  --text-secondary: #C084A0;
-  --accent-primary: #FF2D78;
-  --accent-success: #00FFB2;
-  --accent-danger:  #FF0055;
-  --accent-warning: #FF9500;
-  --accent-purple:  #BF5FFF;
-  --accent-pink:    #FF2D78;
-  --accent-glow:    rgba(255, 45, 120, 0.10);
-}
-
-/* ══════════════════════════════════════════════════════════
-   MATRIX RELOADED — Matrix Theme
-   ══════════════════════════════════════════════════════════ */
-[data-theme="matrix"] {
-  --bg-base:    #000500;
-  --bg-panel:   #000E00;
-  --bg-card:    rgba(0, 255, 65, 0.03);
-  --bg-sidebar: #000700;
-  --border:     rgba(0, 255, 65, 0.15);
-  --text-primary:   #CCFFCC;
-  --text-secondary: #33AA44;
-  --accent-primary: #00FF41;
-  --accent-success: #00FF41;
-  --accent-danger:  #FF1744;
-  --accent-warning: #FFD600;
-  --accent-purple:  #00E5FF;
-  --accent-pink:    #FF1744;
-  --accent-glow:    rgba(0, 255, 65, 0.07);
-}
-
-/* ══════════════════════════════════════════════════════════
-   ARCTIC LIGHT — Light Theme
-   ══════════════════════════════════════════════════════════ */
-[data-theme="light"] {
-  --bg-base:    #F8F5FF;
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --bg-base:    #F3F5F8;
   --bg-panel:   #FFFFFF;
-  --bg-card:    rgba(168, 85, 247, 0.04);
+  --bg-card:    #FFFFFF;
+  --bg-subtle:  #F7F9FB;
   --bg-sidebar: #FFFFFF;
-  --border:     rgba(168, 85, 247, 0.12);
-  --text-primary:   #1A1040;
-  --text-secondary: #6B5E8A;
-  --accent-primary: #7C3AED;
-  --accent-success: #059669;
-  --accent-danger:  #E11D48;
-  --accent-warning: #D97706;
-  --accent-purple:  #A855F7;
-  --accent-pink:    #E11D48;
-  --accent-glow:    rgba(124, 58, 237, 0.07);
+  --border:     #E1E6ED;
+  --border-strong: #CBD3DE;
+  --text-primary:   #0F1A2B;
+  --text-secondary: #4F5D73;
+  --text-muted:     #7F8BA0;
+  --accent-primary: #0E7490;
+  --accent-primary-fg: #FFFFFF;
+  --accent-success: #15803D;
+  --accent-danger:  #DC2626;
+  --accent-warning: #B45309;
+  --accent-purple:  #6D28D9;
+  --accent-pink:    #BE185D;
+  --accent-glow:    rgba(14, 116, 144, 0.10);
+  --shadow-card: 0 1px 2px rgba(15, 26, 43, 0.04), 0 1px 3px rgba(15, 26, 43, 0.06);
+  --chart-grid: #E6EAF0;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-base:    #0A111D;
+  --bg-panel:   #0F1828;
+  --bg-card:    #111B2C;
+  --bg-subtle:  #142035;
+  --bg-sidebar: #0D1524;
+  --border:     #1F2C42;
+  --border-strong: #2C3C57;
+  --text-primary:   #E7ECF3;
+  --text-secondary: #9DAABD;
+  --text-muted:     #6C7B92;
+  --accent-primary: #2CB5D0;
+  --accent-primary-fg: #04121A;
+  --accent-success: #34C26B;
+  --accent-danger:  #F06A6A;
+  --accent-warning: #E9A93A;
+  --accent-purple:  #A48AF5;
+  --accent-pink:    #EC6FA5;
+  --accent-glow:    rgba(44, 181, 208, 0.12);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --chart-grid: #1E2A3E;
 }
 
 @theme {
-  --color-bg-base:      #05050F;
-  --color-bg-panel:     #09091A;
-  --color-bg-card:      rgba(168, 85, 247, 0.04);
-  --color-bg-sidebar:   #070714;
-  --color-border:       rgba(168, 85, 247, 0.15);
-  --color-border-panel: rgba(168, 85, 247, 0.15);
-  --color-text-primary:   #F0EEFF;
-  --color-text-secondary: #8B80B0;
-  --color-accent-cyan:    #00FFA3;
-  --color-accent-green:   #00FFA3;
-  --color-accent-red:     #FF2D78;
-  --color-accent-orange:  #FFB830;
-  --color-accent-purple:  #A855F7;
-  --color-accent-purple: #818cf8;
-  --font-display: "Space Grotesk", sans-serif;
-  --font-body: "Plus Jakarta Sans", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --color-bg-base:      #F3F5F8;
+  --color-bg-panel:     #FFFFFF;
+  --color-bg-card:      #FFFFFF;
+  --color-bg-sidebar:   #FFFFFF;
+  --color-border:       #E1E6ED;
+  --color-border-panel: #E1E6ED;
+  --color-text-primary:   #0F1A2B;
+  --color-text-secondary: #4F5D73;
+  --color-accent-cyan:    #0E7490;
+  --color-accent-green:   #15803D;
+  --color-accent-red:     #DC2626;
+  --color-accent-orange:  #B45309;
+  --color-accent-purple:  #6D28D9;
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 :root {
@@ -112,22 +81,29 @@
   --color-border-panel: var(--border);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent-primary: var(--accent-primary);
   --color-accent-cyan: var(--accent-primary);
   --color-accent-green: var(--accent-success);
   --color-accent-red: var(--accent-danger);
   --color-accent-orange: var(--accent-warning);
+  --color-accent-warning: var(--accent-warning);
   --color-accent-purple: var(--accent-purple);
   --color-accent-glow: var(--accent-glow);
+  --accent-red: var(--accent-danger);
+  --accent-orange: var(--accent-warning);
 }
 
-* { transition: background-color 0.4s ease, border-color 0.4s ease, color 0.3s ease; }
+
 
 body {
   margin: 0;
   min-height: 100vh;
   background: var(--bg-base);
   color: var(--text-primary);
-  font-family: "Plus Jakarta Sans", sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -453,3 +429,63 @@ body {
   box-shadow: 0 10px 30px -14px var(--accent-glow);
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   Refonte : neutralisation des effets « néon » hérités
+   (les pages gardent leurs classes, l'apparence devient sobre)
+   ══════════════════════════════════════════════════════════ */
+.glass, .glass-light, .glass-strong {
+  background: var(--bg-card) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: var(--shadow-card) !important;
+}
+.glass-border, .glass-border-strong { border: 1px solid var(--border) !important; }
+.text-glow-cyan, .text-glow-purple, .text-glow-green, .text-glow-pink { text-shadow: none; }
+.animate-border-glow, .animate-border-glow-green, .animate-border-glow-purple, .animate-border-breathe,
+.animate-orb, .animate-orb-reverse, .animate-orb-slow, .animate-grid, .animate-flicker, .animate-glitch,
+.animate-scanline-fast, .animate-aurora { animation: none !important; }
+.animate-orb, .animate-orb-reverse, .animate-orb-slow { display: none; }
+.animate-scanline::after { display: none; }
+.cyber-card { background: var(--bg-card); box-shadow: var(--shadow-card); border-radius: 0.75rem; }
+.cyber-card::before { display: none; }
+.industry-bg { background: var(--bg-base); }
+.grid-bg { background-image: none; }
+.font-display { letter-spacing: -0.01em; }
+.font-black { font-weight: 700; }
+.tabular, .font-mono { font-variant-numeric: tabular-nums; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: content-box; }
+
+/* Tables : lecture homogène sur toutes les pages */
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table th { font-weight: 600; }
+
+/* Recharts : grille, axes et infobulles suivent le thème */
+.recharts-cartesian-grid line { stroke: var(--chart-grid); }
+.recharts-cartesian-axis-tick-value, .recharts-text { fill: var(--text-secondary); }
+.recharts-cartesian-axis-line, .recharts-cartesian-axis-tick-line { stroke: var(--border-strong); }
+.recharts-default-tooltip {
+  background: var(--bg-panel) !important; border: 1px solid var(--border) !important;
+  border-radius: 8px !important; box-shadow: 0 8px 24px rgba(15,26,43,0.12);
+  color: var(--text-primary);
+}
+.recharts-legend-item-text { color: var(--text-secondary) !important; }
+
+/* Composants de mise en page de la refonte */
+.vc-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-card); }
+.vc-kicker { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.vc-table th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-muted); padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--bg-subtle); white-space: nowrap; }
+.vc-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+.vc-table tbody tr:last-child td { border-bottom: none; }
+.vc-table tbody tr:hover td { background: var(--bg-subtle); }
+.vc-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+/* Les colonnes de grille ne débordent pas sur téléphone (tables et graphiques défilent dans leur carte) */
+.grid > * { min-width: 0; }
+/* Liserés lumineux hérités en haut des cartes : retirés */
+.absolute.top-0.left-0.right-0.h-\[2px\] { display: none; }

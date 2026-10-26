@@ -36,12 +36,12 @@ function BackgroundOrbs({ phaseColor }: { phaseColor: string }) {
   );
 }
 
-export function PhaseShell({ phase, children, backgroundOrbs = true, hidePipeline = false, trained, stats }: PhaseShellProps) {
+export function PhaseShell({ phase, children, backgroundOrbs = false, hidePipeline = false, trained, stats }: PhaseShellProps) {
   const phaseColors: Record<number, string> = {
-    1: '#00F5FF',
-    2: '#00FFA3',
-    3: '#FF2D78',
-    4: '#A855F7',
+    1: '#0891B2',
+    2: '#0D9488',
+    3: '#E11D48',
+    4: '#7C3AED',
   };
   const color = phaseColors[phase.num] || phase.color;
   const glowColor = color + '08';
@@ -50,51 +50,34 @@ export function PhaseShell({ phase, children, backgroundOrbs = true, hidePipelin
     <div className="relative min-h-full" data-phase={phase.num}>
       {backgroundOrbs && <BackgroundOrbs phaseColor={glowColor} />}
 
-      <div className="relative z-10 space-y-4 pb-8 px-1">
+      <div className="relative z-10 space-y-5 pb-8">
         {/* Header */}
-        <div className="rounded-2xl overflow-hidden glass glass-border"
-          style={{
-            borderColor: `${color}18`,
-            boxShadow: `0 0 40px ${glowColor}`,
-          }}>
+        <div className="vc-card overflow-hidden">
           {!hidePipeline && <PhasePipeline activePhase={phase.num} />}
 
           <div className="px-4 sm:px-6 py-4 sm:py-5">
             <div className="flex flex-col sm:flex-row items-start gap-4">
               <div className="flex items-center gap-4 w-full sm:w-auto">
                 <div
-                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${color}20, ${color}08)`,
-                    color: color,
-                    boxShadow: `0 0 30px ${color}25`,
-                  }}>
-                  <span className="text-xl sm:text-2xl">{phase.icon}</span>
+                  className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--accent-glow)', color: 'var(--accent-primary)' }}>
+                  <span className="text-lg">{phase.icon}</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h1 className="font-display text-lg sm:text-xl font-bold"
-                      style={{
-                        background: `linear-gradient(135deg, ${color}, ${color}CC)`,
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                      }}>
+                    <h1 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
                       Phase {phase.num} — {phase.label}
                     </h1>
                     <span
-                      className="px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold inline-flex items-center gap-1.5"
-                      style={{
-                        background: `${color}12`,
-                        color: color,
-                        border: `1px solid ${color}25`,
-                      }}>
-                      <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+                      className="px-2 py-0.5 rounded-md text-[10px] font-semibold inline-flex items-center gap-1.5"
+                      style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-success)' }} />
                       {trained !== undefined
                         ? (trained ? 'TERMINÉE' : 'EN ATTENTE')
                         : (phase.status === 'completed' ? 'TERMINÉE' : phase.status === 'active' ? 'EN COURS' : 'PLANIFIÉE')}
                     </span>
                   </div>
-                  <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                  <p className="text-xs sm:text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
                     {phase.subtitle}
                   </p>
                 </div>
@@ -104,17 +87,17 @@ export function PhaseShell({ phase, children, backgroundOrbs = true, hidePipelin
                 <div className="flex flex-wrap gap-2 sm:ml-auto w-full sm:w-auto">
                   {stats.map((s, i) => (
                     <div key={i}
-                      className="flex flex-col items-center px-2.5 sm:px-3 py-2 rounded-xl glass flex-1 sm:flex-none min-w-[70px] sm:min-w-[80px]"
-                      style={{ border: `1px solid ${s.color}20` }}>
-                      <div className="font-display font-bold text-sm sm:text-base" style={{ color: s.color }}>
+                      className="flex flex-col items-start px-3 py-2 rounded-lg flex-1 sm:flex-none min-w-[90px]"
+                      style={{ border: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                      <div className="font-semibold text-base tabular-nums" style={{ color: 'var(--text-primary)' }}>
                         {s.value}
                       </div>
-                      <div className="flex items-center gap-1 text-[7px] sm:text-[8px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                      <div className="flex items-center gap-1 text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                         {s.icon}
                         {s.label}
                       </div>
                       {s.sub && (
-                        <div className="text-[6px] sm:text-[7px] font-mono mt-0.5 opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                        <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                           {s.sub}
                         </div>
                       )}
@@ -125,16 +108,13 @@ export function PhaseShell({ phase, children, backgroundOrbs = true, hidePipelin
             </div>
 
             {/* Progress bar */}
-            <div className="mt-3 sm:mt-4 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <div className="mt-3 sm:mt-4 h-1 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${phase.progress}%` }}
                 transition={{ duration: 1.5, ease: 'easeOut' }}
                 className="h-full rounded-full relative"
-                style={{
-                  background: `linear-gradient(90deg, ${color}, ${color}CC)`,
-                  boxShadow: `0 0 10px ${color}30`,
-                }} />
+                style={{ background: 'var(--accent-primary)' }} />
             </div>
           </div>
         </div>

@@ -36,7 +36,7 @@ export interface Device {
 }
 
 export type AttackType = 'recon' | 'mitm' | 'ddos' | 'ransom';
-export type ThemeMode = 'dark' | 'cyberpunk' | 'matrix' | 'light';
+export type ThemeMode = 'light' | 'dark';
 
 export interface NavItem {
   label: string;

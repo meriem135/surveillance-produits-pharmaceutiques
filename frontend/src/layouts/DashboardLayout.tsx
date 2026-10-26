@@ -1,10 +1,8 @@
-import { lazy, Suspense, useCallback } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { NavLink, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,12 +12,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Activity, ShieldAlert, Users,
-  Moon, Sun, ChevronDown, Cpu, RefreshCw, LogOut, User, Brain, Sparkles, LayoutDashboard,
-  Pill, LineChart, ScrollText, Radio,
+  Activity, ShieldAlert, Users, Moon, Sun, ChevronDown, Cpu, LogOut, User, Brain, Sparkles,
+  LayoutDashboard, Pill, LineChart, ScrollText, Radio, Gauge, Menu, X, ShieldCheck,
 } from 'lucide-react';
-import type { NavItem, ThemeMode } from '../types';
 
+const OverviewPage = lazy(() => import('../pages/OverviewPage'));
 const Phase1Page = lazy(() => import('../pages/Phase1Page'));
 const Phase2Page = lazy(() => import('../pages/Phase2Page'));
 const TrainingResultsPage = lazy(() => import('../pages/TrainingResultsPage'));
@@ -32,129 +29,170 @@ const PharmaImpactPage = lazy(() => import('../pages/PharmaImpactPage'));
 const AdvancedAnalyticsPage = lazy(() => import('../pages/AdvancedAnalyticsPage'));
 const AuditLogsPage = lazy(() => import('../pages/AuditLogsPage'));
 const TransmissionPage = lazy(() => import('../pages/TransmissionPage'));
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Tableau de bord', path: '/dashboard/tableau-bord', icon: 'layout', roles: ['admin', 'operator'] },
-  { label: 'Ingestion', path: '/dashboard/phase1', icon: 'cpu', roles: ['admin', 'operator'] },
-  { label: 'ML & Anomalies', path: '/dashboard/phase2', icon: 'activity', roles: ['admin', 'operator'] },
-  { label: 'Transmission', path: '/dashboard/transmission', icon: 'radio', roles: ['admin', 'operator'] },
-  { label: 'SHAP', path: '/dashboard/shap', icon: 'sparkles', roles: ['admin', 'operator'] },
-  { label: 'Résultats', path: '/dashboard/results', icon: 'brain', roles: ['admin', 'operator'] },
-  { label: 'Analyses', path: '/dashboard/analyses', icon: 'chart', roles: ['admin', 'operator'] },
-  { label: 'Impact pharma', path: '/dashboard/pharma', icon: 'pill', roles: ['admin', 'operator'] },
-  { label: 'Comptes', path: '/dashboard/admin-users', icon: 'layout', roles: ['admin'] },
-  { label: 'Audit', path: '/dashboard/audit', icon: 'scroll', roles: ['admin'] },
-  { label: 'Mon profil', path: '/dashboard/profile', icon: 'layout', roles: ['admin', 'operator'] },
+
+type Item = { label: string; path: string; icon: React.ComponentType<{ className?: string }>; roles: string[]; hint?: string };
+const ALL = ['admin', 'operator'];
+
+const NAV_GROUPS: { title: string; items: Item[] }[] = [
+  {
+    title: 'Pilotage',
+    items: [
+      { label: "Vue d'ensemble", path: '/dashboard/overview', icon: Gauge, roles: ALL, hint: 'Indicateurs lus en base de données' },
+      { label: 'Jeu de données', path: '/dashboard/tableau-bord', icon: LayoutDashboard, roles: ALL, hint: 'KPI du jeu annuel simulé (phase 2)' },
+    ],
+  },
+  {
+    title: 'Détection',
+    items: [
+      { label: 'Transmission', path: '/dashboard/transmission', icon: Radio, roles: ALL, hint: 'Attaques MITM / injection sur traces réelles' },
+      { label: 'ML & anomalies', path: '/dashboard/phase2', icon: Activity, roles: ALL },
+      { label: 'Ingestion', path: '/dashboard/phase1', icon: Cpu, roles: ALL },
+      { label: 'Explicabilité SHAP', path: '/dashboard/shap', icon: Sparkles, roles: ALL },
+      { label: 'Résultats', path: '/dashboard/results', icon: Brain, roles: ALL },
+    ],
+  },
+  {
+    title: 'Analyses',
+    items: [
+      { label: 'Analyses avancées', path: '/dashboard/analyses', icon: LineChart, roles: ALL },
+      { label: 'Impact pharma', path: '/dashboard/pharma', icon: Pill, roles: ALL },
+    ],
+  },
+  {
+    title: 'Administration',
+    items: [
+      { label: 'Comptes', path: '/dashboard/admin-users', icon: Users, roles: ['admin'] },
+      { label: "Journal d'audit", path: '/dashboard/audit', icon: ScrollText, roles: ['admin'] },
+      { label: 'Mon profil', path: '/dashboard/profile', icon: User, roles: ALL },
+    ],
+  },
 ];
 
-const PAGE_ROLES: Record<string, string[]> = {
-  '/dashboard/phase1': ['admin', 'operator'],
-  '/dashboard/phase2': ['admin', 'operator'],
-  '/dashboard/transmission': ['admin', 'operator'],
-  '/dashboard/shap': ['admin', 'operator'],
-  '/dashboard/results': ['admin', 'operator'],
-  '/dashboard/tableau-bord': ['admin', 'operator'],
-  '/dashboard/kpi': ['admin', 'operator'],
-  '/dashboard/dataset': ['admin', 'operator'],
-  '/dashboard/analyses': ['admin', 'operator'],
-  '/dashboard/pharma': ['admin', 'operator'],
-  '/dashboard/admin-users': ['admin'],
-  '/dashboard/audit': ['admin'],
-  '/dashboard/profile': ['admin', 'operator'],
-};
-
-const NAV_ICONS: Record<string, React.ReactNode> = {
-  '/dashboard/phase1': <Cpu className="w-4 h-4" />,
-  '/dashboard/phase2': <Activity className="w-4 h-4" />,
-  '/dashboard/transmission': <Radio className="w-4 h-4" />,
-  '/dashboard/shap': <Sparkles className="w-4 h-4" />,
-  '/dashboard/results': <Brain className="w-4 h-4" />,
-  '/dashboard/tableau-bord': <LayoutDashboard className="w-4 h-4" />,
-  '/dashboard/analyses': <LineChart className="w-4 h-4" />,
-  '/dashboard/pharma': <Pill className="w-4 h-4" />,
-  '/dashboard/admin-users': <Users className="w-4 h-4" />,
-  '/dashboard/audit': <ScrollText className="w-4 h-4" />,
-  '/dashboard/profile': <User className="w-4 h-4" />,
-};
-
-const THEME_ICONS: Record<ThemeMode, React.ReactNode> = {
-  dark: <Moon className="w-3.5 h-3.5" />,
-  cyberpunk: <Cpu className="w-3.5 h-3.5" />,
-  matrix: <Activity className="w-3.5 h-3.5" />,
-  light: <Sun className="w-3.5 h-3.5" />,
-};
-
-const THEME_LABELS: Record<ThemeMode, string> = {
-  dark: 'Dark',
-  cyberpunk: 'Cyberpunk',
-  matrix: 'Matrix',
-  light: 'Light',
-};
+const ALL_ITEMS = NAV_GROUPS.flatMap(g => g.items);
+const PAGE_ROLES: Record<string, string[]> = Object.fromEntries(ALL_ITEMS.map(i => [i.path, i.roles]));
 
 export default function DashboardLayout() {
-  const { theme, nextTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [drawer, setDrawer] = useState(false);
 
   const role = user?.role ?? '';
-  const visibleNav = NAV_ITEMS.filter(item => !item.roles || item.roles.includes(role));
+  const canAccess = (path: string): boolean => (PAGE_ROLES[path] || []).includes(role);
+  const current = ALL_ITEMS.find(i => location.pathname.startsWith(i.path));
 
-  const canAccess = (path: string): boolean => {
-    const roles = PAGE_ROLES[path] || [];
-    return roles.includes(role);
-  };
+  useEffect(() => { setDrawer(false); }, [location.pathname]);
+  useEffect(() => {
+    document.title = current ? `${current.label} — VigiloChain` : 'VigiloChain';
+  }, [current]);
 
   const handleLogout = useCallback(() => {
     logout();
     navigate('/login');
   }, [logout, navigate]);
 
+  const sidebar = (
+    <nav aria-label="Navigation principale" className="flex flex-col h-full">
+      <div className="flex items-center gap-2.5 px-5 h-14 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+        <button onClick={() => navigate('/')} className="flex items-center gap-2.5" aria-label="Accueil VigiloChain">
+          <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
+            <ShieldCheck className="w-[18px] h-[18px]" />
+          </span>
+          <span className="text-left leading-tight">
+            <span className="block text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>VigiloChain</span>
+            <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>Chaîne du froid · IoT</span>
+          </span>
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        {NAV_GROUPS.map(group => {
+          const items = group.items.filter(i => i.roles.includes(role));
+          if (!items.length) return null;
+          return (
+            <div key={group.title}>
+              <div className="vc-kicker px-3 mb-1.5">{group.title}</div>
+              <div className="space-y-0.5">
+                {items.map(item => {
+                  const active = location.pathname.startsWith(item.path);
+                  const Icon = item.icon;
+                  return (
+                    <NavLink key={item.path} to={item.path} title={item.hint}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium no-underline relative"
+                      style={{
+                        color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                        background: active ? 'var(--accent-glow)' : 'transparent',
+                      }}>
+                      {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r" style={{ background: 'var(--accent-primary)' }} />}
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="px-5 py-3 text-[11px] leading-snug" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+        Projet de fin d’études — détection d’intrusions IoT, produits pharmaceutiques
+      </div>
+    </nav>
+  );
+
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--color-bg-base)' }}>
-      <header className="flex items-center justify-between px-6 h-14 shrink-0" style={{
-        background: 'var(--color-bg-panel)',
-        borderBottom: '1px solid var(--color-border)',
-      }}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold cursor-pointer" style={{
-            background: 'linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-purple))',
-            color: '#fff',
-          }} onClick={() => navigate('/')}>VC</div>
-          <div className="font-display font-bold text-sm tracking-wide cursor-pointer" style={{ color: 'var(--color-text-primary)' }} onClick={() => navigate('/')}>VigiloChain</div>
-          <span className="text-[10px] font-mono ml-1 hidden sm:inline" style={{ color: 'var(--color-text-secondary)' }}>Cold Chain Security Platform</span>
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+      {/* Barre latérale (bureau) */}
+      <aside className="hidden lg:block w-60 shrink-0" style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
+        {sidebar}
+      </aside>
+
+      {/* Tiroir (téléphone / tablette) */}
+      {drawer && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
+          <div className="absolute inset-0" style={{ background: 'rgba(8,14,24,0.5)' }} onClick={() => setDrawer(false)} />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw]" style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}>
+            <button className="absolute right-3 top-3.5 p-1.5 rounded-md" onClick={() => setDrawer(false)} aria-label="Fermer le menu"
+              style={{ color: 'var(--text-secondary)' }}>
+              <X className="w-5 h-5" />
+            </button>
+            {sidebar}
+          </aside>
         </div>
+      )}
 
-        <div className="flex items-center gap-3">
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="flex items-center gap-3 px-4 sm:px-6 h-14 shrink-0"
+          style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+          <button className="lg:hidden p-1.5 -ml-1.5 rounded-md" onClick={() => setDrawer(true)} aria-label="Ouvrir le menu"
+            style={{ color: 'var(--text-primary)' }}>
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] hidden sm:block" style={{ color: 'var(--text-muted)' }}>
+              {NAV_GROUPS.find(g => current && g.items.includes(current))?.title ?? 'VigiloChain'}
+            </div>
+            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{current?.label ?? 'VigiloChain'}</div>
+          </div>
 
-          
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="h-9 w-9 flex items-center justify-center rounded-md border"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+            aria-label={theme === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'}
+            title={theme === 'dark' ? 'Thème clair' : 'Thème sombre'}>
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                {THEME_ICONS[theme]}
-                <span className="hidden sm:inline">{THEME_LABELS[theme]}</span>
-                <ChevronDown className="w-3 h-3 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Thèmes</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {(Object.entries(THEME_LABELS) as [ThemeMode, string][]).map(([key, label]) => (
-                <DropdownMenuItem key={key} onClick={() => key !== theme && nextTheme()}>
-                  {THEME_ICONS[key]}
-                  <span>{label}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* User menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <User className="w-4 h-4" />
-                <span className="hidden sm:inline text-xs max-w-[100px] truncate">{user?.username}</span>
-              </Button>
+              <button className="flex items-center gap-2 h-9 pl-1 pr-2 rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
+                <span className="w-7 h-7 rounded-md flex items-center justify-center text-xs font-semibold uppercase"
+                  style={{ background: 'var(--accent-glow)', color: 'var(--accent-primary)' }}>
+                  {(user?.username ?? '?').slice(0, 2)}
+                </span>
+                <span className="hidden sm:inline text-xs max-w-[110px] truncate">{user?.username}</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>{user?.full_name || user?.username}</DropdownMenuLabel>
@@ -163,75 +201,49 @@ export default function DashboardLayout() {
                 <Badge variant="outline" className="text-[10px]">{user?.role}</Badge>
                 <span className="ml-2 text-xs">{user?.email}</span>
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/dashboard/profile')}>
+                <User className="w-4 h-4 mr-2" /> Mon profil
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-red-400">
-                <LogOut className="w-4 h-4 mr-2" />
-                Déconnexion
+              <DropdownMenuItem onClick={handleLogout} style={{ color: 'var(--accent-danger)' }}>
+                <LogOut className="w-4 h-4 mr-2" /> Déconnexion
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </header>
 
-          <Button variant="ghost" size="icon" onClick={() => window.location.reload()}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-
-          <span className="text-[11px] font-mono opacity-40 hidden sm:inline" style={{ color: 'var(--color-text-secondary)' }}></span>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
-        <nav className="flex flex-col gap-1 px-2 py-4 w-56 shrink-0 overflow-y-auto scrollbar-thin" style={{
-          background: 'var(--color-bg-panel)',
-          borderRight: '1px solid var(--color-border)',
-        }}>
-          {visibleNav.map((item) => {
-            const isActive = location.pathname.startsWith(item.path);
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={false}
-                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium no-underline rounded-lg transition-all duration-200"
-                style={{
-                  color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
-                  backgroundColor: isActive ? 'color-mix(in srgb, var(--color-accent-primary) 12%, transparent)' : 'transparent',
-                }}
-              >
-                {NAV_ICONS[item.path]}
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        <div className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--color-bg-base)' }}>
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-64">
-              <div className="w-6 h-6 border-2 rounded-full animate-spin"
-                style={{ borderColor: 'var(--color-accent-primary)', borderTopColor: 'transparent' }} />
-            </div>
-          }>
-            <Routes>
-              <Route path="/dashboard" element={<Navigate to="/dashboard/tableau-bord" replace />} />
-              <Route path="/dashboard/phase1" element={canAccess('/dashboard/phase1') ? <Phase1Page /> : <AccessDenied />} />
-              <Route path="/dashboard/phase2" element={canAccess('/dashboard/phase2') ? <Phase2Page /> : <AccessDenied />} />
-              <Route path="/dashboard/transmission" element={canAccess('/dashboard/transmission') ? <TransmissionPage /> : <AccessDenied />} />
-              <Route path="/dashboard/shap" element={canAccess('/dashboard/shap') ? <ShapDashboardPage /> : <AccessDenied />} />
-              <Route path="/dashboard/shap/report" element={canAccess('/dashboard/shap') ? <ShapPointReportPage /> : <AccessDenied />} />
-              <Route path="/dashboard/results" element={canAccess('/dashboard/results') ? <TrainingResultsPage /> : <AccessDenied />} />
-              <Route path="/dashboard/analytics" element={<Navigate to="/dashboard/results" replace />} />
-              <Route path="/dashboard/phase3" element={<Navigate to="/dashboard/shap" replace />} />
-              <Route path="/dashboard/tableau-bord" element={canAccess('/dashboard/tableau-bord') ? <TableauDeBordPage /> : <AccessDenied />} />
-              <Route path="/dashboard/kpi" element={<Navigate to="/dashboard/tableau-bord" replace />} />
-              <Route path="/dashboard/dataset" element={<Navigate to="/dashboard/tableau-bord" replace />} />
-              <Route path="/dashboard/analyses" element={canAccess('/dashboard/analyses') ? <AdvancedAnalyticsPage /> : <AccessDenied />} />
-              <Route path="/dashboard/pharma" element={canAccess('/dashboard/pharma') ? <PharmaImpactPage /> : <AccessDenied />} />
-              <Route path="/dashboard/admin-users" element={canAccess('/dashboard/admin-users') ? <AdminUsersPage /> : <AccessDenied />} />
-              <Route path="/dashboard/audit" element={canAccess('/dashboard/audit') ? <AuditLogsPage /> : <AccessDenied />} />
-              <Route path="/dashboard/profile" element={canAccess('/dashboard/profile') ? <ProfilePage /> : <AccessDenied />} />
-            </Routes>
-          </Suspense>
-        </div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 sm:py-6">
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="w-6 h-6 border-2 rounded-full animate-spin"
+                  style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }} />
+              </div>
+            }>
+              <Routes>
+                <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
+                <Route path="/dashboard/overview" element={canAccess('/dashboard/overview') ? <OverviewPage /> : <AccessDenied />} />
+                <Route path="/dashboard/phase1" element={canAccess('/dashboard/phase1') ? <Phase1Page /> : <AccessDenied />} />
+                <Route path="/dashboard/phase2" element={canAccess('/dashboard/phase2') ? <Phase2Page /> : <AccessDenied />} />
+                <Route path="/dashboard/transmission" element={canAccess('/dashboard/transmission') ? <TransmissionPage /> : <AccessDenied />} />
+                <Route path="/dashboard/shap" element={canAccess('/dashboard/shap') ? <ShapDashboardPage /> : <AccessDenied />} />
+                <Route path="/dashboard/shap/report" element={canAccess('/dashboard/shap') ? <ShapPointReportPage /> : <AccessDenied />} />
+                <Route path="/dashboard/results" element={canAccess('/dashboard/results') ? <TrainingResultsPage /> : <AccessDenied />} />
+                <Route path="/dashboard/analytics" element={<Navigate to="/dashboard/results" replace />} />
+                <Route path="/dashboard/phase3" element={<Navigate to="/dashboard/shap" replace />} />
+                <Route path="/dashboard/tableau-bord" element={canAccess('/dashboard/tableau-bord') ? <TableauDeBordPage /> : <AccessDenied />} />
+                <Route path="/dashboard/kpi" element={<Navigate to="/dashboard/tableau-bord" replace />} />
+                <Route path="/dashboard/dataset" element={<Navigate to="/dashboard/tableau-bord" replace />} />
+                <Route path="/dashboard/analyses" element={canAccess('/dashboard/analyses') ? <AdvancedAnalyticsPage /> : <AccessDenied />} />
+                <Route path="/dashboard/pharma" element={canAccess('/dashboard/pharma') ? <PharmaImpactPage /> : <AccessDenied />} />
+                <Route path="/dashboard/admin-users" element={canAccess('/dashboard/admin-users') ? <AdminUsersPage /> : <AccessDenied />} />
+                <Route path="/dashboard/audit" element={canAccess('/dashboard/audit') ? <AuditLogsPage /> : <AccessDenied />} />
+                <Route path="/dashboard/profile" element={canAccess('/dashboard/profile') ? <ProfilePage /> : <AccessDenied />} />
+                <Route path="*" element={<Navigate to="/dashboard/overview" replace />} />
+              </Routes>
+            </Suspense>
+          </div>
+        </main>
       </div>
     </div>
   );
@@ -241,11 +253,9 @@ function AccessDenied() {
   const { user } = useAuth();
   return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-      <ShieldAlert className="w-12 h-12" style={{ color: 'var(--color-text-muted)' }} />
-      <div className="font-display font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>
-        Accès refusé
-      </div>
-      <div className="text-sm max-w-md" style={{ color: 'var(--color-text-secondary)' }}>
+      <ShieldAlert className="w-12 h-12" style={{ color: 'var(--text-muted)' }} />
+      <div className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Accès refusé</div>
+      <div className="text-sm max-w-md" style={{ color: 'var(--text-secondary)' }}>
         Votre rôle (<strong>{user?.role}</strong>) ne vous permet pas d'accéder à cette page.
       </div>
     </div>

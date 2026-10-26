@@ -58,12 +58,12 @@ export default function AuditLogsPage() {
   );
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}>
-            <History className="w-5 h-5 text-white" />
+            style={{ background: 'var(--accent-glow)' }}>
+            <History className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
           </div>
           <div>
             <h1 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Historique des actions</h1>
@@ -84,8 +84,8 @@ export default function AuditLogsPage() {
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
-        <table className="w-full text-sm">
+      <div className="rounded-xl overflow-x-auto" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
               <th className="text-left px-5 py-3 text-[10px] font-mono uppercase" style={{ color: 'var(--color-text-secondary)' }}>Action</th>

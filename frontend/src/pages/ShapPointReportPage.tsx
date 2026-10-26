@@ -138,7 +138,7 @@ export default function ShapPointReportPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24">
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#00FFA3' }} />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#0D9488' }} />
         <div
           className="text-[11px]"
           style={{ color: 'var(--color-text-secondary)' }}
@@ -151,7 +151,7 @@ export default function ShapPointReportPage() {
   if (error || !point || !pharma) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-        <ShieldAlert className="w-8 h-8" style={{ color: '#FF2D78' }} />
+        <ShieldAlert className="w-8 h-8" style={{ color: '#E11D48' }} />
         <div
           className="text-sm font-bold"
           style={{ color: 'var(--color-text-primary)' }}

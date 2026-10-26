@@ -10,27 +10,27 @@ export interface PhaseItem {
 
 export const PHASE_CONFIG: PhaseItem[] = [
   {
-    num: 1, label: 'Ingestion IoT', subtitle: 'MQTT · flux temps réel des 3 capteurs',
-    icon: '\u{1F4E5}', color: '#00F5FF', status: 'completed', progress: 100,
+    num: 1, label: 'Ingestion IoT', subtitle: 'MQTT · flux temps réel des trois capteurs',
+    icon: '\u{1F4E5}', color: '#0891B2', status: 'completed', progress: 100,
   },
   {
-    num: 2, label: 'ML Anomaly Detection', subtitle: 'One-Class SVM · Modèles ML',
-    icon: '\u{1F9E0}', color: '#00FFA3', status: 'completed', progress: 100,
+    num: 2, label: 'Détection d’anomalies', subtitle: 'One-Class SVM · jeu annuel simulé à partir des traces TON_IoT',
+    icon: '\u{1F9E0}', color: '#0D9488', status: 'completed', progress: 100,
   },
   {
     num: 3, label: 'Risk Scoring Prédictif', subtitle: 'CVE + 5 facteurs · Score 0-100',
-    icon: '\u{1F6E1}\uFE0F', color: '#FF2D78', status: 'active', progress: 65,
+    icon: '\u{1F6E1}\uFE0F', color: '#E11D48', status: 'active', progress: 65,
   },
   {
     num: 4, label: 'Threat Intelligence', subtitle: 'CTI Dashboard · LLM Analyst',
-    icon: '\u{1F50D}', color: '#A855F7', status: 'pending', progress: 15,
+    icon: '\u{1F50D}', color: '#7C3AED', status: 'pending', progress: 15,
   },
 ];
 
 export function PhasePipeline({ activePhase }: { activePhase: number }) {
   return (
     <div className="flex items-center px-4 sm:px-6 py-2.5 gap-0 overflow-x-auto"
-      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 5%, transparent)' }}>
       {PHASE_CONFIG.map((p, i) => (
         <div key={p.num} className="flex items-center flex-1 min-w-0">
           <div className="flex items-center gap-2 sm:gap-3 flex-1">
@@ -39,7 +39,7 @@ export function PhasePipeline({ activePhase }: { activePhase: number }) {
                 p.num === activePhase ? 'ring-2' : ''
               } ${p.status === 'completed' ? 'opacity-80' : p.status === 'pending' ? 'opacity-30' : ''}`}
               style={{
-                background: p.num === activePhase ? `${p.color}18` : 'rgba(255,255,255,0.03)',
+                background: p.num === activePhase ? `${p.color}18` : 'color-mix(in srgb, var(--text-primary) 4%, transparent)',
                 borderColor: p.num === activePhase ? p.color : 'transparent',
                 borderWidth: '2px',
                 boxShadow: p.num === activePhase ? `0 0 20px ${p.color}30` : 'none',
