@@ -1,4 +1,5 @@
-/** Entraînement (administrateur) — lance les 6 modèles supervisés sur la répétition 0, suit la progression
+/** Entraînement (administrateur) — réentraîne le modèle retenu par l'étude de référence (hyperparamètres,
+ *  seuil et persistance lus en base) sur la répétition 0, suit la progression
  *  en direct (WS /api/v1/transmission/train-ws) ; chaque entraînement est enregistré en base
  *  (transmission_runs, transmission_model_results, transmission_metrics, transmission_shap…). */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -6,20 +7,24 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { Loader2, Play } from 'lucide-react';
 import { authHeaders } from '../../lib/auth';
 import { toast } from '@/components/ui/use-toast';
-import { Empty, MODEL_FR, Note, PageHeader, Section, State, Table, dateFr, minutes, nf, pct, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
+import { Empty, MODEL_FR, clearApiCache, Note, PageHeader, Section, State, Table, dateFr, minutes, nf, pct, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
 
 interface Res { nom: string; recall: number; precision: number; f1: number; fausses_alarmes_evenements_par_heure: number;
   episodes: number; episodes_detectes: number; delai_median_min: number | null; val_recall?: number; val_precision?: number;
-  val_fausses_alarmes_par_heure?: number; point_fonctionnement?: { seuil: number; k: number; n: number; contrainte_tenue: boolean } }
+  val_fausses_alarmes_par_heure?: number; point_fonctionnement?: { seuil: number; k: number; n: number; contrainte_tenue: boolean | null };
+  par_role?: { alarme: Record<'train' | 'val' | 'test', RoleM> } }
+interface RoleM { recall: number; precision: number; f1: number; fausses_alarmes_evenements_par_heure: number; episodes: number; episodes_detectes: number; delai_median_min: number | null }
 interface Msg { step: string; progress: number; message: string; model?: string; result?: Res; curve_point?: { arbres: number; ap_train: number; ap_validation: number } }
 interface HistoryRun { id: number; debut: string; statut: string; lance_par: string | null; duree_s: number | null; meilleur_modele: string | null;
   modeles: { modele: string; recall: number | null; precision: number | null; fausses_alarmes_par_heure: number | null; meilleur: boolean }[] }
 interface Settings { valeurs: { precision_min: number; fa_max: number } }
+const ROLES = [['train', 'Entraînement'], ['val', 'Validation'], ['test', 'Test']] as const;
 
 export default function EntrainementPage() {
   const pal = usePalette();
   const history = useApi<{ runs: HistoryRun[] }>('/api/v1/transmission/history?limit=10');
   const settings = useApi<Settings>('/api/v1/parametres');
+  const summary = useApi<{ modele_retenu?: { cle: string; nom: string; seuil: number; k: number; n: number } }>('/api/v1/transmission/training-target');
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Msg | null>(null);
   const [log, setLog] = useState<Msg[]>([]);
@@ -42,6 +47,7 @@ export default function EntrainementPage() {
       if (msg.step === 'done' || msg.step === 'error') {
         setRunning(false);
         toast({ title: msg.step === 'done' ? 'Entraînement terminé' : 'Erreur', description: msg.message, variant: msg.step === 'done' ? undefined : 'destructive' });
+        clearApiCache();
         history.reload();
       }
     };
@@ -64,17 +70,25 @@ export default function EntrainementPage() {
   };
 
   const cfg = settings.data?.valeurs;
+  const target = summary.data?.modele_retenu;
+  const [key, res] = Object.entries(results)[0] ?? [];
   return (
     <div className="space-y-6">
-      <PageHeader title="Entraînement" subtitle="Réservé à l'administrateur : réentraîne les 6 modèles supervisés sur la répétition 0 et enregistre le résultat en base.">
+      <PageHeader title="Entraînement" subtitle="Réservé à l'administrateur : réentraîne le modèle retenu par l'étude de référence, avec son réglage, sur une répétition, et enregistre le résultat en base.">
         <button onClick={start} disabled={running} className="vc-btn vc-btn-primary">
           {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {running ? 'En cours…' : 'Lancer l’entraînement'}
         </button>
       </PageHeader>
       <div className="vc-fiche p-4 sm:p-5 text-[14.5px]" style={{ color: 'var(--text-secondary)' }}>
-        Réglage d'alerte appliqué : rappel maximal sur la validation sous précision ≥ <strong>{cfg ? pct(cfg.precision_min, 0) : '—'}</strong> et
-        au plus <strong>{cfg ? nf(cfg.fa_max, 2) : '—'}</strong> fausse alerte par heure (modifiable dans « Paramètres »). Une seule répétition :
-        les chiffres de référence (20 répétitions) sont dans « Résultats ».
+        {(summary.loading && !summary.data) || target ? (
+          <>Modèle entraîné : <strong style={{ color: 'var(--text-primary)' }}>{target?.nom ?? '…'}</strong>, le modèle retenu par l'étude de référence,
+            avec ses hyperparamètres et son réglage d'alerte tels quels : score ≥ <strong>{target ? nf(target.seuil, 2) : '…'}</strong> sur au moins{' '}
+            <strong>{target ? `${target.k} des ${target.n}` : '…'}</strong> dernières mesures. Aucun nouveau choix n'est fait sur cette répétition.</>
+        ) : (
+          <>Pas d'étude de référence en base : repli sur Extra Trees, réglage choisi sur la validation (précision ≥{' '}
+            <strong>{cfg ? pct(cfg.precision_min, 0) : '—'}</strong>, au plus <strong>{cfg ? nf(cfg.fa_max, 2) : '—'}</strong> fausse alerte par heure).</>
+        )}{' '}
+        Une seule répétition (découpage n° 0, quelques épisodes au test) : les chiffres de référence (20 répétitions, 6 modèles comparés) sont dans « Résultats ».
         {progress && (
           <div className="mt-3">
             <div className="vc-meter" style={{ height: 10 }} role="progressbar" aria-valuenow={progress.progress} aria-valuemin={0} aria-valuemax={100}>
@@ -86,7 +100,7 @@ export default function EntrainementPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <Section title="Random Forest en direct" subtitle="AP d'entraînement et de validation à chaque palier de 30 arbres.">
+        <Section title={`${target?.nom ?? 'Modèle'} en direct`} subtitle="Précision moyenne (AP) d'entraînement et de validation à chaque palier d'arbres.">
           {curve.length ? (
             <div className="h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -112,16 +126,21 @@ export default function EntrainementPage() {
         </Section>
       </div>
 
-      {Object.keys(results).length > 0 && (
-        <Section title="Résultats de cet entraînement" subtitle="Test de la répétition 0, au réglage choisi sur sa validation.">
-          <Table>
-            <thead><tr><th>Modèle</th><th>Réglage</th><th className="vc-num">Épisodes</th><th className="vc-num">FA/h</th><th className="vc-num">Précision</th><th className="vc-num">Rappel</th><th className="vc-num">Délai</th></tr></thead>
-            <tbody>
-              {Object.entries(results).map(([k, r]) => (
-                <tr key={k}><td>{MODEL_FR[k] ?? r.nom}</td><td className="text-[13px]">{r.point_fonctionnement ? `≥ ${nf(r.point_fonctionnement.seuil, 3)}, ${r.point_fonctionnement.k} sur ${r.point_fonctionnement.n}` : '—'}</td>
-                  <td className="vc-num">{r.episodes_detectes}/{r.episodes}</td><td className="vc-num">{nf(r.fausses_alarmes_evenements_par_heure, 2)}</td>
-                  <td className="vc-num">{pct(r.precision)}</td><td className="vc-num">{pct(r.recall)}</td><td className="vc-num">{minutes(r.delai_median_min)}</td></tr>
-              ))}
+      {res && key && (
+        <Section title={`Résultats de cet entraînement : ${MODEL_FR[key] ?? res.nom}`}
+          subtitle={`Répétition 0, réglage « score ≥ ${nf(res.point_fonctionnement?.seuil, 2)}, ${res.point_fonctionnement?.k} sur ${res.point_fonctionnement?.n} mesures ». Test : ${res.episodes} épisodes seulement, à lire avec prudence.`}>
+          <Table min={640}>
+            <thead><tr><th>Jeu</th><th className="vc-num">Précision</th><th className="vc-num">Fausses alertes/h</th><th className="vc-num">Rappel</th><th className="vc-num">Épisodes</th><th className="vc-num">Délai médian</th></tr></thead>
+            <tbody data-testid="table-entrainement">
+              {ROLES.map(([r, label]) => {
+                const m = res.par_role?.alarme?.[r];
+                return (
+                  <tr key={r}><td className={r === 'test' ? 'font-semibold' : undefined}>{label}</td>
+                    <td className="vc-num">{pct(m?.precision)}</td><td className="vc-num">{nf(m?.fausses_alarmes_evenements_par_heure, 2)}</td>
+                    <td className="vc-num">{pct(m?.recall)}</td><td className="vc-num">{m ? `${m.episodes_detectes}/${m.episodes}` : '—'}</td>
+                    <td className="vc-num">{minutes(m?.delai_median_min)}</td></tr>
+                );
+              })}
             </tbody>
           </Table>
         </Section>
@@ -130,7 +149,7 @@ export default function EntrainementPage() {
       <Section title="Historique des entraînements" subtitle="Entraînements lancés depuis le dashboard." source="SELECT * FROM transmission_runs WHERE source = 'web' ORDER BY started_at DESC">
         {history.data?.runs.length ? (
           <Table>
-            <thead><tr><th>#</th><th>Date</th><th>Statut</th><th>Lancé par</th><th className="vc-num">Durée</th><th>Meilleur</th><th className="vc-num">Précision</th><th className="vc-num">FA/h</th></tr></thead>
+            <thead><tr><th>#</th><th>Date</th><th>Statut</th><th>Lancé par</th><th className="vc-num">Durée</th><th>Modèle</th><th className="vc-num">Précision</th><th className="vc-num">FA/h</th></tr></thead>
             <tbody>
               {history.data.runs.map(r => {
                 const b = r.modeles.find(m => m.meilleur);
@@ -142,8 +161,9 @@ export default function EntrainementPage() {
               })}
             </tbody>
           </Table>
-        ) : <Empty>Aucun entraînement web enregistré.</Empty>}
-        <Note>Un entraînement prend quelques minutes (3 cœurs au plus, le serveur héberge d'autres sites).</Note>
+        ) : history.loading ? <div className="h-[220px] animate-pulse rounded-[3px]" style={{ background: 'var(--bg-subtle)' }} aria-busy="true" />
+          : <Empty>Aucun entraînement web enregistré.</Empty>}
+        <Note>Un entraînement du seul modèle retenu prend environ 3 minutes (3 cœurs au plus, le serveur héberge d'autres sites). Les anciens entraînements (n° 1 à 5) comparaient tous les modèles.</Note>
       </Section>
     </div>
   );

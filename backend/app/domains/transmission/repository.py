@@ -84,7 +84,8 @@ async def latest_result(session: AsyncSession, source: str = "web") -> Optional[
 
 
 def _iso(d: Optional[datetime]) -> Optional[str]:
-    return d.isoformat(timespec="seconds") if d else None
+    """UTC naïf en base : suffixe Z pour un affichage correct en heure locale."""
+    return d.isoformat(timespec="seconds") + "Z" if d else None
 
 
 async def history(session: AsyncSession, limit: int = 20) -> list[dict[str, Any]]:

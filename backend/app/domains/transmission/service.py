@@ -22,6 +22,7 @@ import asyncio
 import json
 import sys
 import time
+import warnings
 from datetime import datetime
 from typing import Any, Awaitable, Callable
 
@@ -375,16 +376,46 @@ def study_records(df: pd.DataFrame, episodes: list[dict], run: int, scores: np.n
             "alertes": alerts, "episodes": eps}
 
 
-async def train(emit: Emit, precision_min: float | None = None, fa_max: float | None = None) -> dict:
-    """Une répétition (la 0) des 6 modèles supervisés, même protocole que transmission_models.py :
-    un seul point de fonctionnement par modèle (seuil + persistance k sur n) choisi sur la
-    validation (rappel maximal sous précision ≥ precision_min et ≤ fa_max fausse alerte/h),
-    mesuré sur train, validation et test ; choix du modèle sur la validation."""
+def reference_choice(ref: dict | None) -> dict | None:
+    """Le modèle retenu par l'étude de référence (lue en base) : clé, hyperparamètres, seuil et
+    persistance k sur n. None si l'étude n'est pas disponible."""
+    if not ref or not ref.get("modeles"):
+        return None
+    key = ref.get("meilleur") or next(iter(ref["modeles"]))
+    m = ref["modeles"].get(key) or {}
+    op = m.get("point_fonctionnement") or {}
+    if op.get("seuil") is None or not op.get("k") or not op.get("n"):
+        return None
+    params = {k: v for k, v in (m.get("hyperparameters") or {}).items() if k != "sample_weight"}
+    return {"modele": key, "nom": m.get("nom", key), "hyperparameters": params, "seuil": float(op["seuil"]),
+            "k": int(op["k"]), "n": int(op["n"]), "contrainte_tenue": op.get("contrainte_tenue"),
+            "critere": op.get("critere"),
+            "repetitions": ((ref.get("etude") or {}).get("protocole") or {}).get("repetitions"),
+            "test_reference": {x: m.get(x) for x in ("precision", "recall", "fausses_alarmes_evenements_par_heure",
+                                                     "episodes", "episodes_detectes", "delai_median_min")}}
+
+
+WARM_START_MODELS = ("RandomForest", "ExtraTrees")
+
+
+async def train(emit: Emit, reference: dict | None = None, precision_min: float | None = None,
+                fa_max: float | None = None) -> dict:
+    """Entraînement web : UNIQUEMENT le modèle retenu par l'étude de référence (lue en base), avec
+    ses hyperparamètres, son seuil et sa règle de persistance (k sur n) tels quels, sur une seule
+    répétition (la 0) du découpage par blocs ; métriques train / validation / test. L'étude
+    complète (6 modèles, 20 répétitions) reste celle de scripts/transmission_models.py.
+
+    Sans étude de référence, repli : Extra Trees avec le réglage de la recherche groupée et un
+    point de fonctionnement choisi sur la validation (précision ≥ precision_min, ≤ fa_max FA/h)."""
     tr, tm, ta = _scripts_all()
     from sklearn.metrics import average_precision_score  # noqa: PLC0415
 
     precision_min = ta.PRECISION_MIN if precision_min is None else float(precision_min)
     fa_max = ta.FA_MAX if fa_max is None else float(fa_max)
+    choice = reference_choice(reference)
+    key = choice["modele"] if choice else "ExtraTrees"
+    nom = tm.MODEL_NAMES.get(key, key)
+    params = dict(choice["hyperparameters"]) if choice else tm._tuned(key)
     t0 = time.time()
     await emit("dataset", 3, "Chargement des traces réelles avec attaques de transmission…")
     df, feats, episodes, built = await asyncio.to_thread(_load_or_build_dataset, tr, tm)
@@ -406,118 +437,117 @@ async def train(emit: Emit, precision_min: float | None = None, fa_max: float | 
     await emit("dataset", 8, f"{len(df):,} lignes, {len(feats)} features, {len(episodes)} épisodes ; train "
                f"{len(idx['train']):,} · val {len(idx['val']):,} · test {len(idx['test']):,} lignes (zone de garde "
                f"de {tr.GUARD * tr.STEP_MINUTES:.0f} min exclue)", dataset=dataset_info)
+    await emit(key, 10, (f"Modèle retenu par l'étude de référence : {nom} ; seuil {choice['seuil']:.2f}, "
+                         f"{choice['k']} sur {choice['n']} mesures, hyperparamètres de l'étude."
+                         if choice else f"Pas d'étude de référence en base : repli sur {nom}, réglage choisi sur la validation."),
+               model=key)
 
-    results: dict[str, dict] = {}
-    models: dict[str, Any] = {}
-    all_scores: dict[str, np.ndarray] = {}
-    run_view = {"scores": all_scores, "y": y, "ev": ev, "episodes": episodes, "types": types}
+    # 1. Apprentissage. Forêts : par paliers d'arbres, la courbe AP train / validation se trace en direct.
+    curve: list[dict] = []
+    if key in WARM_START_MODELS:
+        total = int(params.get("n_estimators") or 300)
+        step = max(10, total // 10)
+        model = tm.make_model(key, **{**params, "n_estimators": step, "warm_start": True})
+        # AP d'entraînement sur un échantillon fixe (la courbe n'a pas besoin des 30 000 lignes)
+        rng = np.random.default_rng(0)
+        tr_eval = np.sort(rng.choice(idx["train"], size=min(8000, len(idx["train"])), replace=False))
+        n_trees = 0
+        while n_trees < total:
+            n_trees = min(total, n_trees + step)
+            model.set_params(n_estimators=n_trees)
+            with warnings.catch_warnings():     # class_weight + warm_start : mêmes lignes à chaque palier
+                warnings.simplefilter("ignore", UserWarning)
+                await asyncio.to_thread(model.fit, X[idx["train"]], y[idx["train"]])
+            p_tr = await asyncio.to_thread(lambda: model.predict_proba(X[tr_eval])[:, 1])
+            p_val = await asyncio.to_thread(lambda: model.predict_proba(X[idx["val"]])[:, 1])
+            point = {"arbres": n_trees, "ap_train": round(float(average_precision_score(y[tr_eval], p_tr)), 4),
+                     "ap_validation": round(float(average_precision_score(y[idx["val"]], p_val)), 4)}
+            curve.append(point)
+            await emit(key, 10 + int(60 * n_trees / total),
+                       f"{nom} : {n_trees} arbres, AP train {point['ap_train']:.3f}, validation "
+                       f"{point['ap_validation']:.3f}", model=key, curve_point=point)
+        model.set_params(warm_start=False)
+        used = {**params, "n_estimators": total}
+    else:
+        await emit(key, 15, f"{nom} : entraînement…", model=key)
+        model, used = await asyncio.to_thread(tm.fit_model, key, X, y, idx["train"], params)
 
-    def evaluate(key: str, scores: np.ndarray, params: dict) -> dict:
-        all_scores[key] = scores
+    # 2. Mesure au point de fonctionnement de l'étude (aucun nouveau choix sur cette répétition)
+    await emit(key, 74, f"{nom} : scores et alertes sur train, validation et test…", model=key)
+    scores = await asyncio.to_thread(tm.scores_of, model, X)
+    if choice:
+        op = {"seuil": choice["seuil"], "k": choice["k"], "n": choice["n"],
+              "contrainte_tenue": choice.get("contrainte_tenue"),
+              "critere": "réglage de l'étude de référence appliqué tel quel ("
+                         + (choice.get("critere") or ta.criterion_text(precision_min, fa_max)) + ")"}
+    else:
         rows = ta.grid([{"s": scores, "y": y, "evaluated_val": ev["val"]}], "val")
-        op = ta.choose(rows, precision_min, fa_max)
-        m = tm.role_metrics([run_view], key, op)
-        t, v = m["alarme"]["test"], m["alarme"]["val"]
-        res = {"nom": tm.MODEL_NAMES[key], "type": "supervisé",
-               **{k: t[k] for k in ("recall", "precision", "f1", "fpr", "part_attaques",
-                                    "fausses_alarmes_evenements_par_heure", "alertes", "fausses_alertes",
-                                    "precision_alertes", "episodes", "episodes_detectes", "delai_median_min",
-                                    "delai_p90_min", "per_attack", "per_episode")},
-               **{f"val_{k}": v[k] for k in ("recall", "precision", "f1", "episodes", "episodes_detectes",
-                                             "delai_median_min", "part_attaques")},
-               "val_fausses_alarmes_par_heure": v["fausses_alarmes_evenements_par_heure"],
-               "roc_auc": m["auc"]["test"], "avg_precision": m["ap"]["test"],
-               "val_roc_auc": m["auc"]["val"], "val_avg_precision": m["ap"]["val"],
-               "train_roc_auc": m["auc"]["train"], "train_avg_precision": m["ap"]["train"],
-               "threshold": op["seuil"],
-               "point_fonctionnement": {"seuil": op["seuil"], "k": op["k"], "n": op["n"],
-                                        "persistance_min": round(op["n"] * tr.STEP_MINUTES, 2),
-                                        "contrainte_tenue": op["contrainte_tenue"],
-                                        "critere": ta.criterion_text(precision_min, fa_max),
-                                        "validation": {x: op[x] for x in ("precision", "recall", "f1", "fa_h")}},
-               "par_role": m, "hyperparameters": params}
-        res["diagnostic"] = tm.diagnostic(res)
-        results[key] = res
-        return res
+        op = {**ta.choose(rows, precision_min, fa_max), "critere": ta.criterion_text(precision_min, fa_max)}
+    run_view = {"scores": {key: scores}, "y": y, "ev": ev, "episodes": episodes, "types": types}
+    m = tm.role_metrics([run_view], key, op)
+    t, v = m["alarme"]["test"], m["alarme"]["val"]
+    res = {"nom": nom, "type": "supervisé",
+           **{k: t[k] for k in ("recall", "precision", "f1", "fpr", "part_attaques",
+                                "fausses_alarmes_evenements_par_heure", "alertes", "fausses_alertes",
+                                "precision_alertes", "episodes", "episodes_detectes", "delai_median_min",
+                                "delai_p90_min", "per_attack", "per_episode")},
+           **{f"val_{k}": v[k] for k in ("recall", "precision", "f1", "episodes", "episodes_detectes",
+                                         "delai_median_min", "part_attaques")},
+           "val_fausses_alarmes_par_heure": v["fausses_alarmes_evenements_par_heure"],
+           "roc_auc": m["auc"]["test"], "avg_precision": m["ap"]["test"],
+           "val_roc_auc": m["auc"]["val"], "val_avg_precision": m["ap"]["val"],
+           "train_roc_auc": m["auc"]["train"], "train_avg_precision": m["ap"]["train"],
+           "threshold": op["seuil"],
+           "point_fonctionnement": {"seuil": op["seuil"], "k": op["k"], "n": op["n"],
+                                    "persistance_min": round(op["n"] * tr.STEP_MINUTES, 2),
+                                    "contrainte_tenue": op.get("contrainte_tenue"), "critere": op["critere"],
+                                    "validation": {"precision": v["precision"], "recall": v["recall"], "f1": v["f1"],
+                                                   "fa_h": v["fausses_alarmes_evenements_par_heure"]}},
+           "par_role": m, "hyperparameters": used}
+    res["diagnostic"] = tm.diagnostic(res)
+    await emit(key, 80, (f"{nom} : test (répétition 0, {t['episodes']} épisodes) : précision {t['precision']:.2f}, "
+                         f"{t['fausses_alarmes_evenements_par_heure']:.2f} FA/h, rappel {t['recall']:.2f}, "
+                         f"{t['episodes_detectes']}/{t['episodes']} épisodes"), model=key, result=_compact(res))
 
-    def line(r: dict) -> str:
-        op = r["point_fonctionnement"]
-        return (f"seuil {op['seuil']:.2f}, {op['k']}/{op['n']} lignes ; test : rappel {r['recall']:.2f}, "
-                f"précision {r['precision']:.2f}, {r['fausses_alarmes_evenements_par_heure']:.2f} FA/h, "
-                f"{r['episodes_detectes']}/{r['episodes']} épisodes")
-
-    # 1. Random Forest, par paliers d'arbres : la courbe se trace en direct (AP de validation)
-    await emit("RandomForest", 10, "Random Forest : apprentissage par paliers de 30 arbres…", model="RandomForest")
-    rf = tm.make_model("RandomForest", **tm._tuned("RandomForest"))           # réglage retenu (recherche groupée)
-    rf_params = {k: v for k, v in rf.get_params().items()
-                 if k in ("n_estimators", "min_samples_leaf", "max_features", "class_weight")}
-    rf.set_params(n_estimators=30, warm_start=True)
-    curve = []
-    for n_trees in range(30, 301, 30):
-        rf.set_params(n_estimators=n_trees)
-        await asyncio.to_thread(rf.fit, X[idx["train"]], y[idx["train"]])
-        p_tr = await asyncio.to_thread(lambda: rf.predict_proba(X[idx["train"]])[:, 1])
-        p_val = await asyncio.to_thread(lambda: rf.predict_proba(X[idx["val"]])[:, 1])
-        point = {"arbres": n_trees, "ap_train": round(float(average_precision_score(y[idx["train"]], p_tr)), 4),
-                 "ap_validation": round(float(average_precision_score(y[idx["val"]], p_val)), 4)}
-        curve.append(point)
-        await emit("RandomForest", 10 + int(30 * n_trees / 300),
-                   f"Random Forest : {n_trees} arbres, AP train {point['ap_train']:.3f}, validation "
-                   f"{point['ap_validation']:.3f}", model="RandomForest", curve_point=point)
-    models["RandomForest"] = rf
-    r = evaluate("RandomForest", await asyncio.to_thread(tm.scores_of, rf, X), {**rf_params, "n_estimators": 300})
-    await emit("RandomForest", 41, f"Random Forest : {line(r)}", model="RandomForest", result=_compact(r))
-
-    # 2. Les autres modèles, mêmes réglages que transmission_models.py
-    others = [k for k, _ in tm.MODELS if k != "RandomForest" and not (k == "XGBoost" and tm.XGBClassifier is None)]
-    for i, key in enumerate(others):
-        p0 = 42 + int(40 * i / len(others))
-        nom = tm.MODEL_NAMES[key]
-        await emit(key, p0, f"{nom} : entraînement…", model=key)
-        model, params = await asyncio.to_thread(tm.fit_model, key, X, y, idx["train"])
-        models[key] = model
-        r = evaluate(key, await asyncio.to_thread(tm.scores_of, model, X), params)
-        await emit(key, p0 + 6, f"{nom} : {line(r)}", model=key, result=_compact(r))
-
-    ranking = tm.rank_models(results)          # VALIDATION uniquement
-    best_key = ranking[0]
-    tree_key = next((k for k in ranking if k in tm.TREE_MODELS), None)
-
-    # 3. SHAP du meilleur modèle arborescent
+    # 3. SHAP du modèle (arbres)
     shap_out = None
-    if tree_key is not None:
-        await emit("SHAP", 85, f"SHAP : explication de {results[tree_key]['nom']} sur les attaques de validation et de test…")
-        shap_out = await asyncio.to_thread(_shap_summary, models[tree_key], df, feats, idx["val"], idx["test"], tr)
-        shap_out["modele"] = tree_key
+    if key in tm.TREE_MODELS:
+        await emit("SHAP", 84, f"SHAP : explication de {nom} sur les attaques de validation et de test…")
+        shap_out = await asyncio.to_thread(_shap_summary, model, df, feats, idx["val"], idx["test"], tr)
+        shap_out["modele"] = key
         await emit("SHAP", 93, "SHAP terminé", shap=shap_out)
 
-    # 4. Sauvegarde du modèle retenu et de son point de fonctionnement
+    # 4. Sauvegarde du modèle et de son point de fonctionnement
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     import joblib  # noqa: PLC0415
-    op = results[best_key]["point_fonctionnement"]
-    joblib.dump(models[best_key], OUT_DIR / "modele_web.pkl")
+    joblib.dump(model, OUT_DIR / "modele_web.pkl")
     with open(OUT_DIR / "modele_web.json", "w", encoding="utf-8") as f:
-        json.dump({"modele": best_key, "nom": results[best_key]["nom"], "features": feats, "seuil": op["seuil"],
+        json.dump({"modele": key, "nom": nom, "features": feats, "seuil": op["seuil"],
                    "k": op["k"], "n": op["n"], "critere": op["critere"]}, f, indent=2, ensure_ascii=False)
-    records = await asyncio.to_thread(study_records, df, episodes, 0, all_scores[best_key], op)
+    records = await asyncio.to_thread(study_records, df, episodes, 0, scores, op)
     out = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "duree_s": round(time.time() - t0, 1),
+        "mode": "modele_retenu",
+        "description": (f"Une seule répétition (découpage n° 0, {t['episodes']} épisodes d'attaque au test) du modèle "
+                        f"retenu, {nom}, avec le réglage de l'étude de référence. Les chiffres de référence "
+                        f"sont ceux de l'étude complète ({(choice or {}).get('repetitions') or 20} répétitions)."),
+        "reference": choice,
         "dataset": dataset_info,
         "features": feats,
-        "critere": ta.criterion_text(precision_min, fa_max),
+        "critere": op["critere"],
         "precision_min": precision_min, "fa_max": fa_max,
-        "modeles": {k: _compact(r) for k, r in results.items()},
-        "classement_validation": ranking,
-        "meilleur": best_key,
-        "courbe_random_forest": curve,
+        "modeles": {key: _compact(res)},
+        "classement_validation": [key],
+        "meilleur": key,
+        "courbe_arbres": curve,
         "shap": shap_out,
     }
     with open(WEB_RESULTS, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False, default=str)
-    b = results[best_key]
-    await emit("done", 100, f"Entraînement terminé en {out['duree_s']:.0f} s — meilleur modèle (validation) : "
-               f"{b['nom']} ; {line(b)}", results=out)
+    await emit("done", 100, f"Entraînement terminé en {out['duree_s']:.0f} s — {nom} (modèle retenu) : test de la "
+               f"répétition 0, précision {res['precision']:.2f}, {res['fausses_alarmes_evenements_par_heure']:.2f} "
+               f"FA/h, {res['episodes_detectes']}/{res['episodes']} épisodes", results=out)
     out["_records"] = {"df": df, **records}
     return out
 
@@ -578,14 +608,51 @@ def _results_for_report() -> tuple[dict | None, dict | None, str]:
     return None, None, "aucun résultat"
 
 
-def _niveau(rate: float | None) -> str:
-    if rate is None:
-        return "non évalué"
-    if rate >= 80:
-        return "bien détecté"
-    if rate >= 40:
-        return "partiellement détecté"
-    return "mal détecté : vérification humaine indispensable"
+# Niveau de détection d'un scénario : trois mesures au test, pas une seule.
+#  - E : part des épisodes d'attaque détectés (au moins une alerte pendant l'épisode) ;
+#  - M : part des mesures falsifiées signalées (couverture de l'épisode) ;
+#  - D : délai médian entre le début de l'épisode et la première alerte.
+NIVEAU_EPISODES_MIN = 85.0      # % : au plus ~1 épisode manqué sur 7 à 10
+NIVEAU_MESURES_MIN = 70.0       # % : la majorité de chaque épisode est couverte
+NIVEAU_DELAI_MAX = 5.0          # min : alerte avant la fin d'une fenêtre de 5 min
+NIVEAU_EPISODES_MAL = 60.0      # % : en dessous, trop d'attaques passent
+CRITERE_NIVEAU = (
+    f"Niveau de détection, mesuré au test pour chaque scénario : « bien détecté » si au moins "
+    f"{NIVEAU_EPISODES_MIN:.0f} % des épisodes sont détectés, au moins {NIVEAU_MESURES_MIN:.0f} % des mesures "
+    f"falsifiées sont signalées et le délai médian est d'au plus {NIVEAU_DELAI_MAX:.0f} min ; « mal détecté » si "
+    f"moins de {NIVEAU_EPISODES_MAL:.0f} % des épisodes sont détectés ; sinon « détecté partiellement » (épisodes "
+    f"manqués ou trop peu de mesures signalées) et/ou « tardivement » (délai médian au-delà de "
+    f"{NIVEAU_DELAI_MAX:.0f} min). Un épisode compte comme détecté dès qu'une alerte tombe pendant l'épisode : "
+    "c'est pourquoi la part des mesures signalées et le délai sont indispensables pour juger."
+)
+
+
+def _niveau(episodes_pct: float | None, mesures_pct: float | None = None,
+            delai_min: float | None = None) -> tuple[str, str]:
+    """(niveau, raison) d'un scénario selon CRITERE_NIVEAU."""
+    if episodes_pct is None:
+        return "non évalué", "aucun épisode de ce scénario au test"
+    fr = lambda v, d=0: f"{v:.{d}f}".replace(".", ",")  # noqa: E731
+    if episodes_pct < NIVEAU_EPISODES_MAL:
+        return ("mal détecté : vérification humaine indispensable",
+                f"seulement {fr(episodes_pct)} % des épisodes détectés (seuil {NIVEAU_EPISODES_MAL:.0f} %)")
+    raisons, partiel = [], False
+    if episodes_pct < NIVEAU_EPISODES_MIN:
+        partiel = True
+        raisons.append(f"{fr(episodes_pct)} % des épisodes détectés (< {NIVEAU_EPISODES_MIN:.0f} %)")
+    if mesures_pct is not None and mesures_pct < NIVEAU_MESURES_MIN:
+        partiel = True
+        raisons.append(f"{fr(mesures_pct)} % des mesures falsifiées signalées (< {NIVEAU_MESURES_MIN:.0f} %)")
+    tardif = delai_min is not None and delai_min > NIVEAU_DELAI_MAX
+    if tardif:
+        raisons.append(f"délai médian {fr(delai_min, 1)} min (> {NIVEAU_DELAI_MAX:.0f} min)")
+    if not partiel and not tardif:
+        return "bien détecté", (f"{fr(episodes_pct)} % des épisodes, "
+                                + (f"{fr(mesures_pct)} % des mesures signalées, " if mesures_pct is not None else "")
+                                + (f"délai médian {fr(delai_min, 1)} min" if delai_min is not None else "délai inconnu"))
+    niveau = ("détecté partiellement et tardivement" if partiel and tardif
+              else "détecté partiellement" if partiel else "détecté tardivement")
+    return niveau, " ; ".join(raisons)
 
 
 def _fmt_delai(d) -> str:
@@ -603,7 +670,8 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
     report: dict[str, Any] = {"titre": "Rapport pour l'opérateur — attaques de transmission",
                               "date": datetime.now().strftime("%d/%m/%Y %H:%M"), "source": source,
                               "modele": None, "scenarios": [], "regles_generales": GENERAL_RULES,
-                              "desequilibre": DESEQUILIBRE_TXT}
+                              "desequilibre": DESEQUILIBRE_TXT,
+                              "critere_niveau": CRITERE_NIVEAU}
     candidates = {k: v for k, v in (models or {}).items() if k != "RF_v1"}
     if not candidates:
         report["message"] = "Aucun résultat disponible : lancez un entraînement."
@@ -614,11 +682,12 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
     t = candidates[best_key]
     op = t.get("point_fonctionnement") or {}
     fa_h = t.get("fausses_alarmes_evenements_par_heure")
+    fa_txt = "—" if fa_h is None else f"{fa_h:.2f}".replace(".", ",")
     import transmission_alertes as ta  # noqa: PLC0415
     report["modele"] = {
         "cle": best_key, "nom": t.get("nom", best_key), "type": t.get("type", "supervisé"),
         "seuil_valeur": op.get("seuil"), "k": op.get("k"), "n": op.get("n"),
-        "point_fonctionnement": (f"seuil {op['seuil']:.2f}, {op['k']} sur {op['n']} mesures" if op else "—"),
+        "point_fonctionnement": (f"seuil {op['seuil']:.2f}, {op['k']} sur {op['n']} mesures".replace(".", ",") if op else "—"),
         "recall": t["recall"], "fausses_alertes_par_heure": fa_h, "delai_median_min": t.get("delai_median_min"),
         "precision": t["precision"], "f1": t["f1"],
         "episodes": f"{t.get('episodes_detectes')}/{t.get('episodes')}",
@@ -628,7 +697,7 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
                                   duree=f"{(op.get('n') or 0) * 5 / 60:.1f}".replace(".", ","),
                                   pmin=round(100 * ta.PRECISION_MIN), famax=f"{ta.FA_MAX:g}".replace(".", ",")),
         "lecture": (f"Le modèle détecte {t.get('episodes_detectes')} épisodes d'attaque sur {t.get('episodes')} au "
-                    f"test, avec environ {fa_h} fausse(s) alerte(s) par heure et un délai médian de "
+                    f"test, avec environ {fa_txt} fausse alerte par heure et un délai médian de "
                     f"{_fmt_delai(t.get('delai_median_min'))} ; sur 100 mesures signalées, environ "
                     f"{round(100 * t['precision'])} sont vraiment falsifiées, et {round(100 * t['recall'])} % des "
                     "mesures falsifiées sont signalées."),
@@ -642,10 +711,12 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
         reco = RECOMMANDATIONS[_family(kind)]
         feats = shap_sc.get(name, [])[:3]
         rate = round(100 * pe["detected"] / pe["n"], 1) if pe.get("n") else None   # épisodes détectés
+        mesures = pa.get("rate") if pa.get("n") else None
+        niveau, raison = _niveau(rate, mesures, pe.get("delai_median_min"))
         report["scenarios"].append({
             "scenario": name, "capteur": SENSOR_FR[sensor], "description": SCENARIOS_FR.get(name, ""),
-            "famille": reco["titre"], "taux_detection": rate, "niveau": _niveau(rate),
-            "lignes_signalees": pa.get("rate") if pa.get("n") else None,
+            "famille": reco["titre"], "taux_detection": rate, "niveau": niveau,
+            "niveau_raison": raison, "lignes_signalees": mesures,
             "episodes": f"{pe.get('detected', '—')}/{pe.get('n', '—')}",
             "delai_median_min": pe.get("delai_median_min"),
             "ce_que_le_modele_regarde": [f.get("label") or feature_label(f["feature"]) for f in feats] or [reco["signes"]],
@@ -676,17 +747,18 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
     lines = [f"# {report['titre']}", f"*{report['date']} · source : {source}*", "",
              "## Le modèle en service", "",
              f"**{md['nom']}** ({md['type']}), réglage « {md['point_fonctionnement']} » — épisodes détectés "
-             f"{md['episodes']}, {fa_h} fausse(s) alerte(s) par heure, délai médian "
+             f"{md['episodes']}, {fa_txt} fausse alerte par heure, délai médian "
              f"{_fmt_delai(md['delai_median_min'])}, précision {round(100 * md['precision'])} %, rappel "
              f"{round(100 * md['recall'])} %, F1 {md['f1']:.2f} (test).", "", md["lecture"], "", md["seuil"], "",
-             "## Déséquilibre des classes", "", DESEQUILIBRE_TXT, "", "## Consignes par type d'attaque", ""]
+             "## Déséquilibre des classes", "", DESEQUILIBRE_TXT, "", "## Consignes par type d'attaque", "",
+             f"*{CRITERE_NIVEAU}*", ""]
     for s in report["scenarios"]:
         rate_txt = ("non évalué" if s["taux_detection"] is None else
                     f"épisodes {s['episodes']}, délai médian {_fmt_delai(s['delai_median_min'])}, "
                     f"{s['lignes_signalees']:.0f} % des mesures signalées")
         lines += [f"### {s['famille']} — {s['scenario']} ({s['capteur']})", "",
                   f"- **Ce que fait l'attaquant :** {s['description']}",
-                  f"- **Détection :** {rate_txt} — {s['niveau']}",
+                  f"- **Détection :** {rate_txt} — **{s['niveau']}** ({s['niveau_raison']})",
                   f"- **Ce que le modèle regarde :** {', '.join(s['ce_que_le_modele_regarde'])}",
                   f"- **Risque :** {s['risque']}",
                   "- **À faire :**"] + [f"  {i}. {act}" for i, act in enumerate(s["actions"], 1)] + [""]

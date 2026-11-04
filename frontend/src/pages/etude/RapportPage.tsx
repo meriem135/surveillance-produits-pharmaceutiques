@@ -2,17 +2,17 @@
 import { Download } from 'lucide-react';
 import { Empty, Loading, Note, PageHeader, Readouts, Section, Stat, State, type StateKind, minutes, nf, pct, useApi } from '../../components/etude/kit';
 
-interface Scen { scenario: string; capteur: string; description: string; famille: string; taux_detection: number | null; niveau: string;
+interface Scen { scenario: string; capteur: string; description: string; famille: string; taux_detection: number | null; niveau: string; niveau_raison?: string;
   lignes_signalees: number | null; episodes: string; delai_median_min: number | null; ce_que_le_modele_regarde: string[]; risque: string; actions: string[] }
 interface Report {
-  titre: string; date: string; source: string; message?: string; markdown: string; desequilibre: string; regles_generales: string[]; limites?: string[];
+  titre: string; date: string; source: string; message?: string; markdown: string; desequilibre: string; regles_generales: string[]; limites?: string[]; critere_niveau?: string;
   modele: null | { nom: string; point_fonctionnement: string; recall: number; precision: number; f1: number; fausses_alertes_par_heure: number;
     delai_median_min: number | null; episodes: string; lecture: string; seuil: string };
   scenarios: Scen[];
 }
 
-const tone = (n: string) => (n.startsWith('bien') ? 'var(--accent-primary)' : n.startsWith('partiel') ? 'var(--alarm-amber-fill)' : 'var(--accent-danger)');
-const kind = (n: string): StateKind => (n.startsWith('bien') ? 'ok' : n.startsWith('partiel') ? 'alerte' : 'manque');
+const kind = (n: string): StateKind => (n.startsWith('bien') ? 'ok' : n.startsWith('détecté') ? 'alerte' : n.startsWith('mal') ? 'manque' : 'neutre');
+const tone = (n: string) => ({ ok: 'var(--accent-primary)', alerte: 'var(--alarm-amber-fill)', manque: 'var(--accent-danger)', neutre: 'var(--border-strong)' })[kind(n)];
 
 export default function RapportPage() {
   const { data, error, loading, reload } = useApi<Report>('/api/v1/transmission/report');
@@ -59,7 +59,16 @@ export default function RapportPage() {
         <h2 className="text-[24px]" style={{ color: 'var(--text-primary)' }}>Consignes par type d’attaque</h2>
         <p className="text-[14px] mt-1 max-w-[75ch]" style={{ color: 'var(--text-secondary)' }}>Chaque fiche dit ce que le modèle regarde, le risque pour les produits et quoi faire.</p>
       </div>
-      <div className="grid lg:grid-cols-2 gap-6 -mt-2">
+      {data.critere_niveau && (
+        <div className="vc-panel px-4 sm:px-5 py-3.5 -mt-2" data-testid="critere-niveau">
+          <div className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>Comment le niveau est attribué</div>
+          <p className="text-[13.5px] mt-1 max-w-[110ch] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{data.critere_niveau}</p>
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+            <State kind="ok">bien détecté</State><State kind="alerte">détecté partiellement / tardivement</State><State kind="manque">mal détecté</State>
+          </div>
+        </div>
+      )}
+      <div className="grid lg:grid-cols-2 3xl:grid-cols-3 gap-6">
         {data.scenarios.map(s => (
           <article key={s.scenario} className="vc-panel overflow-hidden" style={{ borderLeft: `4px solid ${tone(s.niveau)}` }}>
             <div className="vc-panel-head px-4 sm:px-5 pt-3.5 pb-3 flex flex-wrap items-start justify-between gap-2">
@@ -69,6 +78,11 @@ export default function RapportPage() {
               </div>
               <State kind={kind(s.niveau)}>{s.niveau}</State>
             </div>
+            {s.niveau_raison && (
+              <p className="px-4 sm:px-5 pt-3 -mb-1 text-[13px]" style={{ color: 'var(--text-muted)' }}>
+                <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Pourquoi ce niveau :</span> {s.niveau_raison}
+              </p>
+            )}
             <div className="p-4 sm:p-5 text-[14px] space-y-3" style={{ color: 'var(--text-secondary)' }}>
               <dl className="grid grid-cols-3 gap-3">
                 <div><dt className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Épisodes détectés</dt><dd className="vc-readout-value" style={{ fontSize: 24 }}>{s.episodes}</dd></div>

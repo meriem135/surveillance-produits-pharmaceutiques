@@ -50,6 +50,11 @@ SOURCES = {
 }
 
 
+def _utc(d: Optional[datetime]) -> Optional[str]:
+    """Horodatage stocké en UTC naïf (utcnow) : suffixe Z pour que le navigateur l'affiche en heure locale."""
+    return d.isoformat(timespec="seconds") + "Z" if d else None
+
+
 def _iso(d: Optional[datetime]) -> Optional[str]:
     return d.isoformat(timespec="seconds") if d else None
 
@@ -102,9 +107,9 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
     )).scalars().first()
     entrainements = {
         "total": sum(par_statut.values()), "par_statut": par_statut,
-        "premier": _iso(min(firsts)) if firsts else None, "dernier": _iso(max(lasts)) if lasts else None,
+        "premier": _utc(min(firsts)) if firsts else None, "dernier": _utc(max(lasts)) if lasts else None,
         "dernier_lancement": None if last_any is None else {
-            "id": last_any.id, "debut": _iso(last_any.started_at), "fin": _iso(last_any.finished_at),
+            "id": last_any.id, "debut": _utc(last_any.started_at), "fin": _utc(last_any.finished_at),
             "statut": last_any.status, "lance_par": last_any.launched_by, "duree_s": last_any.duration_s,
             "erreur": last_any.error,
         },
@@ -136,7 +141,7 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
             par_scenario.sort(key=lambda s: (s["lignes"] == 0, -(s["taux"] or 0)))
         ds = run.dataset or {}
         dernier = {
-            "id": run.id, "debut": _iso(run.started_at), "fin": _iso(run.finished_at), "duree_s": run.duration_s,
+            "id": run.id, "debut": _utc(run.started_at), "fin": _utc(run.finished_at), "duree_s": run.duration_s,
             "lance_par": run.launched_by, "source": run.source,
             "repetitions": ((res.get("etude") or {}).get("protocole") or {}).get("repetitions", 1),
             "critere": res.get("critere"), "meilleur_modele": run.best_model, "meilleur_f1": run.best_f1,
@@ -162,11 +167,15 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         .order_by(TransmissionRun.started_at, TransmissionRun.id)
     )).all()
     historique = [{
-        "id": r.id, "date": _iso(r.started_at), "duree_s": r.duration_s, "meilleur_modele": r.best_model,
+        "id": r.id, "date": _utc(r.started_at), "duree_s": r.duration_s, "meilleur_modele": r.best_model,
         "f1": m.f1 if m else r.best_f1, "recall": m.recall if m else None, "precision": m.precision if m else None,
         "fausses_alarmes_par_heure": m.fausses_alarmes_par_heure if m else None,
         "delai_median_min": m.delai_median_min if m else None, "lignes": r.n_rows,
         "candidats": r.ranking or [],
+        "episodes": m.episodes if m else None, "episodes_detectes": m.episodes_detectes if m else None,
+        # une seule répétition (découpage n° 0) : quelques épisodes au test seulement
+        "repetitions": 1,
+        "mode": (r.result_json or {}).get("mode") or "tous_les_modeles",
     } for r, m in hist_rows]
 
     # ── Capteurs, télémétrie, modèles phase 2, comptes, audit ────────────────
@@ -204,7 +213,7 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         "modeles_phase2": {"modeles": mlm[0], "dernier_entrainement": _iso(mlm[1]), "metriques_par_attaque": n_metrics},
         "comptes": {"total": sum(par_role.values()),
                     "actifs": sum(n for _, a, n in user_rows if a), "par_role": par_role},
-        "audit": {"actions": audit[0], "derniere": _iso(audit[1])},
+        "audit": {"actions": audit[0], "derniere": _utc(audit[1])},
         "sources": SOURCES,
     }
 

@@ -24,7 +24,7 @@ import asyncio
 import json
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -87,7 +87,8 @@ async def load(only_if_needed: bool = False, log=print) -> dict | None:
         run_id = await repository.start_run(session, "charger_base.py", None, source="reference")
         await repository.finish_run(session, run_id, out)
         run = await session.get(TransmissionRun, run_id)
-        run.started_at = datetime.fromisoformat(pooled["generated_at"])
+        # generated_at est en heure locale du serveur ; la base stocke de l'UTC naïf
+        run.started_at = datetime.fromisoformat(pooled["generated_at"]).astimezone(timezone.utc).replace(tzinfo=None)
         await session.commit()
         counts = await repository.store_details(session, run_id, out, {"df": df, **records}, all_eps,
                                                 service.feature_label)

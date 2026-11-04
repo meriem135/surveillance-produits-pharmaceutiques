@@ -86,8 +86,9 @@ async def transmission_scenarios(_user=Depends(require_any_role("operator"))):
 
 @router.post("/transmission/train")
 async def transmission_train(user=Depends(require_any_role())):
-    """Lance l'entraînement des 4 modèles supervisés ; progression sur /transmission/train-ws.
-    L'entraînement et les métriques de chaque modèle sont enregistrés en base."""
+    """Lance l'entraînement du modèle retenu par l'étude de référence (hyperparamètres, seuil et
+    persistance lus en base) sur une répétition ; progression sur /transmission/train-ws.
+    L'entraînement et ses métriques train / validation / test sont enregistrés en base."""
     global _training_task
     if _training_task and not _training_task.done():
         raise HTTPException(status_code=409, detail="Un entraînement est déjà en cours")
@@ -107,7 +108,8 @@ async def transmission_train(user=Depends(require_any_role())):
         run_id = await _db(repository.start_run, username, user_id)
         try:
             cfg = await _db(settings_repo.get_all)
-            out = await service.train(_emit, (cfg or {}).get("precision_min"), (cfg or {}).get("fa_max"))
+            ref = await _db(repository.latest_result, "reference")
+            out = await service.train(_emit, ref, (cfg or {}).get("precision_min"), (cfg or {}).get("fa_max"))
         except Exception as e:  # noqa: BLE001
             traceback.print_exc()
             if run_id is not None:
@@ -122,6 +124,16 @@ async def transmission_train(user=Depends(require_any_role())):
 
     _training_task = asyncio.create_task(_background())
     return {"status": "training_started", "ws_url": "/api/v1/transmission/train-ws"}
+
+
+@router.get("/transmission/training-target")
+async def transmission_training_target(_user=Depends(require_any_role()), session: AsyncSession = Depends(get_session)):
+    """Ce que l'entraînement web va entraîner : le modèle retenu par l'étude de référence en base."""
+    c = service.reference_choice(await _reference_from_db(session))
+    if c is None:
+        return {"modele_retenu": None}
+    return {"modele_retenu": {"cle": c["modele"], "nom": c["nom"], "seuil": c["seuil"], "k": c["k"], "n": c["n"],
+                              "hyperparametres": c["hyperparameters"], "repetitions": c["repetitions"]}}
 
 
 @router.websocket("/transmission/train-ws")

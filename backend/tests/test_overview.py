@@ -117,6 +117,7 @@ def test_overview_reports_what_the_database_holds():
     assert sc[1]["episodes_detectes"] == 1 and sc[1]["delai_median_min"] == 7.4
     assert last["donnees"]["lignes"] == 44443 and last["donnees"]["scenarios"] == 3
     assert [h["f1"] for h in d["historique"]] == [0.57, 0.76]
+    assert all(h["repetitions"] == 1 and h["mode"] == "tous_les_modeles" for h in d["historique"])
     assert d["capteurs"]["total"] == 2 and d["capteurs"]["en_ligne"] == 1
     assert d["capteurs"]["par_type"] == {"fridge": 1, "weather": 1}
     assert d["telemetrie"]["mesures"] == 2 and d["telemetrie"]["fin"] == "2026-10-07T17:00:05"

@@ -32,7 +32,7 @@ def test_operator_report_from_results():
     shap_data = {"par_scenario": {"MITM_gel": [{"feature": "fridge_std_1min", "importance": 0.2}]}}
     report = service.operator_report(models, shap_data, "test")
     assert report["modele"]["nom"] == "Random Forest"
-    assert report["modele"]["point_fonctionnement"] == "seuil 0.70, 6 sur 12 mesures"
+    assert report["modele"]["point_fonctionnement"] == "seuil 0,70, 6 sur 12 mesures"
     gel = next(s for s in report["scenarios"] if s["scenario"] == "MITM_gel")
     assert gel["niveau"] == "bien détecté" and gel["episodes"] == "6/6"
     assert gel["ce_que_le_modele_regarde"] == ["écart-type sur 1 min du frigo"]
@@ -70,3 +70,40 @@ def test_public_kpis_come_from_the_reference_results():
     assert kpis["scenarios"] == len(service.scenarios()) == len(kpis["detection_par_scenario"])
     taux = [s["taux"] for s in kpis["detection_par_scenario"]]
     assert taux == sorted(taux, reverse=True)
+
+
+def test_niveau_uses_episodes_share_of_readings_and_delay():
+    # chiffres réels de l'étude de référence (test) : épisodes %, mesures signalées %, délai médian
+    assert service._niveau(100.0, 95.0, 1.0)[0] == "bien détecté"                 # gel du frigo
+    assert service._niveau(88.9, 73.8, 2.1)[0] == "bien détecté"                  # rejeu : 8/9
+    niveau, raison = service._niveau(90.0, 26.9, 11.0)                            # biais −0,5 °C
+    assert niveau == "détecté partiellement et tardivement"
+    assert "27 % des mesures" in raison and "11,0 min" in raison
+    assert service._niveau(100.0, 31.8, 11.6)[0] == "détecté partiellement et tardivement"   # dérive
+    assert service._niveau(100.0, 83.0, 6.0)[0] == "détecté tardivement"
+    assert service._niveau(87.5, 51.8, 4.0)[0] == "détecté partiellement"
+    assert service._niveau(50.0, 90.0, 1.0)[0].startswith("mal détecté")
+    assert service._niveau(None)[0] == "non évalué"
+
+
+def test_report_explains_the_level_criterion():
+    report = service.operator_report({"RandomForest": _model("Random Forest", 0.62)}, None, "test")
+    assert "bien détecté" in report["critere_niveau"] and "70 %" in report["critere_niveau"]
+    assert report["critere_niveau"] in report["markdown"]
+    gel = next(s for s in report["scenarios"] if s["scenario"] == "MITM_gel")
+    assert gel["niveau_raison"] and f"({gel['niveau_raison']})" in report["markdown"]
+
+
+def test_web_training_uses_the_reference_model_and_its_alert_setting():
+    ref = {"meilleur": "ExtraTrees", "etude": {"protocole": {"repetitions": 20}},
+           "modeles": {"ExtraTrees": {**_model("Extra Trees", 0.65), "hyperparameters":
+                                      {"n_estimators": 400, "max_features": 0.5, "min_samples_leaf": 5}},
+                       "RandomForest": _model("Random Forest", 0.6)}}
+    ref["modeles"]["ExtraTrees"]["point_fonctionnement"] = {"seuil": 0.7, "k": 3, "n": 6, "contrainte_tenue": True}
+    c = service.reference_choice(ref)
+    assert c["modele"] == "ExtraTrees" and (c["seuil"], c["k"], c["n"]) == (0.7, 3, 6)
+    assert c["hyperparameters"]["max_features"] == 0.5 and c["repetitions"] == 20
+    assert service.reference_choice(None) is None
+    assert service.reference_choice({"modeles": {}}) is None
+    mlp = {"meilleur": "MLP", "modeles": {"MLP": {**_model("MLP", 0.5), "hyperparameters": {"sample_weight": "équilibré"}}}}
+    assert "sample_weight" not in service.reference_choice(mlp)["hyperparameters"]

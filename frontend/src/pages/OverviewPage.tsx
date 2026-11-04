@@ -3,13 +3,12 @@
  * la base de données (transmission_runs, transmission_model_results, devices, telemetry,
  * ml_models, model_metrics, users, audit_logs). Aucun chiffre écrit en dur.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { AlertTriangle, Database, RefreshCw } from 'lucide-react';
-import { authHeaders } from '../lib/auth';
 import {
-  Empty, Loading, MODEL_FR, Meter, Readouts, SCENARIO_FR, Section, State, Stat, Table, Tally, TallyLegend, nf, pct, tooltipStyle, usePalette,
+  Empty, Loading, MODEL_FR, Meter, Note, Readouts, SCENARIO_FR, Section, State, Stat, Table, Tally, TallyLegend, nf, pct, tooltipStyle, useApi, usePalette,
 } from '../components/etude/kit';
 
 // ─── Types de la réponse ─────────────────────────────────────────────────────
@@ -37,7 +36,7 @@ interface LastRun {
 }
 interface HistoryRow { id: number; date: string; duree_s: number | null; meilleur_modele: string | null; f1: number | null;
   recall: number | null; precision: number | null; fausses_alarmes_par_heure: number | null; delai_median_min: number | null;
-  lignes: number; candidats: string[] }
+  lignes: number; candidats: string[]; episodes?: number | null; episodes_detectes?: number | null; repetitions?: number; mode?: string }
 interface Overview {
   entrainements: { total: number; par_statut: Record<string, number>; premier: string | null; dernier: string | null;
     dernier_lancement: null | { id: number; debut: string; fin: string | null; statut: string; lance_par: string | null; duree_s: number | null; erreur: string | null } };
@@ -80,26 +79,9 @@ const pluriel = (n: number, mot: string) => `${nf(n)} ${mot}${n > 1 ? 's' : ''}`
 // ─── Page ────────────────────────────────────────────────────────────────────
 export default function OverviewPage() {
   const pal = usePalette();
-  const [data, setData] = useState<Overview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, error, loading, reload: load } = useApi<Overview>('/api/v1/overview');
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await fetch('/api/v1/overview', { headers: authHeaders() });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setData(await r.json());
-      setError(null);
-      setLoadedAt(new Date());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (data) setLoadedAt(new Date()); }, [data]);
 
   if (!data) {
     return (
@@ -282,7 +264,7 @@ export default function OverviewPage() {
         </Section>
 
         <Section title="Découpage du jeu de données" subtitle={run?.donnees.fichier ? `Fichier ${run.donnees.fichier}, blocs temporels d’une heure` : undefined}
-          source="transmission_runs.dataset (dernier entraînement terminé)">
+          source="transmission_runs.dataset (étude affichée)">
           {run?.donnees.prevalence ? (
             <div className="space-y-4">
               {(['train', 'val', 'test'] as const).map(k => {
@@ -314,7 +296,7 @@ export default function OverviewPage() {
 
       {/* ── Historique ─────────────────────────────────────────────────── */}
       <Section title="Historique des entraînements"
-        subtitle="Meilleur modèle de chaque entraînement terminé, sur son propre jeu de test. Les candidats et le découpage changent d’un entraînement à l’autre : la courbe montre l’évolution du protocole autant que celle des modèles."
+        subtitle="Entraînements lancés depuis le site. Chacun est UNE seule répétition (découpage n° 0) mesurée sur son propre petit jeu de test : ce ne sont pas les chiffres de l’étude de référence ci-dessus (20 répétitions). Depuis le n° 6, seul le modèle retenu est réentraîné, avec le réglage de l’étude."
         source="transmission_runs JOIN transmission_model_results (is_best) WHERE status = 'termine'"
         action={<Link to="/dashboard/resultats" className="text-[13.5px] font-semibold underline underline-offset-2" style={{ color: 'var(--accent-primary)' }}>Voir les résultats de référence</Link>}>
         {histo.length ? (
@@ -336,15 +318,18 @@ export default function OverviewPage() {
                 </ResponsiveContainer>
               </div>
             ) : null}
-            <Table min={820}>
-              <thead><tr><th>Entraînement</th><th>Date</th><th>Meilleur modèle</th><th>Candidats</th><th className="vc-num">Précision</th><th className="vc-num">Fausses alertes/h</th><th className="vc-num">Rappel</th><th className="vc-num">F1</th><th className="vc-num">Durée</th></tr></thead>
+            <Table min={900}>
+              <thead><tr><th>Entraînement</th><th>Date</th><th>Type</th><th>Modèle</th><th className="vc-num">Épisodes test</th><th className="vc-num">Précision</th><th className="vc-num">Fausses alertes/h</th><th className="vc-num">Rappel</th><th className="vc-num">F1</th><th className="vc-num">Durée</th></tr></thead>
               <tbody data-testid="table-historique">
                 {[...data.historique].reverse().map(h => (
                   <tr key={h.id}>
                     <td className="font-semibold">n° {h.id}</td>
                     <td className="whitespace-nowrap">{dateFr(h.date)}</td>
+                    <td className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+                      {h.mode === 'modele_retenu' ? 'modèle retenu, 1 répétition' : `${h.candidats.length || '?'} modèles comparés, 1 répétition`}
+                    </td>
                     <td>{h.meilleur_modele ? MODEL_FR[h.meilleur_modele] ?? h.meilleur_modele : '—'}</td>
-                    <td className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>{h.candidats.map(c => MODEL_FR[c] ?? c).join(', ') || '—'}</td>
+                    <td className="vc-num">{h.episodes != null ? `${h.episodes_detectes ?? '—'}/${h.episodes}` : '—'}</td>
                     <td className="vc-num">{pct(h.precision)}</td>
                     <td className="vc-num">{nf(h.fausses_alarmes_par_heure, 2)}</td>
                     <td className="vc-num">{pct(h.recall)}</td>
@@ -354,6 +339,15 @@ export default function OverviewPage() {
                 ))}
               </tbody>
             </Table>
+            {data.historique.some(h => (h.episodes ?? 99) < 15) && (
+              <Note>
+                Attention à la lecture : le test d’une seule répétition ne contient qu’une poignée d’épisodes d’attaque
+                (colonne « Épisodes test ») et quelques heures de mesures normales. Une précision de 100&nbsp;% et 0 fausse alerte
+                par heure veulent seulement dire qu’aucune fausse alerte n’est tombée pendant ces quelques heures : ce n’est pas
+                une mesure fiable. Les chiffres à retenir sont ceux de l’étude de référence
+                ({run?.source === 'reference' ? `${run.repetitions ?? 20} répétitions, ${best?.episodes ?? '—'} épisodes au test` : '20 répétitions'}), ci-dessus et dans « Résultats ».
+              </Note>
+            )}
           </div>
         ) : <Empty>Aucun entraînement terminé en base : l’historique apparaîtra après le premier entraînement.</Empty>}
         {e.dernier_lancement && e.dernier_lancement.statut !== 'termine' && (
@@ -401,7 +395,7 @@ export default function OverviewPage() {
             <div><dt className="vc-kicker">Actions tracées dans le journal d’audit</dt><dd className="mt-0.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>
               {nf(data.audit.actions)}{data.audit.derniere ? <span className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>, dernière le {dateFr(data.audit.derniere)}</span> : null}</dd></div>
             <div><dt className="vc-kicker">Alertes et rapports</dt><dd className="mt-0.5 text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
-              Non stockés : le rapport opérateur est recalculé à la demande depuis le dernier entraînement.</dd></div>
+              Non stockés : le rapport opérateur est recalculé à chaque ouverture depuis l’étude de référence en base.</dd></div>
           </dl>
         </div>
       </Section>
