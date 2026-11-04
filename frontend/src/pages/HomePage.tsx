@@ -27,7 +27,7 @@ interface TransmissionKpi {
 
 const STEPS = [
   { icon: Database, title: 'Collecte et préparation des données', desc: 'J’ai exploré et prétraité 5 jours de mesures réelles TON_IoT (frigo, thermostat, météo, du 31 mars au 4 avril 2019) : nettoyage, fusion des trois capteurs au pas de 5 s, puis injection d’attaques de transmission (MITM et injection) sur ces traces.' },
-  { icon: Brain, title: 'Modélisation et explicabilité', desc: 'J’ai entraîné et comparé quatre modèles supervisés (Random Forest, XGBoost, Régression Logistique et MLP) sur 20 répétitions, retenu le meilleur sur la validation avec un seuil réglé pour un rappel cible (priorité : ne rater aucune attaque), puis expliqué chaque détection avec SHAP.' },
+  { icon: Brain, title: 'Modélisation et explicabilité', desc: 'J’ai entraîné et comparé six modèles supervisés (Extra Trees, Random Forest, XGBoost, HistGradientBoosting, Régression Logistique, MLP) sur 20 répétitions, avec un seul réglage d’alerte choisi sur la validation (précision d’au moins 90 %, au plus une fausse alerte toutes les deux heures), puis expliqué chaque détection avec SHAP.' },
   { icon: Rocket, title: 'Déploiement de la plateforme', desc: 'J’ai construit l’API FastAPI, le tableau de bord React (entraînement suivi en direct, SHAP, rapport de recommandation pour l’opérateur) et une base PostgreSQL qui conserve chaque entraînement.' },
 ];
 
