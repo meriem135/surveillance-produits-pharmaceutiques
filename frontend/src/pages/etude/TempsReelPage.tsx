@@ -124,7 +124,7 @@ export default function TempsReelPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chart} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
                     <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
-                    <YAxis domain={[0, 20]} ticks={[0, 4, 8, 12, 16, 17.7, 19.3]} width={64} tickFormatter={(v: number) => (v > 19 ? 'attaque' : v > 17 ? 'alerte' : `${v} °C`)} tick={{ fill: pal.axis, fontSize: 12 }} />
+                    <YAxis domain={[0, 20]} ticks={[0, 4, 8, 12, 16, 17.7, 19.3]} interval={0} width={64} tickFormatter={(v: number) => (v > 19 ? 'attaque' : v > 17 ? 'alerte' : `${v} °C`)} tick={{ fill: pal.axis, fontSize: 12 }} />
                     <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={(v, n) => (n === 'Attaque réelle' || n === 'Alerte' ? ['oui', n] : [`${nf(Number(v), 2)} °C`, n])} />
                     <Area dataKey="reel" name="Attaque réelle" fill={pal.attackLine} fillOpacity={1} stroke="none" isAnimationActive={false} />
                     <Area dataKey="alerte" name="Alerte" fill={pal.alert} fillOpacity={1} stroke="none" isAnimationActive={false} />

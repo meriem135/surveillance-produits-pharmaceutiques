@@ -328,3 +328,8 @@ table th { font-weight: 600; }
 /* Pas d'étiquettes en capitales espacées : la casse normale se lit mieux */
 .uppercase { text-transform: none !important; }
 .tracking-wider, .tracking-widest, .tracking-wide { letter-spacing: 0 !important; }
+
+/* Tables dans un panneau sans marge intérieure : pas de débord négatif */
+.vc-flush .vc-table-wrap { margin-left: 0; margin-right: 0; }
+td .vc-tally > i { width: 10px; height: 15px; }
+td .vc-tally { gap: 2px; flex-wrap: nowrap; }

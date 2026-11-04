@@ -127,7 +127,7 @@ export function Section({ title, subtitle, source, action, children, className =
         </div>
         {action}
       </div>
-      <div className={flush ? '' : 'p-4 sm:p-5'}>{children}</div>
+      <div className={flush ? 'vc-flush' : 'p-4 sm:p-5'}>{children}</div>
       {source && <SourceLine source={source} />}
     </section>
   );
@@ -156,8 +156,8 @@ export function Stat({ label, value, unit, sub, tone, alarm }: {
   return (
     <div style={alarm ? { background: 'color-mix(in srgb, var(--accent-danger) 9%, var(--bg-panel))' } : undefined}>
       <div className="flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
-        {tone && <span className="w-2 h-2 shrink-0" style={{ background: tone }} aria-hidden />}
-        <span className="truncate">{label}</span>
+        {tone && <span className="w-2 h-2 shrink-0 self-start mt-[6px]" style={{ background: tone }} aria-hidden />}
+        <span className="leading-snug">{label}</span>
       </div>
       <div className="mt-2.5 vc-readout-value" style={alarm ? { color: 'var(--accent-danger)' } : undefined}>
         {value}{unit && <span className="vc-readout-unit">{unit}</span>}
@@ -273,7 +273,7 @@ export function BandLegend({ items }: { items: { label: string; color: string; k
 /** Tableau défilant horizontalement sur téléphone. */
 export function Table({ children, min = 480 }: { children: ReactNode; min?: number }) {
   return (
-    <div className="overflow-x-auto -mx-4 sm:mx-0">
+    <div className="vc-table-wrap overflow-x-auto -mx-4 sm:mx-0">
       <table className="vc-table w-full text-sm" style={{ minWidth: min }}>{children}</table>
     </div>
   );

@@ -80,7 +80,7 @@ export default function DetectionPage() {
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={serie} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
               <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
-              <YAxis domain={[0, 1.3]} ticks={[0, 0.25, 0.5, 0.75, 1, 1.125, 1.245]} width={64} tickFormatter={laneTick} tick={{ fill: pal.axis, fontSize: 12 }} />
+              <YAxis domain={[0, 1.3]} ticks={[0, 0.25, 0.5, 0.75, 1, 1.125, 1.245]} interval={0} width={64} tickFormatter={laneTick} tick={{ fill: pal.axis, fontSize: 12 }} />
               <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')}
                 formatter={(v, n) => (n === 'Score max' ? [nf(Number(v), 3), n] : ['oui', n])} />
               <Area dataKey="reel" name="Attaque réelle" fill={pal.attackLine} fillOpacity={1} stroke="none" isAnimationActive={false} />
