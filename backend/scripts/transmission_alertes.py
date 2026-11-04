@@ -33,6 +33,7 @@ La règle de persistance regarde n lignes en arrière : la zone de garde du déc
 from __future__ import annotations
 
 import os
+import re
 
 import numpy as np
 
@@ -196,5 +197,6 @@ def apply(scores: np.ndarray, op: dict) -> np.ndarray:
 
 
 def criterion_text(precision_min: float = PRECISION_MIN, fa_max: float = FA_MAX) -> str:
-    return (f"seuil unique et règle de persistance (k sur n lignes) choisis sur la validation : rappel maximal "
+    text = (f"seuil unique et règle de persistance (k sur n lignes) choisis sur la validation : rappel maximal "
             f"sous les contraintes précision ≥ {precision_min:.2f} et fausses alertes ≤ {fa_max:g} par heure")
+    return re.sub(r"(\d)\.(\d)", r"\1,\2", text)

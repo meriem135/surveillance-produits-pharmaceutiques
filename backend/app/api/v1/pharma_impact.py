@@ -1,4 +1,10 @@
-"""Impact Pharma — Analyse des attaques du dataset sur chaque capteur
+"""Impact Pharma — rapport opérateur d'un point du dataset (phase 2)
+=====================================================================
+La page « Impact pharma » et son analyse globale (GET /pharma/impact) ont été retirées du
+dashboard ; seul reste le rapport opérateur d'un point (POST /pharma/point-report), utilisé par
+les pages SHAP de la phase 2 et par l'analyste IA.
+
+Ancien en-tête : Analyse des attaques du dataset sur chaque capteur
 ====================================================================
 Industrie 4.0 pharmaceutique : comment les attaques du dataset influencent
 chaque capteur IoT et comment elles impactent les **stocks** et la
@@ -22,49 +28,22 @@ Trois briques, toutes issues des données réelles du projet :
    21 CFR Part 11), combinant le mode opératoire (disponibilité, intégrité,
    confidentialité) et l'empreinte mesurée sur les capteurs.
 """
-import os
 from datetime import datetime
 from typing import Optional
 
-import numpy as np
-import pandas as pd
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.core import paths
 
 router = APIRouter()
 
-DATA_PATH = str(paths.DATASET_FUSIONNE)
-NORMAL_DIR = str(paths.RAW_NORMAL_DIR)
-ATTACK_DIR = str(paths.RAW_ATTACK_DIR)
 
-SENSOR_IDS = ["weather", "fridge", "thermostat"]
-SENSOR_FILE_KEY = {"weather": "weather", "fridge": "fridge", "thermostat": "thermostat"}
-TEMP_COLS = {"weather": "weather_temp", "fridge": "fridge_temp", "thermostat": "thermostat_temp"}
-ROLL_COLS = {"weather": "weather_roll_std_10", "fridge": "fridge_roll_std_10", "thermostat": "thermostat_roll_std_10"}
 
 SENSOR_LABELS = {"weather": "Météo", "fridge": "Frigo / Chambre froide", "thermostat": "Thermostat"}
 
 # ── Candidats de colonnes température dans les fichiers bruts ──────────────
-_COL_CANDIDATES = [
-    "Fridge_Temperature", "fridge_temperature", "fridge_temp",
-    "current temperature", "current_temperature", "thermostat_temp", "AC_state",
-    "temperature", "weather_temp", "temp",
-]
 
 # ── Dossiers bruts d'attaque → identifiant de type ────────────────────────
-ATTACK_FOLDERS = {
-    "IoT_DDoS_normal": "ddos",
-    "IoT_DoS_normal": "dos",
-    "IoT_Injection_normal": "injection",
-    "IoT_MITM_normal": "mitm",
-    "IoT_backdoor_normal": "backdoor",
-    "IoT_runsomware_normal": "ransomware",
-    "IoT_scanning_normal": "scanning",
-    "IoT_password_normal": "password",
-    "IoT_XSS_normal": "xss",
-}
 
 # ── Catalogue métier pharmaceutique par type d'attaque ────────────────────
 # base : socle d'impact métier (0-100) avant pondération par l'empreinte mesurée.
@@ -227,321 +206,6 @@ SENSOR_ROLE = {
         "stock_weight": 0.15, "production_weight": 0.90,
     },
 }
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  Lecture des fichiers bruts
-# ═══════════════════════════════════════════════════════════════════════════
-
-def _pick_col(df: pd.DataFrame):
-    norm = {str(k).strip().lower().replace(" ", "_"): k for k in df.columns}
-    for cand in _COL_CANDIDATES:
-        key = cand.strip().lower().replace(" ", "_")
-        if key in norm:
-            return norm[key]
-    return None
-
-
-def _load_series(path: str) -> np.ndarray | None:
-    try:
-        df = pd.read_csv(path)
-    except Exception:
-        return None
-    col = _pick_col(df)
-    if col is None:
-        return None
-    s = pd.to_numeric(pd.Series(df[col]), errors="coerce").dropna().astype(float)
-    if len(s) > 30000:
-        s = s.sample(30000, random_state=42).sort_index()
-    return s.to_numpy()
-
-
-def _load_dir_series(folder: str, sensor: str) -> np.ndarray | None:
-    try:
-        files = [f for f in os.listdir(folder) if SENSOR_FILE_KEY[sensor] in f.lower()]
-    except FileNotFoundError:
-        return None
-    vals = []
-    for f in files:
-        s = _load_series(os.path.join(folder, f))
-        if s is not None and len(s):
-            vals.append(s)
-    return np.concatenate(vals) if vals else None
-
-
-def _raw_metrics(v: np.ndarray, norm_std: float) -> dict | None:
-    v = v[np.isfinite(v)]
-    if len(v) < 5:
-        return None
-    d = np.diff(v)
-    roll = float(pd.Series(v).rolling(10, min_periods=3).std().mean())
-    signs = np.sign(d)
-    max_streak = 1
-    cur = 1
-    for i in range(1, len(signs)):
-        cur = cur + 1 if signs[i] == signs[i - 1] and signs[i] != 0 else 1
-        max_streak = max(max_streak, cur)
-    slope = np.polyfit(np.arange(len(v)), v, 1)[0]
-    return {
-        "n": int(len(v)),
-        "mean": float(np.mean(v)),
-        "std": float(np.std(v)),
-        "roll_std": roll,
-        "vol": float(np.std(d)),
-        "jump_rate": float(np.sum(np.abs(d) > 3 * norm_std)) / max(1, len(d)),
-        "streak_ratio": float(max_streak) / max(1, len(v)),
-        "drift_norm": float(slope * len(v) / norm_std) if norm_std > 1e-9 else 0.0,
-    }
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  Construction du payload (caché)
-# ═══════════════════════════════════════════════════════════════════════════
-
-_cache: dict | None = None
-
-
-def _measured_influence(a: dict, n: dict) -> float:
-    """Score 0-100 résultant de l'empreinte mesurée sur le signal d'un capteur."""
-    mean_shift = (a["mean"] - n["mean"]) / n["std"]
-    std_ratio = a["std"] / n["std"]
-    roll_ratio = a["roll_std"] / n["roll_std"]
-    sig_vol = min(1.0, roll_ratio / 2.0)
-    sig_std = min(1.0, max(0.0, std_ratio - 1.0) / 2.0)
-    sig_shift = min(1.0, abs(mean_shift) / 3.0)
-    sig_jump = min(1.0, a["jump_rate"] * 5.0)
-    sig_drift = min(1.0, abs(a["drift_norm"]) / 2.0)
-    return round(35 * sig_vol + 20 * sig_std + 20 * sig_shift + 15 * sig_jump + 10 * sig_drift, 2)
-
-
-def _build() -> dict:
-    # ── 1. Ligne de base normale par capteur (fichiers bruts normaux) ──
-    normal = {}
-    for sid in SENSOR_IDS:
-        v = _load_dir_series(NORMAL_DIR, sid)
-        if v is None or not len(v):
-            normal[sid] = None
-            continue
-        s = v[np.isfinite(v)]
-        m = _raw_metrics(s, float(np.std(s)))
-        normal[sid] = m
-
-    # ── 2. Empreinte mesurée : type d'attaque × capteur ──
-    measured = {}   # attack_id -> {sensor -> metrics}
-    for folder, atype in ATTACK_FOLDERS.items():
-        measured[atype] = {}
-        fdir = os.path.join(ATTACK_DIR, folder)
-        for sid in SENSOR_IDS:
-            n = normal.get(sid)
-            if n is None:
-                measured[atype][sid] = None
-                continue
-            v = _load_dir_series(fdir, sid)
-            if v is None or not len(v):
-                measured[atype][sid] = None
-                continue
-            a = _raw_metrics(v, n["std"])
-            if a is None:
-                measured[atype][sid] = None
-                continue
-            measured[atype][sid] = {
-                "score": _measured_influence(a, n),
-                "n_points": a["n"],
-                "mean_shift_sigma": round((a["mean"] - n["mean"]) / n["std"], 2),
-                "std_ratio": round(a["std"] / n["std"], 2),
-                "roll_std_ratio": round(a["roll_std"] / n["roll_std"], 2),
-                "jump_rate_pct": round(a["jump_rate"] * 100.0, 2),
-                "drift_sigma": round(a["drift_norm"], 2),
-                "streak_ratio": round(a["streak_ratio"], 3),
-            }
-        # moyenne sur les capteurs mesurés (empreinte globale de l'attaque)
-        vals = [measured[atype][sid]["score"] for sid in SENSOR_IDS if measured[atype].get(sid)]
-        measured[atype]["__mean__"] = round(float(np.mean(vals)), 2) if vals else 0.0
-
-    # ── 3. Normalisation 0-100 de la matrice (toutes cellules mesurées) ──
-    all_scores = [measured[at][sid]["score"] for at in measured for sid in SENSOR_IDS if measured[at].get(sid)]
-    mn, mx = (min(all_scores), max(all_scores)) if all_scores else (0.0, 1.0)
-    span = mx - mn
-    def _norm(s):
-        return round(100.0 * (s - mn) / span, 1) if span > 1e-9 else 50.0
-
-    # ── 4. Signature dataset réel (dataset_fusionne.csv) ──
-    try:
-        df = pd.read_csv(DATA_PATH)
-    except Exception:
-        df = None
-
-    signatures = {}
-    exposures = {}
-    if df is not None:
-        n = df[df["label"] == 0]
-        a = df[df["label"] == 1]
-        for sid in SENSOR_IDS:
-            tc, rc = TEMP_COLS[sid], ROLL_COLS[sid]
-            nm, nstd = float(n[tc].mean()), float(n[tc].std())
-            nroll_std = float(n[rc].std())
-            am = a[tc].astype(float)
-            shift = (float(am.mean()) - nm) / nstd if nstd > 1e-9 else 0.0
-            std_ratio = float(a[tc].std()) / nstd if nstd > 1e-9 else 1.0
-            roll_shift = (float(a[rc].mean()) - float(n[rc].mean())) / nroll_std if nroll_std > 1e-9 else 0.0
-            out_band = float(np.mean(np.abs(am - nm) > 3 * nstd)) * 100.0
-            d = np.diff(am.to_numpy())
-            jump = float(np.mean(np.abs(d) > 3 * nstd)) * 100.0 if len(d) else 0.0
-            signatures[sid] = {
-                "normal_mean": round(nm, 2),
-                "normal_std": round(nstd, 2),
-                "attack_mean": round(float(am.mean()), 2),
-                "attack_std": round(float(a[tc].std()), 2),
-                "mean_shift_sigma": round(shift, 2),
-                "std_ratio": round(std_ratio, 2),
-                "roll_std_shift_sigma": round(roll_shift, 2),
-                "out_of_band_pct": round(out_band, 2),
-                "jump_rate_pct": round(jump, 2),
-            }
-            exp = (
-                30 * min(1.0, roll_shift / 6.0)
-                + 25 * min(1.0, (std_ratio - 1.0) / 1.5)
-                + 15 * min(1.0, abs(shift) / 3.0)
-                + 30 * min(1.0, out_band / 35.0)
-            )
-            exposures[sid] = round(min(99.0, exp), 1)
-    else:
-        for sid in SENSOR_IDS:
-            signatures[sid] = {}
-            exposures[sid] = 0.0
-
-    # ── 5. Impact métier pharmaceutique par attaque ──
-    attack_list = []
-    for atype, cat in PHARMA_CATALOG.items():
-        cells = measured.get(atype, {})
-        per_sensor = {}
-        norm_scores = []
-        for sid in SENSOR_IDS:
-            raw = cells.get(sid)
-            if raw:
-                per_sensor[sid] = dict(raw)
-                per_sensor[sid]["index"] = _norm(raw["score"])
-                norm_scores.append(raw["score"])
-            else:
-                per_sensor[sid] = None
-        influence_mean = round(float(np.mean(norm_scores)), 1) if norm_scores else 0.0
-        influence_pct = round(100.0 * (influence_mean - mn) / span, 1) if span > 1e-9 and norm_scores else 0.0
-
-        stock = max(0, min(100, int(round(cat["stock_base"] + 0.35 * influence_pct))))
-        prod = max(0, min(100, int(round(cat["production_base"] + 0.35 * influence_pct))))
-        quality = max(0, min(100, int(round((stock + prod) / 2 + 0.30 * cat["mode"]["integrite"]))))
-
-        batches = int(round(cat["stock_batches_base"] * (0.6 + influence_pct / 100.0)))
-        hours = int(round(cat["production_hours_base"] * (0.6 + influence_pct / 100.0)))
-
-        cost_stock = round(batches * 12500 + stock * 6200)
-        cost_prod = round(hours * 8400 + prod * 5200)
-
-        attack_list.append({
-            "id": atype,
-            "name": cat["name"],
-            "category": cat["category"],
-            "severity": cat["severity"],
-            "severity_weight": cat["severity_weight"],
-            "description": cat["description"],
-            "mode": cat["mode"],
-            "influence_mean": influence_mean,
-            "influence_pct": influence_pct,
-            "influence": per_sensor,
-            "stock_impact": stock,
-            "production_impact": prod,
-            "quality_impact": quality,
-            "stock": {
-                "score": stock,
-                "batches_at_risk": batches,
-                "cost_eur": cost_stock,
-                "effect": cat["stock_effect"],
-                "products": cat["products"],
-                "regulatory": cat["regulatory"],
-            },
-            "production": {
-                "score": prod,
-                "hours_downtime": hours,
-                "cost_eur": cost_prod,
-                "effect": cat["production_effect"],
-                "products": cat["products"],
-            },
-            "mitigation": cat["mitigation"],
-        })
-
-    # Tri : le plus impactant d'abord
-    attack_list.sort(key=lambda x: x["stock_impact"] + x["production_impact"], reverse=True)
-
-    # ── 6. Matrice pour heatmap ──
-    attack_order = [a["id"] for a in attack_list]
-    matrix = []
-    for sid in SENSOR_IDS:
-        row = []
-        for atype in attack_order:
-            cell = measured[atype].get(sid)
-            row.append(round(_norm(cell["score"]), 1) if cell else 0.0)
-        matrix.append(row)
-
-    # ── 7. Indices globaux ──
-    def _weighted_avg(items, key):
-        wsum = sum(x["severity_weight"] for x in items)
-        return round(sum(x[key] * x["severity_weight"] for x in items) / wsum, 1) if wsum else 0.0
-
-    stock_idx = _weighted_avg(attack_list, "stock_impact")
-    prod_idx = _weighted_avg(attack_list, "production_impact")
-    sensor_idx = {sid: exposures[sid] for sid in SENSOR_IDS}
-
-    top_stock = [a["id"] for a in sorted(attack_list, key=lambda x: x["stock_impact"], reverse=True)[:3]]
-    top_prod = [a["id"] for a in sorted(attack_list, key=lambda x: x["production_impact"], reverse=True)[:3]]
-
-    return {
-        "meta": {
-            "generated_at": datetime.now().isoformat(timespec="seconds"),
-            "dataset": "dataset_fusionne.csv",
-            "normal_rows": int(df["label"].eq(0).sum()) if df is not None else 0,
-            "attack_rows": int(df["label"].eq(1).sum()) if df is not None else 0,
-            "sensors_analyzed": len(SENSOR_IDS),
-            "attack_types_analyzed": len(PHARMA_CATALOG),
-        },
-        "sensors": [
-            {
-                "id": sid,
-                "label": SENSOR_LABELS[sid],
-                "role": SENSOR_ROLE[sid]["role"],
-                "domain": SENSOR_ROLE[sid]["domain"],
-                "product_impact": SENSOR_ROLE[sid]["product_impact"],
-                "stock_weight": SENSOR_ROLE[sid]["stock_weight"],
-                "production_weight": SENSOR_ROLE[sid]["production_weight"],
-                "exposure_index": exposures[sid],
-                "signature": signatures[sid],
-            }
-            for sid in SENSOR_IDS
-        ],
-        "attack_types": attack_list,
-        "influence_matrix": {
-            "sensors": list(SENSOR_IDS),
-            "sensor_labels": [SENSOR_LABELS[s] for s in SENSOR_IDS],
-            "attacks": attack_order,
-            "matrix": matrix,
-            "max": 100,
-        },
-        "overall": {
-            "sensor_exposure": sensor_idx,
-            "stock_risk_index": stock_idx,
-            "production_risk_index": prod_idx,
-            "top_stock_attacks": top_stock,
-            "top_production_attacks": top_prod,
-        },
-    }
-
-
-@router.get("/pharma/impact")
-async def get_pharma_impact():
-    """Analyse de l'impact des attaques du dataset sur chaque capteur et sur
-    les stocks & la production pharmaceutiques (Industrie 4.0)."""
-    global _cache
-    if _cache is None:
-        _cache = _build()
-    return _cache
 
 
 # ═══════════════════════════════════════════════════════════════════════════

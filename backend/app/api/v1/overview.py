@@ -119,8 +119,9 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         rows = (await session.execute(
             select(TransmissionModelResult).where(TransmissionModelResult.run_id == run.id)
         )).scalars().all()
+        rank = {k: i for i, k in enumerate(run.ranking or [])}          # ordre du classement de validation
         modeles = sorted((_model_row(m, details.get(m.model_key) or {}) for m in rows if m.model_key != "RF_v1"),
-                         key=lambda r: (not r["meilleur"], -(r["f1"] or 0)))
+                         key=lambda r: (not r["meilleur"], rank.get(r["modele"], 99), -(r["f1"] or 0)))
         best_row = next((m for m in rows if m.is_best), None)
         par_scenario = []
         if best_row is not None:

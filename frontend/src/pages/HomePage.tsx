@@ -18,8 +18,9 @@ interface TransmissionKpi {
   meilleur: {
     id: string; nom: string; f1: number; f2?: number; precision: number; recall: number; roc_auc: number;
     fausses_alarmes_par_heure?: number; episodes: number; episodes_detectes: number; delai_median_min: number | null;
+    seuil?: number; k?: number; n?: number;
   };
-  cible_rappel?: number;
+  cible_rappel?: number; critere?: string;
   modeles: { id: string; nom: string; f1: number }[];
   detection_par_scenario: { scenario: string; description: string; taux: number; points: number; detectes: number }[];
 }
@@ -167,14 +168,14 @@ export default function HomePage() {
             <>
               <div className="mt-2 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{m.nom}</div>
               <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Seuil réglé sur la validation pour un rappel cible de {nf(kpi.cible_rappel, 2)} · mesures sur le test
+                Réglage d’alerte unique choisi sur la validation{m.seuil != null ? ` (score ≥ ${nf(m.seuil, 2)}, ${m.k} mesures sur ${m.n})` : ''} · mesures sur le test
               </div>
               <dl className="mt-5 grid grid-cols-2 gap-px rounded-lg overflow-hidden" style={{ background: 'var(--border)' }}>
                 {[
-                  ['Rappel', pct(m.recall)],
-                  ['Fausses alertes / h', nf(m.fausses_alarmes_par_heure, 1)],
-                  ['Délai médian', m.delai_median_min == null ? '—' : `${nf(m.delai_median_min, 1)} min`],
                   ['Épisodes détectés', `${nf(m.episodes_detectes)} / ${nf(m.episodes)}`],
+                  ['Fausses alertes / h', nf(m.fausses_alarmes_par_heure, 2)],
+                  ['Précision', pct(m.precision)],
+                  ['Délai médian', m.delai_median_min == null ? '—' : `${nf(m.delai_median_min, 1)} min`],
                 ].map(([k, v]) => (
                   <div key={k} className="p-3.5" style={{ background: 'var(--bg-card)' }}>
                     <dt className="text-xs" style={{ color: 'var(--text-secondary)' }}>{k}</dt>
@@ -183,7 +184,7 @@ export default function HomePage() {
                 ))}
               </dl>
               <p className="mt-4 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                Priorité au rappel : ne rater aucune attaque coûte des fausses alertes (précision {pct(m.precision)}).
+                Priorité à la précision : l’opérateur ne doit pas être noyé de fausses alertes ; {pct(m.recall)} des mesures falsifiées sont signalées.
               </p>
             </>
           ) : (
@@ -229,7 +230,7 @@ export default function HomePage() {
               </div>
               <div className="space-y-6">
                 <div className="vc-card p-5">
-                  <div className="vc-kicker">Modèles comparés (F1 au seuil max-F1, test)</div>
+                  <div className="vc-kicker">Modèles comparés (F1 au réglage retenu, test)</div>
                   <ul className="mt-4 space-y-3">
                     {kpi.modeles.map(md => (
                       <li key={md.id}>
@@ -247,8 +248,8 @@ export default function HomePage() {
                     const sc = [...kpi.detection_par_scenario].sort((a, b) => b.taux - a.taux);
                     if (!sc.length) return null;
                     const top = sc[0]; const low = sc[sc.length - 1];
-                    return <>Le scénario le mieux détecté est « {SCENARIO_FR[top.scenario] ?? top.scenario} » ({nf(top.taux, 1)} %) ;
-                      le plus difficile est « {SCENARIO_FR[low.scenario] ?? low.scenario} » ({nf(low.taux, 1)} %), dont l’écart reste proche
+                    return <>Pourcentage d’épisodes d’attaque détectés au test. Le mieux détecté : « {SCENARIO_FR[top.scenario] ?? top.scenario} » ({nf(top.taux, 1)} %) ;
+                      le plus difficile : « {SCENARIO_FR[low.scenario] ?? low.scenario} » ({nf(low.taux, 1)} %), dont l’écart reste proche
                       des variations naturelles du capteur.</>;
                   })()}
                 </div>

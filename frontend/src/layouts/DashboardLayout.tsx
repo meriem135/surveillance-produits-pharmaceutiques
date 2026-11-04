@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   Activity, ShieldAlert, Users, Moon, Sun, ChevronDown, Cpu, LogOut, User, Brain, Sparkles,
-  LayoutDashboard, Pill, LineChart, ScrollText, Radio, Gauge, Menu, X, ShieldCheck,
+  LayoutDashboard, LineChart, ScrollText, Radio, Gauge, Menu, X, ShieldCheck, Crosshair, FileText, Database, Play, Settings,
 } from 'lucide-react';
 
 const OverviewPage = lazy(() => import('../pages/OverviewPage'));
@@ -25,45 +25,57 @@ const ShapPointReportPage = lazy(() => import('../pages/ShapPointReportPage'));
 const AdminUsersPage = lazy(() => import('../pages/AdminUsersPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const TableauDeBordPage = lazy(() => import('../pages/TableauDeBordPage'));
-const PharmaImpactPage = lazy(() => import('../pages/PharmaImpactPage'));
-const AdvancedAnalyticsPage = lazy(() => import('../pages/AdvancedAnalyticsPage'));
 const AuditLogsPage = lazy(() => import('../pages/AuditLogsPage'));
-const TransmissionPage = lazy(() => import('../pages/TransmissionPage'));
+const TempsReelPage = lazy(() => import('../pages/etude/TempsReelPage'));
+const DetectionPage = lazy(() => import('../pages/etude/DetectionPage'));
+const DatasetPage = lazy(() => import('../pages/etude/DatasetPage'));
+const ResultatsPage = lazy(() => import('../pages/etude/ResultatsPage'));
+const ShapPage = lazy(() => import('../pages/etude/ShapPage'));
+const RapportPage = lazy(() => import('../pages/etude/RapportPage'));
+const EntrainementPage = lazy(() => import('../pages/etude/EntrainementPage'));
+const ParametresPage = lazy(() => import('../pages/etude/ParametresPage'));
 
 type Item = { label: string; path: string; icon: React.ComponentType<{ className?: string }>; roles: string[]; hint?: string };
 const ALL = ['admin', 'operator'];
 
+const ADMIN = ['admin'];
+
 const NAV_GROUPS: { title: string; items: Item[] }[] = [
   {
-    title: 'Pilotage',
+    title: 'Surveillance',
     items: [
       { label: "Vue d'ensemble", path: '/dashboard/overview', icon: Gauge, roles: ALL, hint: 'Indicateurs lus en base de données' },
-      { label: 'Jeu de données', path: '/dashboard/tableau-bord', icon: LayoutDashboard, roles: ALL, hint: 'KPI du jeu annuel simulé (phase 2)' },
+      { label: 'Temps réel', path: '/dashboard/temps-reel', icon: Radio, roles: ALL, hint: 'Le meilleur modèle analyse le flux de mesures' },
+      { label: 'Détection vs réalité', path: '/dashboard/detection', icon: Crosshair, roles: ALL, hint: 'Alertes du modèle face aux attaques réelles' },
+      { label: "Rapport d'alerte", path: '/dashboard/rapport', icon: FileText, roles: ALL, hint: 'Consignes pour l’opérateur' },
     ],
   },
   {
-    title: 'Détection',
+    title: 'Modèle',
     items: [
-      { label: 'Transmission', path: '/dashboard/transmission', icon: Radio, roles: ALL, hint: 'Attaques MITM / injection sur traces réelles' },
-      { label: 'ML & anomalies', path: '/dashboard/phase2', icon: Activity, roles: ALL },
-      { label: 'Ingestion', path: '/dashboard/phase1', icon: Cpu, roles: ALL },
-      { label: 'Explicabilité SHAP', path: '/dashboard/shap', icon: Sparkles, roles: ALL },
-      { label: 'Résultats', path: '/dashboard/results', icon: Brain, roles: ALL },
-    ],
-  },
-  {
-    title: 'Analyses',
-    items: [
-      { label: 'Analyses avancées', path: '/dashboard/analyses', icon: LineChart, roles: ALL },
-      { label: 'Impact pharma', path: '/dashboard/pharma', icon: Pill, roles: ALL },
+      { label: 'Résultats', path: '/dashboard/resultats', icon: Brain, roles: ALL, hint: 'Métriques train / validation / test' },
+      { label: 'Explicabilité SHAP', path: '/dashboard/explicabilite', icon: Sparkles, roles: ALL },
+      { label: 'Jeu de données', path: '/dashboard/donnees', icon: Database, roles: ALL, hint: 'KPI des traces réelles avec attaques' },
     ],
   },
   {
     title: 'Administration',
     items: [
-      { label: 'Comptes', path: '/dashboard/admin-users', icon: Users, roles: ['admin'] },
-      { label: "Journal d'audit", path: '/dashboard/audit', icon: ScrollText, roles: ['admin'] },
+      { label: 'Entraînement', path: '/dashboard/entrainement', icon: Play, roles: ADMIN },
+      { label: 'Paramètres', path: '/dashboard/parametres', icon: Settings, roles: ADMIN },
+      { label: 'Comptes', path: '/dashboard/admin-users', icon: Users, roles: ADMIN },
+      { label: "Journal d'audit", path: '/dashboard/audit', icon: ScrollText, roles: ADMIN },
       { label: 'Mon profil', path: '/dashboard/profile', icon: User, roles: ALL },
+    ],
+  },
+  {
+    title: 'Archives · année simulée',
+    items: [
+      { label: 'Ingestion MQTT', path: '/dashboard/phase1', icon: Cpu, roles: ALL, hint: 'Phase 1 : flux des capteurs' },
+      { label: 'ML non supervisé', path: '/dashboard/phase2', icon: Activity, roles: ALL, hint: 'Phase 2 : année simulée' },
+      { label: 'SHAP phase 2', path: '/dashboard/shap', icon: Sparkles, roles: ALL },
+      { label: 'Résultats phase 2', path: '/dashboard/results', icon: LineChart, roles: ALL },
+      { label: 'Jeu annuel simulé', path: '/dashboard/tableau-bord', icon: LayoutDashboard, roles: ALL },
     ],
   },
 ];
@@ -223,19 +235,21 @@ export default function DashboardLayout() {
               <Routes>
                 <Route path="/dashboard" element={<Navigate to="/dashboard/overview" replace />} />
                 <Route path="/dashboard/overview" element={canAccess('/dashboard/overview') ? <OverviewPage /> : <AccessDenied />} />
+                <Route path="/dashboard/temps-reel" element={canAccess('/dashboard/temps-reel') ? <TempsReelPage /> : <AccessDenied />} />
+                <Route path="/dashboard/detection" element={canAccess('/dashboard/detection') ? <DetectionPage /> : <AccessDenied />} />
+                <Route path="/dashboard/rapport" element={canAccess('/dashboard/rapport') ? <RapportPage /> : <AccessDenied />} />
+                <Route path="/dashboard/resultats" element={canAccess('/dashboard/resultats') ? <ResultatsPage /> : <AccessDenied />} />
+                <Route path="/dashboard/explicabilite" element={canAccess('/dashboard/explicabilite') ? <ShapPage /> : <AccessDenied />} />
+                <Route path="/dashboard/donnees" element={canAccess('/dashboard/donnees') ? <DatasetPage /> : <AccessDenied />} />
+                <Route path="/dashboard/entrainement" element={canAccess('/dashboard/entrainement') ? <EntrainementPage /> : <AccessDenied />} />
+                <Route path="/dashboard/parametres" element={canAccess('/dashboard/parametres') ? <ParametresPage /> : <AccessDenied />} />
+                <Route path="/dashboard/transmission" element={<Navigate to="/dashboard/resultats" replace />} />
                 <Route path="/dashboard/phase1" element={canAccess('/dashboard/phase1') ? <Phase1Page /> : <AccessDenied />} />
                 <Route path="/dashboard/phase2" element={canAccess('/dashboard/phase2') ? <Phase2Page /> : <AccessDenied />} />
-                <Route path="/dashboard/transmission" element={canAccess('/dashboard/transmission') ? <TransmissionPage /> : <AccessDenied />} />
                 <Route path="/dashboard/shap" element={canAccess('/dashboard/shap') ? <ShapDashboardPage /> : <AccessDenied />} />
                 <Route path="/dashboard/shap/report" element={canAccess('/dashboard/shap') ? <ShapPointReportPage /> : <AccessDenied />} />
                 <Route path="/dashboard/results" element={canAccess('/dashboard/results') ? <TrainingResultsPage /> : <AccessDenied />} />
-                <Route path="/dashboard/analytics" element={<Navigate to="/dashboard/results" replace />} />
-                <Route path="/dashboard/phase3" element={<Navigate to="/dashboard/shap" replace />} />
                 <Route path="/dashboard/tableau-bord" element={canAccess('/dashboard/tableau-bord') ? <TableauDeBordPage /> : <AccessDenied />} />
-                <Route path="/dashboard/kpi" element={<Navigate to="/dashboard/tableau-bord" replace />} />
-                <Route path="/dashboard/dataset" element={<Navigate to="/dashboard/tableau-bord" replace />} />
-                <Route path="/dashboard/analyses" element={canAccess('/dashboard/analyses') ? <AdvancedAnalyticsPage /> : <AccessDenied />} />
-                <Route path="/dashboard/pharma" element={canAccess('/dashboard/pharma') ? <PharmaImpactPage /> : <AccessDenied />} />
                 <Route path="/dashboard/admin-users" element={canAccess('/dashboard/admin-users') ? <AdminUsersPage /> : <AccessDenied />} />
                 <Route path="/dashboard/audit" element={canAccess('/dashboard/audit') ? <AuditLogsPage /> : <AccessDenied />} />
                 <Route path="/dashboard/profile" element={canAccess('/dashboard/profile') ? <ProfilePage /> : <AccessDenied />} />

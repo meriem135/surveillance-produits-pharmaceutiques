@@ -13,7 +13,7 @@ from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import JSON, Column, Field, SQLModel, select
 
-DEFAULTS: dict[str, Any] = {"precision_min": 0.90, "fa_max": 0.5, "vitesse_temps_reel": 24}
+DEFAULTS: dict[str, Any] = {"precision_min": 0.90, "fa_max": 0.5, "vitesse_temps_reel": 60}
 BOUNDS: dict[str, tuple[float, float]] = {"precision_min": (0.5, 0.99), "fa_max": (0.05, 5.0),
                                           "vitesse_temps_reel": (1, 200)}
 LABELS = {"precision_min": "Précision minimale (validation) pour régler le seuil d'alerte",

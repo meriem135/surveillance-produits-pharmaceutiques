@@ -31,7 +31,8 @@ interface Scenario { scenario: string; lignes: number; detectees: number; taux: 
 interface Split { lignes: number; attaques: number; part: number }
 interface LastRun {
   id: number; debut: string; fin: string | null; duree_s: number | null; lance_par: string | null;
-  meilleur_modele: string | null; meilleur_f1: number | null; classement_validation: string[]; cible_rappel: number | null;
+  meilleur_modele: string | null; meilleur_f1: number | null; classement_validation: string[]; cible_rappel?: number | null;
+  source?: string; repetitions?: number; critere?: string | null;
   modeles: ModelRow[]; points_meilleur: Point[]; par_scenario: Scenario[];
   donnees: { fichier: string | null; lignes: number; features: number; episodes: number; scenarios: number;
     train: number | null; val: number | null; test: number | null; attaques_train: number | null; attaques_val: number | null;
@@ -207,21 +208,21 @@ export default function OverviewPage() {
                 <Trophy className="w-5 h-5" />
               </span>
               <div className="min-w-0">
-                <div className="vc-kicker">Meilleur modèle · entraînement #{run.id}</div>
+                <div className="vc-kicker">Meilleur modèle · {run.source === 'reference' ? `étude de référence (${run.repetitions ?? 20} répétitions)` : `entraînement #${run.id}`}</div>
                 <div className="text-lg font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{best.nom}</div>
               </div>
             </div>
             <div className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               Retenu sur la validation parmi {run.modeles.length} modèles ({run.classement_validation.join(' › ') || '—'}).<br />
-              Mesures sur le jeu de test{testSplit ? ` (${nf(testSplit.lignes)} lignes, ${pct(testSplit.part)} d’attaques)` : ''}, au seuil max-F1 choisi sur la validation.
-              {' '}Terminé le {dateFr(run.fin)} · {duree(run.duree_s)}{run.lance_par ? ` · lancé par ${run.lance_par}` : ''}.
+              Mesures sur le jeu de test{testSplit ? ` (${nf(testSplit.lignes)} lignes, ${pct(testSplit.part)} d’attaques)` : ''}, au réglage d’alerte unique choisi sur la validation{run.critere ? ` (${run.critere.replace(/(\d)\.(\d)/g, '$1,$2')})` : ''}.
+              {' '}Calculé le {dateFr(run.debut)} · {duree(run.duree_s)}{run.lance_par && run.source !== 'reference' ? ` · lancé par ${run.lance_par}` : ''}.
             </div>
           </div>
         </div>
       ) : (
         <Empty>
           Aucun entraînement terminé n’est enregistré dans <code>transmission_runs</code>.{' '}
-          <Link to="/dashboard/transmission" style={{ color: 'var(--accent-primary)' }}>Lancer un entraînement depuis la page Transmission</Link>.
+          <Link to="/dashboard/entrainement" style={{ color: 'var(--accent-primary)' }}>Lancer un entraînement (administrateur)</Link>.
         </Empty>
       )}
 
@@ -236,7 +237,7 @@ export default function OverviewPage() {
             value={best.delai_median_min == null ? '—' : <>{nf(best.delai_median_min, 1)}<span className="text-base font-medium"> min</span></>}
             sub={<>{nf(best.episodes_detectes)} / {nf(best.episodes)} épisodes d’attaque détectés</>} />
           <Stat icon={<Crosshair className="w-4 h-4" />} label="Précision (test)" value={pct(best.precision)}
-            sub={<>F1 {nf(best.f1, 3)} · F2 {nf(best.f2, 3)} · ROC-AUC {nf(best.roc_auc, 3)}</>} />
+            sub={<>Part des mesures signalées vraiment falsifiées · F1 {nf(best.f1, 3)} · ROC-AUC {nf(best.roc_auc, 3)}</>} />
         </div>
       )}
 
@@ -244,7 +245,7 @@ export default function OverviewPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat icon={<History className="w-4 h-4" />} label="Entraînements enregistrés" value={nf(e.total)}
           sub={e.total ? <>{Object.entries(e.par_statut).map(([s, n]) => `${n} ${(STATUT[s]?.label ?? s).toLowerCase()}${n > 1 && s !== 'en_cours' ? 's' : ''}`).join(' · ')}<br />dernier le {dateFr(e.dernier)}</> : 'Aucun entraînement en base'} />
-        <Stat icon={<Database className="w-4 h-4" />} label="Lignes du jeu (dernier entr.)" value={run ? nf(run.donnees.lignes) : '—'}
+        <Stat icon={<Database className="w-4 h-4" />} label="Mesures du jeu de données" value={run ? nf(run.donnees.lignes) : '—'}
           sub={run ? <>{nf(run.donnees.features)} variables · {nf(run.donnees.episodes)} épisodes · {nf(run.donnees.scenarios)} scénarios</> : 'Aucun entraînement terminé'} />
         <Stat icon={<Cpu className="w-4 h-4" />} label="Capteurs déclarés" value={nf(data.capteurs.total)}
           sub={data.capteurs.total ? <>{nf(data.capteurs.en_ligne)} en ligne · {Object.entries(data.capteurs.par_type).map(([t, n]) => `${n} ${(DEVICE_FR[t] ?? t).toLowerCase()}`).join(', ')}</> : 'Table devices vide'} />
@@ -253,17 +254,17 @@ export default function OverviewPage() {
       </div>
 
       {/* ── Comparaison des modèles du dernier entraînement ─────────────── */}
-      <Section title="Modèles du dernier entraînement"
-        subtitle="Jeu de test, au seuil max-F1 choisi sur la validation. Le meilleur modèle est retenu sur la validation, pas sur le test."
-        source="transmission_model_results (run du dernier entraînement) + transmission_runs.result_json pour F2">
+      <Section title={run?.source === 'reference' ? 'Modèles de l’étude de référence' : 'Modèles du dernier entraînement'}
+        subtitle="Jeu de test, au réglage d’alerte (seuil + persistance) choisi sur la validation. Le meilleur modèle est retenu sur la validation, pas sur le test."
+        source="transmission_model_results (étude affichée) + transmission_runs.result_json pour la validation">
         {run && run.modeles.length ? (
           <div className="overflow-x-auto -mx-5">
             <table className="vc-table w-full text-sm min-w-[760px]" data-testid="table-modeles">
               <thead>
                 <tr>
                   <th className="pl-5">Modèle</th><th className="vc-num">Rappel</th><th className="vc-num">Précision</th>
-                  <th className="vc-num">F1</th><th className="vc-num">F2</th><th className="vc-num">Fausses alertes/h</th>
-                  <th className="vc-num">Délai médian</th><th className="vc-num">Épisodes</th><th className="vc-num pr-5">F1 validation</th>
+                  <th className="vc-num">F1</th><th className="vc-num">Fausses alertes/h</th>
+                  <th className="vc-num">Délai médian</th><th className="vc-num">Épisodes</th><th className="vc-num pr-5">Rappel validation</th>
                 </tr>
               </thead>
               <tbody>
@@ -280,11 +281,10 @@ export default function OverviewPage() {
                     </td>
                     <td className="vc-num">{pct(m.precision)}</td>
                     <td className="vc-num">{nf(m.f1, 3)}</td>
-                    <td className="vc-num">{nf(m.f2, 3)}</td>
                     <td className="vc-num">{nf(m.fausses_alarmes_par_heure, 2)}</td>
                     <td className="vc-num">{m.delai_median_min == null ? '—' : `${nf(m.delai_median_min, 1)} min`}</td>
                     <td className="vc-num">{nf(m.episodes_detectes)} / {nf(m.episodes)}</td>
-                    <td className="vc-num pr-5">{nf(m.val_f1, 3)}</td>
+                    <td className="vc-num pr-5">{pct(m.val_recall)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -305,17 +305,17 @@ export default function OverviewPage() {
 
         {/* ── Points de fonctionnement ─────────────────────────────────── */}
         <div className="xl:col-span-2 min-w-0">
-          <Section title="Compromis rappel / fausses alertes"
-            subtitle={run?.cible_rappel ? `Seuils fixés sur la validation ; rappel cible retenu : ${nf(run.cible_rappel, 2)}. Mesures sur le test.` : 'Seuils fixés sur la validation, mesures sur le test.'}
-            source="transmission_runs.result_json → modeles.<meilleur>.points_fonctionnement">
+          <Section title="Effet de la règle de persistance"
+            subtitle="Même seuil, choisi sur la validation : alerte mesure par mesure, ou seulement si k mesures sur n dépassent le seuil."
+            source="transmission_runs.result_json → modeles.<meilleur>.par_role">
             {run && run.points_meilleur.length ? (
               <div className="overflow-x-auto -mx-5">
                 <table className="vc-table w-full text-sm" data-testid="table-points">
-                  <thead><tr><th className="pl-5">Point</th><th className="vc-num">Rappel</th><th className="vc-num">Précision</th><th className="vc-num pr-5">Fausses alertes/h</th></tr></thead>
+                  <thead><tr><th className="pl-5">Mesure</th><th className="vc-num">Rappel</th><th className="vc-num">Précision</th><th className="vc-num pr-5">Fausses alertes/h</th></tr></thead>
                   <tbody>
                     {run.points_meilleur.map(p => (
                       <tr key={p.cle}>
-                        <td className="pl-5 whitespace-nowrap">{p.cle === 'max_f1' ? 'max F1' : `Rappel cible ${p.cle.replace('rappel_', '').replace('.', ',')}`}</td>
+                        <td className="pl-5">{p.libelle}</td>
                         <td className="vc-num">{pct(p.recall)}</td>
                         <td className="vc-num">{pct(p.precision)}</td>
                         <td className="vc-num pr-5">{nf(p.fausses_alarmes_par_heure, 2)}</td>
@@ -333,7 +333,7 @@ export default function OverviewPage() {
       <Section title="Historique des entraînements"
         subtitle="Meilleur modèle de chaque entraînement terminé, mesuré sur son jeu de test. Les candidats et le découpage peuvent changer d’un entraînement à l’autre : la courbe montre l’évolution du protocole autant que celle des modèles."
         source="transmission_runs JOIN transmission_model_results (is_best) WHERE status = 'termine'"
-        action={<Link to="/dashboard/transmission" className="text-xs font-medium inline-flex items-center gap-1" style={{ color: 'var(--accent-primary)' }}>Page Transmission <ArrowRight className="w-3 h-3" /></Link>}>
+        action={<Link to="/dashboard/resultats" className="text-xs font-medium inline-flex items-center gap-1" style={{ color: 'var(--accent-primary)' }}>Résultats de référence <ArrowRight className="w-3 h-3" /></Link>}>
         {histo.length ? (
           <div className="space-y-5">
             {histo.length > 1 ? (
