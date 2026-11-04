@@ -86,6 +86,7 @@
   --color-accent-red:     #B3261E;
   --color-accent-orange:  #8F5300;
   --color-accent-purple:  #5B5F97;
+  --breakpoint-3xl: 112.5rem; /* 1800 px : écrans larges, une colonne de plus */
   --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-body: "Barlow", system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -301,29 +302,6 @@ table th { font-weight: 600; }
 .text-accent-foreground { color: var(--accent-primary); }
 @keyframes conveyorflow { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
-/* ─── Pages d'archives (année simulée) : effets hérités neutralisés ──── */
-.glass, .glass-light, .glass-strong {
-  background: var(--bg-panel) !important;
-  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-  box-shadow: none !important; border-radius: 4px !important;
-}
-.glass-border, .glass-border-strong { border: 1px solid var(--border) !important; }
-.text-glow-cyan, .text-glow-purple, .text-glow-green, .text-glow-pink { text-shadow: none; }
-.animate-border-glow, .animate-border-glow-green, .animate-border-glow-purple, .animate-border-breathe,
-.animate-grid, .animate-flicker, .animate-glitch, .animate-scanline-fast, .animate-aurora,
-.animate-float, .animate-float-slow, .animate-pulse-glow, .animate-pulse-ring, .animate-ping-slow, .animate-circuit, .animate-gradient { animation: none !important; }
-.animate-orb, .animate-orb-reverse, .animate-orb-slow { display: none !important; }
-.cyber-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; position: relative; overflow: hidden; }
-.industry-bg { background: var(--bg-base); }
-.grid-bg { background-image: none; }
-.cell-hover { cursor: pointer; }
-.cell-hover:hover { outline: 2px solid var(--text-primary); outline-offset: 1px; }
-.card-hover:hover { border-color: var(--border-strong); }
-.rounded-xl, .rounded-2xl { border-radius: 6px; }
-.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
-/* Liserés lumineux hérités en haut des cartes : retirés */
-.absolute.top-0.left-0.right-0.h-\[2px\] { display: none; }
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
@@ -336,3 +314,9 @@ table th { font-weight: 600; }
 .vc-flush .vc-table-wrap { margin-left: 0; margin-right: 0; }
 td .vc-tally > i { width: 10px; height: 15px; }
 td .vc-tally { gap: 2px; flex-wrap: nowrap; }
+
+/* Rangée de lectures sur deux colonnes (téléphone, tablette) : une dernière lecture seule occupe
+   toute la largeur au lieu de laisser une case grise vide. */
+@media (max-width: 1023.98px) {
+  .vc-readouts.grid-cols-2 > :last-child:nth-child(odd) { grid-column: span 2; }
+}

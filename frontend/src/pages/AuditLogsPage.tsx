@@ -1,6 +1,5 @@
 import { PageHeader } from '../components/etude/kit';
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
   Loader2, UserPlus, Pencil, KeyRound, Power, Trash2, Eraser, CheckCircle,
 } from 'lucide-react';
@@ -85,13 +84,11 @@ export default function AuditLogsPage() {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log, i) => {
-              const cfg = ACTION_CONFIG[log.action] || { icon: Pencil, color: '#888', label: log.action };
+            {logs.map((log) => {
+              const cfg = ACTION_CONFIG[log.action] || { icon: Pencil, color: 'var(--text-muted)', label: log.action };
               const Icon = cfg.icon;
               return (
-                <motion.tr key={log.id}
-                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.03 }}
+                <tr key={log.id}
                   style={{ borderBottom: '1px solid var(--color-border)' }}
                   className="hover:bg-white/[0.02]">
                   <td className="px-5 py-3">
@@ -112,7 +109,7 @@ export default function AuditLogsPage() {
                   <td className="px-5 py-3 text-[13px] text-right" style={{ color: 'var(--color-text-muted)' }}>
                     {new Date(log.created_at).toLocaleString('fr-FR')}
                   </td>
-                </motion.tr>
+                </tr>
               );
             })}
           </tbody>

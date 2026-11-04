@@ -89,8 +89,20 @@ app = FastAPI(
 
 # Servir le Dashboard React (build) et les fichiers statiques
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+
+
+class ImmutableStaticFiles(StaticFiles):
+    """Fichiers du build Vite : leur nom contient un hachage du contenu, ils peuvent être gardés un an."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 if os.path.exists(STATIC_DIR):
-    app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+    app.mount("/assets", ImmutableStaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
 
 @app.get("/favicon.svg")
 def serve_favicon():
@@ -105,7 +117,8 @@ def serve_icons():
 def serve_dashboard(full_path: str = ""):
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        # index.html change à chaque build (noms des fichiers hachés) : toujours revalidé
+        return FileResponse(index_path, headers={"Cache-Control": "no-cache"})
     return JSONResponse(
         {"detail": "Dashboard index.html not found in static directory."},
         status_code=404,

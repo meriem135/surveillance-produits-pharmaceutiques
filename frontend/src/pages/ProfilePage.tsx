@@ -1,6 +1,5 @@
 import { PageHeader } from '../components/etude/kit';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { User, Mail, Shield, KeyRound, Save, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { authHeaders } from '../lib/auth';
@@ -74,18 +73,18 @@ export default function ProfilePage() {
       </div>
 
       {msg && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        <div
           className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-sm"
           style={{ background: 'var(--accent-glow)', border: '1px solid var(--accent-primary)', color: 'var(--accent-primary)' }}>
           <CheckCircle className="w-4 h-4" /> {msg}
-        </motion.div>
+        </div>
       )}
       {err && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        <div
           className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-sm"
           style={{ background: 'color-mix(in srgb, var(--accent-danger) 9%, transparent)', border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }}>
           <AlertCircle className="w-4 h-4" /> {err}
-        </motion.div>
+        </div>
       )}
 
       {/* Edit profile */}

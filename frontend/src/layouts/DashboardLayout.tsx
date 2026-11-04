@@ -227,7 +227,7 @@ export default function DashboardLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="w-full max-w-[1360px] px-4 py-6 sm:px-8 sm:py-8">
+          <div className="w-full px-4 py-6 sm:px-8 sm:py-8 2xl:px-10">
             <Suspense fallback={
               <div className="flex items-center justify-center h-64">
                 <div className="w-6 h-6 border-2 rounded-full animate-spin" role="status" aria-label="Chargement"

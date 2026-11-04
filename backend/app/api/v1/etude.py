@@ -49,10 +49,27 @@ async def _run(session: AsyncSession) -> TransmissionRun:
     return run
 
 
+# Les réponses ci-dessous ne dépendent que de l'étude affichée (lignes figées une fois l'étude
+# chargée) : cache mémoire par (route, run, fin du run, paramètres). Un nouveau run change la clé.
+_CACHE: dict[tuple, dict] = {}
+_CACHE_MAX = 32
+
+
+async def _cached(key: tuple, compute) -> dict:
+    hit = _CACHE.get(key)
+    if hit is not None:
+        return hit
+    out = await compute()
+    if len(_CACHE) >= _CACHE_MAX:
+        _CACHE.pop(next(iter(_CACHE)))
+    _CACHE[key] = out
+    return out
+
+
 def _run_info(run: TransmissionRun) -> dict[str, Any]:
     rj = run.result_json or {}
     etude = rj.get("etude") or {}
-    return {"id": run.id, "source": run.source, "date": run.started_at.isoformat(timespec="seconds"),
+    return {"id": run.id, "source": run.source, "date": run.started_at.isoformat(timespec="seconds") + "Z",
             "meilleur_modele": run.best_model, "classement_validation": run.ranking, "critere": rj.get("critere"),
             "protocole": etude.get("protocole"), "prevalence": etude.get("prevalence") or (run.dataset or {}).get("prevalence"),
             "repetitions": (etude.get("protocole") or {}).get("repetitions", 1),
@@ -72,6 +89,10 @@ async def etude_run(_u=Depends(require_any_role("operator")), session: AsyncSess
 @router.get("/etude/dataset")
 async def etude_dataset(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     run = await _run(session)
+    return await _cached(("dataset", run.id, run.finished_at), lambda: _etude_dataset(session, run))
+
+
+async def _etude_dataset(session: AsyncSession, run: TransmissionRun) -> dict:
     rid = run.id
     ev = func.sum(case((D.evaluee, 1), else_=0))
     att = func.sum(D.label)
@@ -154,6 +175,10 @@ def _metric(m: M) -> dict:
 @router.get("/etude/metrics")
 async def etude_metrics(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     run = await _run(session)
+    return await _cached(("metrics", run.id, run.finished_at), lambda: _etude_metrics(session, run))
+
+
+async def _etude_metrics(session: AsyncSession, run: TransmissionRun) -> dict:
     rows = (await session.execute(select(M).where(M.run_id == run.id).order_by(M.model_key, M.niveau, M.role))).scalars().all()
     res = (await session.execute(select(TransmissionModelResult).where(TransmissionModelResult.run_id == run.id))).scalars().all()
     lc = (await session.execute(select(TransmissionLearningPoint).where(TransmissionLearningPoint.run_id == run.id)
@@ -192,6 +217,10 @@ async def etude_metrics(_u=Depends(require_any_role("operator")), session: Async
 @router.get("/etude/shap")
 async def etude_shap(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     run = await _run(session)
+    return await _cached(("shap", run.id, run.finished_at), lambda: _etude_shap(session, run))
+
+
+async def _etude_shap(session: AsyncSession, run: TransmissionRun) -> dict:
     rows = (await session.execute(select(TransmissionShap).where(TransmissionShap.run_id == run.id)
                                   .order_by(TransmissionShap.portee, TransmissionShap.rang))).scalars().all()
     out: dict[str, list] = {}
@@ -211,6 +240,11 @@ async def etude_shap(_u=Depends(require_any_role("operator")), session: AsyncSes
 async def etude_timeline(role: str = Query("test", pattern="^(train|val|test|all)$"), minutes: int = Query(1, ge=1, le=10),
                          _u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     run = await _run(session)
+    return await _cached(("timeline", run.id, run.finished_at, role, minutes),
+                         lambda: _etude_timeline(session, run, role, minutes))
+
+
+async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str, minutes: int) -> dict:
     rid = run.id
     step = 12 * minutes
     bucket = (D.idx // step).label("b")

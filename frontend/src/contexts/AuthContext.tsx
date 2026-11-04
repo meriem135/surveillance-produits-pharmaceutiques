@@ -1,3 +1,4 @@
+import { clearApiCache } from '../components/etude/kit';
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 
 const API_URL = '/api/v1';
@@ -128,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    clearApiCache();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);

@@ -175,8 +175,8 @@ async def get_attack_dataset(
 
         if season:
             season_val = SEASONS[season]
-            df["_season"] = ((df["datetime"].dt.month % 12 + 3) // 3).map({1: 4, 2: 1, 3: 2, 4: 3})
-            valid_mask &= (df["_season"] == season_val)
+            season_of = ((df["datetime"].dt.month % 12 + 3) // 3).map({1: 4, 2: 1, 3: 2, 4: 3})
+            valid_mask &= (season_of == season_val)
         if month is not None:
             valid_mask &= (df["_month"] == month)
         if doy is not None:
@@ -282,8 +282,8 @@ async def get_phase2_timeline(
 
         if season:
             season_val = SEASONS[season]
-            df["_season"] = ((df["datetime"].dt.month % 12 + 3) // 3).map({1: 4, 2: 1, 3: 2, 4: 3})
-            valid_mask &= (df["_season"] == season_val)
+            season_of = ((df["datetime"].dt.month % 12 + 3) // 3).map({1: 4, 2: 1, 3: 2, 4: 3})
+            valid_mask &= (season_of == season_val)
 
         if month:
             valid_mask &= (df["datetime"].dt.month == month)
@@ -327,20 +327,19 @@ async def get_phase2_timeline(
         step = max(1, len(df_filtered) // limit)
         df_sample = df_filtered.iloc[::step].reset_index(drop=True)
 
-        points = []
-        for _, row in df_sample.iterrows():
-            temp_val = float(row[temp_col]) if temp_col in row and not pd.isna(row[temp_col]) else None
-            points.append({
-                "datetime": row["datetime"].isoformat(),
-                "temperature": temp_val,
-                "actual_label": int(row["label"]),
-                "prediction": int(row["prediction"]),
-                "anomaly_score": float(row["anomaly_score"]),
-                "tp": int(row["label"] == 1 and row["prediction"] == 1),
-                "fp": int(row["label"] == 0 and row["prediction"] == 1),
-                "fn": int(row["label"] == 1 and row["prediction"] == 0),
-                "tn": int(row["label"] == 0 and row["prediction"] == 0),
-            })
+        # Construction vectorisée (iterrows coûtait ~2 s pour 10 000 points)
+        lab = df_sample["label"].to_numpy().astype(int)
+        pred = df_sample["prediction"].to_numpy().astype(int)
+        temps = df_sample[temp_col].to_numpy(dtype=float) if temp_col in df_sample else np.full(len(df_sample), np.nan)
+        dts = df_sample["datetime"].dt.strftime("%Y-%m-%dT%H:%M:%S").tolist()
+        scores = df_sample["anomaly_score"].to_numpy(dtype=float).tolist()
+        points = [{
+            "datetime": dts[i],
+            "temperature": None if np.isnan(temps[i]) else float(temps[i]),
+            "actual_label": int(lab[i]), "prediction": int(pred[i]), "anomaly_score": scores[i],
+            "tp": int(lab[i] == 1 and pred[i] == 1), "fp": int(lab[i] == 0 and pred[i] == 1),
+            "fn": int(lab[i] == 1 and pred[i] == 0), "tn": int(lab[i] == 0 and pred[i] == 0),
+        } for i in range(len(df_sample))]
 
         total = len(df_filtered)
         n_attack = int(df_filtered["label"].sum().item())

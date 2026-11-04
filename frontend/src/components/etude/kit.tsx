@@ -67,11 +67,25 @@ export const tooltipStyle = {
 };
 
 // ─── Lecture de l'API ────────────────────────────────────────────────────────
+/**
+ * Cache mémoire partagé entre les pages (stale-while-revalidate) : revenir sur une page affiche
+ * tout de suite les dernières données, puis les rafraîchit en arrière-plan si elles ont plus de
+ * FRESH_MS. Les chiffres viennent toujours de l'API ; le cache évite seulement de tout recharger
+ * (et de faire sauter la mise en page) à chaque navigation.
+ */
+const API_CACHE = new Map<string, { data: unknown; at: number }>();
+const FRESH_MS = 60_000;
+export function clearApiCache() { API_CACHE.clear(); }
+
 export function useApi<T>(url: string) {
-  const [data, setData] = useState<T | null>(null);
+  const cached = API_CACHE.get(url) as { data: T; at: number } | undefined;
+  const [data, setData] = useState<T | null>(cached ? cached.data : null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const load = useCallback(async () => {
+  const [loading, setLoading] = useState(!cached);
+  const load = useCallback(async (force = true) => {
+    const hit = API_CACHE.get(url) as { data: T; at: number } | undefined;
+    if (hit) setData(hit.data);
+    if (!force && hit && Date.now() - hit.at < FRESH_MS) { setLoading(false); return; }
     setLoading(true);
     try {
       const r = await fetch(url, { headers: authHeaders() });
@@ -80,7 +94,9 @@ export function useApi<T>(url: string) {
         try { detail = (await r.json()).detail ?? detail; } catch { /* corps vide */ }
         throw new Error(detail);
       }
-      setData(await r.json());
+      const json = await r.json() as T;
+      API_CACHE.set(url, { data: json, at: Date.now() });
+      setData(json);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -88,8 +104,9 @@ export function useApi<T>(url: string) {
       setLoading(false);
     }
   }, [url]);
-  useEffect(() => { load(); }, [load]);
-  return { data, error, loading, reload: load };
+  useEffect(() => { load(false); }, [load]);
+  const reload = useCallback(() => load(true), [load]);
+  return { data, error, loading, reload };
 }
 
 // ─── Mise en page ────────────────────────────────────────────────────────────
@@ -134,10 +151,12 @@ export function Section({ title, subtitle, source, action, children, className =
 }
 
 export function SourceLine({ source }: { source: string }) {
+  // Les pages d'archives lisent des fichiers (CSV, JSON) : le libellé le dit au lieu de « Lu en base ».
+  const fichier = /\.(csv|json|pkl)\b/i.test(source) && !/\b(SELECT|FROM|transmission_|telemetry|users|audit_logs|devices)\b/.test(source);
   return (
     <div className="vc-panel-foot px-4 sm:px-5 py-2 flex items-start gap-1.5">
       <Database className="w-3 h-3 shrink-0 mt-[3px]" aria-hidden />
-      <span className="min-w-0 break-words"><span className="whitespace-nowrap mr-1.5">Lu en base&nbsp;:</span><code>{source}</code></span>
+      <span className="min-w-0 break-words"><span className="whitespace-nowrap mr-1.5">{fichier ? 'Lu dans' : 'Lu en base'}&nbsp;:</span><code>{source}</code></span>
     </div>
   );
 }

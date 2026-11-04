@@ -1,6 +1,5 @@
 import { PageHeader } from '../components/etude/kit';
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Shield, UserCheck, Loader2, X,
   Pencil, Power, KeyRound, AlertCircle, CheckCircle,
@@ -122,32 +121,27 @@ export default function AdminUsersPage() {
       </PageHeader>
 
       {/* Flash success */}
-      <AnimatePresence>
         {success && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+          <div
             className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-sm"
             style={{ background: 'var(--accent-glow)', border: '1px solid var(--accent-primary)', color: 'var(--accent-primary)' }}>
             <CheckCircle className="w-4 h-4" /> {success}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Error */}
-      <AnimatePresence>
         {formError && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+          <div
             className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-sm"
             style={{ background: 'color-mix(in srgb, var(--accent-danger) 9%, transparent)', border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }}>
             <AlertCircle className="w-4 h-4 shrink-0" /> {formError}
             <button onClick={() => setFormError('')} className="ml-auto"><X className="w-3 h-3" /></button>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Create form */}
-      <AnimatePresence>
         {showForm && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+          <div
             className="rounded-[4px] p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Créer un compte</h2>
@@ -175,14 +169,12 @@ export default function AdminUsersPage() {
                 </button>
               </div>
             </form>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Edit form */}
-      <AnimatePresence>
         {editing && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+          <div
             className="rounded-[4px] p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
@@ -209,14 +201,12 @@ export default function AdminUsersPage() {
                 </button>
               </div>
             </form>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Reset password form */}
-      <AnimatePresence>
         {resetting && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+          <div
             className="rounded-[4px] p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
@@ -233,9 +223,8 @@ export default function AdminUsersPage() {
                 <KeyRound className="w-4 h-4 inline mr-1" /> Réinitialiser
               </button>
             </form>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Users table */}
       <div className="rounded-[4px] overflow-x-auto" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)' }}>

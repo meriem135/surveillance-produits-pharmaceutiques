@@ -26,14 +26,31 @@ export default function TempsReelPage() {
   const [progress, setProgress] = useState(0);
   const [wsError, setWsError] = useState<string | null>(null);
   const ws = useRef<WebSocket | null>(null);
+  // Les messages du flux sont regroupés et appliqués une fois par image (requestAnimationFrame) :
+  // à vitesse élevée, plusieurs messages arrivent entre deux images et chacun redessinait les courbes.
+  const pending = useRef<{ points: Pt[]; events: (Ev & { recu: string })[]; stats: Stats | null; progress: number | null; fini: boolean }>(
+    { points: [], events: [], stats: null, progress: null, fini: false });
+  const frame = useRef<number | null>(null);
+  const flush = useCallback(() => {
+    frame.current = null;
+    const p = pending.current;
+    pending.current = { points: [], events: [], stats: null, progress: null, fini: false };
+    if (p.points.length) setPoints(prev => [...prev, ...p.points].slice(-WINDOW));
+    if (p.events.length) setEvents(prev => [...p.events, ...prev].slice(0, 60));
+    if (p.stats) setStats(p.stats);
+    if (p.progress != null) setProgress(p.progress);
+    if (p.fini) setState('fini');
+  }, []);
   const vitesse = speed ?? info?.vitesse_defaut ?? 24;
 
-  useEffect(() => () => ws.current?.close(), []);
+  useEffect(() => () => { ws.current?.close(); if (frame.current != null) cancelAnimationFrame(frame.current); }, []);
 
   const send = (m: object) => ws.current?.readyState === WebSocket.OPEN && ws.current.send(JSON.stringify(m));
 
   const start = useCallback(() => {
     ws.current?.close();
+    if (frame.current != null) { cancelAnimationFrame(frame.current); frame.current = null; }
+    pending.current = { points: [], events: [], stats: null, progress: null, fini: false };
     setPoints([]); setEvents([]); setStats(null); setProgress(0); setWsError(null); setState('connexion');
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const sock = new WebSocket(`${proto}://${location.host}/api/v1/etude/live?token=${encodeURIComponent(getToken() ?? '')}`);
@@ -42,15 +59,16 @@ export default function TempsReelPage() {
       const msg = JSON.parse(e.data);
       if (msg.type === 'info') { sock.send(JSON.stringify({ action: 'start', role, vitesse })); setState('lecture'); }
       else if (msg.type === 'mesures') {
-        setPoints(prev => [...prev, ...msg.points].slice(-WINDOW));
-        if (msg.evenements.length) setEvents(prev => [...msg.evenements.map((x: Ev) => ({ ...x, recu: new Date().toLocaleTimeString('fr-FR') })), ...prev].slice(0, 60));
-        setStats(msg.stats); setProgress(msg.progression);
-        if (msg.fini) setState('fini');
+        const p = pending.current;
+        p.points.push(...msg.points);
+        if (msg.evenements.length) p.events.unshift(...msg.evenements.map((x: Ev) => ({ ...x, recu: new Date().toLocaleTimeString('fr-FR') })).reverse());
+        p.stats = msg.stats; p.progress = msg.progression; p.fini ||= !!msg.fini;
+        if (frame.current == null) frame.current = requestAnimationFrame(flush);
       } else if (msg.type === 'erreur') { setWsError(msg.message); setState('arret'); }
     };
     sock.onerror = () => setWsError('Connexion temps réel impossible');
     sock.onclose = () => setState(s => (s === 'fini' ? s : 'arret'));
-  }, [role, vitesse]);
+  }, [role, vitesse, flush]);
 
   const header = <PageHeader title="Temps réel"
     subtitle="Les mesures enregistrées repassent une à une dans le modèle sauvegardé, comme un flux de capteurs : valeur transmise, score, alerte et réalité côte à côte." />;
