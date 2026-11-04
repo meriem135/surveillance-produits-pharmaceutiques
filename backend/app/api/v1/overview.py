@@ -27,19 +27,20 @@ from app.domains.auth.models import User
 from app.domains.auth.service import require_any_role
 from app.domains.devices.models import Device, Telemetry
 from app.domains.ml.entities import MLModel, ModelMetric
+from app.domains.transmission import repository
 from app.domains.transmission.models import TransmissionModelResult, TransmissionRun
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SOURCES = {
-    "entrainements": "SELECT status, count(*), min(started_at), max(started_at) FROM transmission_runs GROUP BY status",
-    "dernier_entrainement": "SELECT * FROM transmission_runs WHERE status = 'termine' ORDER BY finished_at DESC, id DESC LIMIT 1",
+    "entrainements": "SELECT status, count(*), min(started_at), max(started_at) FROM transmission_runs WHERE source = 'web' GROUP BY status",
+    "dernier_entrainement": "SELECT * FROM transmission_runs WHERE status = 'termine' AND source = 'reference' (sinon 'web') ORDER BY finished_at DESC LIMIT 1",
     "modeles": "SELECT * FROM transmission_model_results WHERE run_id = <dernier entraînement> ORDER BY is_best DESC, f1 DESC",
-    "f2_et_validation": "transmission_runs.result_json -> 'modeles' -> <modèle> (f2, val_*, points_fonctionnement)",
+    "f2_et_validation": "transmission_runs.result_json -> 'modeles' -> <modèle> (val_*, point_fonctionnement, par_role)",
     "par_scenario": "transmission_model_results.per_attack et per_episode (meilleur modèle du dernier entraînement)",
     "historique": "SELECT r.*, m.* FROM transmission_runs r LEFT JOIN transmission_model_results m "
-                  "ON m.run_id = r.id AND m.is_best WHERE r.status = 'termine' ORDER BY r.started_at",
+                  "ON m.run_id = r.id AND m.is_best WHERE r.status = 'termine' AND r.source = 'web' ORDER BY r.started_at",
     "donnees": "transmission_runs.n_rows, n_features, n_episodes, dataset (dernier entraînement)",
     "capteurs": "SELECT device_type, status, count(*) FROM devices GROUP BY device_type, status",
     "telemetrie": "SELECT count(*), count(DISTINCT device_id), min(timestamp), max(timestamp) FROM telemetry",
@@ -67,15 +68,19 @@ def _model_row(m: TransmissionModelResult, detail: dict) -> dict[str, Any]:
 
 
 def _target_points(detail: dict) -> list[dict[str, Any]]:
-    """Points de fonctionnement « rappel cible » du modèle, mesurés sur le test (result_json)."""
+    """Point de fonctionnement unique du modèle (seuil + persistance) mesuré en validation et en test,
+    avec et sans la règle de persistance (result_json -> modeles -> <modèle> -> par_role)."""
+    op = detail.get("point_fonctionnement") or {}
+    pr = detail.get("par_role") or {}
     out = []
-    for key, p in (detail.get("points_fonctionnement") or {}).items():
-        t = p.get("test") or {}
+    for niveau, role, lib in (("alarme", "val", "Validation · avec persistance"), ("alarme", "test", "Test · avec persistance"),
+                              ("ligne", "test", "Test · mesure par mesure (sans persistance)")):
+        t = (pr.get(niveau) or {}).get(role) or {}
         if not t:
             continue
         out.append({
-            "cle": key, "libelle": p.get("libelle") or key, "seuil": (p.get("seuils") or [None])[0],
-            "recall": t.get("recall"), "precision": t.get("precision"), "f1": t.get("f1"), "f2": t.get("f2"),
+            "cle": f"{niveau}_{role}", "libelle": lib, "seuil": op.get("seuil"),
+            "recall": t.get("recall"), "precision": t.get("precision"), "f1": t.get("f1"), "f2": None,
             "fausses_alarmes_par_heure": t.get("fausses_alarmes_evenements_par_heure"),
             "delai_median_min": t.get("delai_median_min"),
         })
@@ -84,15 +89,16 @@ def _target_points(detail: dict) -> list[dict[str, Any]]:
 
 async def build_overview(session: AsyncSession) -> dict[str, Any]:
     # ── Entraînements (transmission_runs) ─────────────────────────────────────
+    web = TransmissionRun.source == "web"
     status_rows = (await session.execute(
         select(TransmissionRun.status, func.count(), func.min(TransmissionRun.started_at),
-               func.max(TransmissionRun.started_at)).group_by(TransmissionRun.status)
+               func.max(TransmissionRun.started_at)).where(web).group_by(TransmissionRun.status)
     )).all()
     par_statut = {s: n for s, n, _, _ in status_rows}
     firsts = [a for _, _, a, _ in status_rows if a]
     lasts = [b for _, _, _, b in status_rows if b]
     last_any = (await session.execute(
-        select(TransmissionRun).order_by(desc(TransmissionRun.started_at), desc(TransmissionRun.id)).limit(1)
+        select(TransmissionRun).where(web).order_by(desc(TransmissionRun.started_at), desc(TransmissionRun.id)).limit(1)
     )).scalars().first()
     entrainements = {
         "total": sum(par_statut.values()), "par_statut": par_statut,
@@ -104,11 +110,8 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         },
     }
 
-    # ── Dernier entraînement terminé + ses modèles ───────────────────────────
-    run = (await session.execute(
-        select(TransmissionRun).where(TransmissionRun.status == "termine")
-        .order_by(desc(TransmissionRun.finished_at), desc(TransmissionRun.id)).limit(1)
-    )).scalars().first()
+    # ── Étude affichée (référence chargée en base, sinon dernier entraînement web) + ses modèles ──
+    run = await repository.reference_run(session)
     dernier = None
     if run is not None:
         res = run.result_json or {}
@@ -116,7 +119,7 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         rows = (await session.execute(
             select(TransmissionModelResult).where(TransmissionModelResult.run_id == run.id)
         )).scalars().all()
-        modeles = sorted((_model_row(m, details.get(m.model_key) or {}) for m in rows),
+        modeles = sorted((_model_row(m, details.get(m.model_key) or {}) for m in rows if m.model_key != "RF_v1"),
                          key=lambda r: (not r["meilleur"], -(r["f1"] or 0)))
         best_row = next((m for m in rows if m.is_best), None)
         par_scenario = []
@@ -133,7 +136,9 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         ds = run.dataset or {}
         dernier = {
             "id": run.id, "debut": _iso(run.started_at), "fin": _iso(run.finished_at), "duree_s": run.duration_s,
-            "lance_par": run.launched_by, "meilleur_modele": run.best_model, "meilleur_f1": run.best_f1,
+            "lance_par": run.launched_by, "source": run.source,
+            "repetitions": ((res.get("etude") or {}).get("protocole") or {}).get("repetitions", 1),
+            "critere": res.get("critere"), "meilleur_modele": run.best_model, "meilleur_f1": run.best_f1,
             "classement_validation": run.ranking or [], "cible_rappel": res.get("cible_rappel"),
             "modeles": modeles,
             "points_meilleur": _target_points(details.get(run.best_model) or {}) if run.best_model else [],
@@ -152,7 +157,7 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         select(TransmissionRun, TransmissionModelResult)
         .join(TransmissionModelResult, (TransmissionModelResult.run_id == TransmissionRun.id)
               & (TransmissionModelResult.is_best == True), isouter=True)  # noqa: E712
-        .where(TransmissionRun.status == "termine")
+        .where(TransmissionRun.status == "termine", web)
         .order_by(TransmissionRun.started_at, TransmissionRun.id)
     )).all()
     historique = [{

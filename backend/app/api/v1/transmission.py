@@ -4,14 +4,15 @@ API « attaques de transmission » (traces réelles)
   GET  /api/v1/transmission/kpis            chiffres publics de la page d'accueil (sans session)
   GET  /api/v1/transmission/summary         état du jeu de données, référence, dernier entraînement
   GET  /api/v1/transmission/scenarios       les scénarios injectés
-  POST /api/v1/transmission/train           entraîne les 4 modèles supervisés en arrière-plan
+  POST /api/v1/transmission/train           entraîne les 6 modèles supervisés en arrière-plan (admin)
   WS   /api/v1/transmission/train-ws        progression en direct (courbe du Random Forest incluse)
   GET  /api/v1/transmission/training-status
   GET  /api/v1/transmission/results         résultats du dernier entraînement web
   GET  /api/v1/transmission/history         entraînements enregistrés en base, du plus récent au plus ancien
   GET  /api/v1/transmission/report          rapport de recommandation pour l'opérateur
 
-Chaque entraînement web est enregistré en base (transmission_runs, transmission_model_results) ;
+Chaque entraînement web est enregistré en base (transmission_runs, transmission_model_results,
+transmission_metrics, transmission_shap, et pour le dernier : jeu de données, scores, alertes, épisodes) ;
 summary, results et report lisent le dernier entraînement en base, sinon les fichiers JSON.
   POST /api/v1/transmission/report          consigne pour une alerte précise
 """
@@ -30,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.phase2 import _TrainingProgressManager
 from app.db.session import AsyncSessionLocal, get_session
 from app.domains.auth.service import require_any_role
+from app.domains import parametres as settings_repo
 from app.domains.transmission import repository, service
 
 logger = logging.getLogger(__name__)
@@ -104,15 +106,19 @@ async def transmission_train(user=Depends(require_any_role())):
     async def _background():
         run_id = await _db(repository.start_run, username, user_id)
         try:
-            out = await service.train(_emit)
+            cfg = await _db(settings_repo.get_all)
+            out = await service.train(_emit, (cfg or {}).get("precision_min"), (cfg or {}).get("fa_max"))
         except Exception as e:  # noqa: BLE001
             traceback.print_exc()
             if run_id is not None:
                 await _db(repository.fail_run, run_id, f"{type(e).__name__}: {e}")
             await _emit("error", 0, f"Erreur entraînement : {e}")
             return
+        records = out.pop("_records", None)
         if run_id is not None:
             await _db(repository.finish_run, run_id, out)
+            await _db(repository.store_details, run_id, out, records, None, service.feature_label)
+            await _db(repository.prune_heavy_details, run_id)
 
     _training_task = asyncio.create_task(_background())
     return {"status": "training_started", "ws_url": "/api/v1/transmission/train-ws"}
@@ -155,10 +161,22 @@ async def transmission_history(limit: int = Query(20, ge=1, le=200), _user=Depen
 @router.get("/transmission/report")
 async def transmission_report(_user=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     latest = await _latest_from_db(session)
+    ref = await _reference_from_db(session)
+    if ref and ref.get("modeles"):
+        return await asyncio.to_thread(service.operator_report, ref["modeles"], ref.get("shap"),
+                                       "étude de référence (base de données)")
     if latest and latest.get("modeles"):
         return await asyncio.to_thread(service.operator_report, latest["modeles"], latest.get("shap"),
                                        "dernier entraînement web (base de données)")
     return await asyncio.to_thread(service.operator_report)
+
+
+async def _reference_from_db(session: AsyncSession) -> dict | None:
+    try:
+        return await repository.latest_result(session, "reference")
+    except Exception:  # noqa: BLE001
+        logger.exception("Lecture de l'étude de référence en base impossible")
+        return None
 
 
 @router.post("/transmission/report")

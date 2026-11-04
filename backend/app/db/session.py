@@ -120,7 +120,9 @@ async def _ensure_ml_metrics_columns():
             "roc_auc": "float", "ap": "float", "fpr": "float",
             "tp": "integer", "fp": "integer", "fn": "integer", "tn": "integer",
             "result_json": "jsonb",
-        }
+        },
+        # source : « web » (entraînement du dashboard) ou « reference » (étude chargée par charger_base.py)
+        "transmission_runs": {"source": "varchar NOT NULL DEFAULT 'web'"},
     }
     if driver == "sqlite":
         return  # les colonnes seront créées/ignorées par create_all sur une table fraîche

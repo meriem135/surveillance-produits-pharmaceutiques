@@ -12,13 +12,32 @@ from app.core.config import settings
 from app.core.paths import SEASONAL_STREAM_CSV, ensure_dirs
 from app.db.seed import seed_defaults
 from app.db.session import init_db, close_db, get_session
-from app.api.v1 import devices, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, advanced_analytics, transmission, overview
+from app.api.v1 import devices, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, transmission, overview, etude, parametres
 from app.services.mqtt_service import mqtt_service
 from app.services.modbus_service import modbus_service
 from app.services.realtime_service import manager
 from app.domains.devices.models import Telemetry
 from app.domains.intelligence import ml_service  # noqa: F401 – import for side-effects
 from app.domains.auth.service import require_any_role
+
+async def _charger_etude():
+    import sys
+    from app.core import paths as _paths
+    scripts = str(_paths.BACKEND_DIR / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    try:
+        import charger_base
+        await charger_base.load(only_if_needed=True)
+        # Pré-calcul du flux « Temps réel » (features du jeu de données en base, modèle sauvegardé)
+        from app.db.session import AsyncSessionLocal
+        from app.domains.transmission import live
+        async with AsyncSessionLocal() as session:
+            await live.stream_source(session)
+    except Exception:  # noqa: BLE001 — l'application démarre même sans étude en base
+        import logging
+        logging.getLogger(__name__).exception("Chargement de l'étude de référence en base impossible")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,6 +64,11 @@ async def lifespan(app: FastAPI):
     # La simulation backend tourne en continu : c'est le frontend qui démarre/arrête
     # sa propre réception (connexion WebSocket) via le bouton "COMMENCER".
     manager.set_simulation(True)
+
+    # Étude de référence : chargée en base au démarrage si la version en place est différente
+    # (pages Jeu de données, Résultats, SHAP, Détection vs réalité, Temps réel).
+    if os.environ.get("VIGILO_SKIP_CHARGER_BASE") != "1":
+        asyncio.create_task(_charger_etude())
 
     yield
 
@@ -146,9 +170,10 @@ app.include_router(shap_analysis.router)
 app.include_router(dataset_analytics.router, prefix=settings.API_V1_STR, tags=["dataset"])
 app.include_router(fusion_insights.router, prefix=settings.API_V1_STR, tags=["fusion"])
 app.include_router(pharma_impact.router, prefix=settings.API_V1_STR, tags=["pharma"])
-app.include_router(advanced_analytics.router, prefix=settings.API_V1_STR, tags=["advanced-analytics"])
 app.include_router(transmission.router, prefix=settings.API_V1_STR, tags=["transmission"])
 app.include_router(overview.router, prefix=settings.API_V1_STR, tags=["overview"])
+app.include_router(etude.router, prefix=settings.API_V1_STR, tags=["etude"])
+app.include_router(parametres.router, prefix=settings.API_V1_STR, tags=["parametres"])
 
 @app.get("/")
 def root():

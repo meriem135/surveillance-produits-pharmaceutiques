@@ -2,19 +2,28 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import desc, update
+from sqlalchemy import delete, desc, insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.domains.transmission.models import TransmissionModelResult, TransmissionRun, utcnow
+from app.domains.transmission.models import (
+    TransmissionAlert, TransmissionDatasetRow, TransmissionEpisode, TransmissionLearningPoint, TransmissionMetric,
+    TransmissionModelResult, TransmissionPrediction, TransmissionRun, TransmissionShap, utcnow,
+)
+
+DETAIL_TABLES = (TransmissionMetric, TransmissionShap, TransmissionDatasetRow, TransmissionEpisode,
+                 TransmissionPrediction, TransmissionAlert, TransmissionLearningPoint)
 
 
-async def start_run(session: AsyncSession, username: Optional[str] = None, user_id: Optional[int] = None) -> int:
+async def start_run(session: AsyncSession, username: Optional[str] = None, user_id: Optional[int] = None,
+                    source: str = "web") -> int:
     """Crée la ligne de l'entraînement. Un seul entraînement tourne à la fois : une ligne restée
     « en_cours » vient d'un arrêt du serveur pendant un entraînement précédent."""
-    await session.execute(update(TransmissionRun).where(TransmissionRun.status == "en_cours")
-                          .values(status="interrompu", error="Serveur arrêté pendant l'entraînement"))
-    run = TransmissionRun(launched_by=username, user_id=user_id)
+    if source == "web":
+        await session.execute(update(TransmissionRun).where(TransmissionRun.status == "en_cours",
+                                                            TransmissionRun.source == "web")
+                              .values(status="interrompu", error="Serveur arrêté pendant l'entraînement"))
+    run = TransmissionRun(launched_by=username, user_id=user_id, source=source)
     session.add(run)
     await session.commit()
     await session.refresh(run)
@@ -38,7 +47,7 @@ async def finish_run(session: AsyncSession, run_id: int, out: dict) -> None:
     run.best_model = best
     run.best_f1 = (modeles.get(best) or {}).get("f1")
     run.ranking = out.get("classement_validation") or []
-    run.result_json = out
+    run.result_json = {k: v for k, v in out.items() if not k.startswith("_")}
     for key, m in modeles.items():
         session.add(TransmissionModelResult(
             run_id=run_id, model_key=key, nom=m.get("nom", key), model_type=m.get("type", ""), is_best=key == best,
@@ -63,10 +72,10 @@ async def fail_run(session: AsyncSession, run_id: int, error: str) -> None:
     await session.commit()
 
 
-async def latest_result(session: AsyncSession) -> Optional[dict]:
+async def latest_result(session: AsyncSession, source: str = "web") -> Optional[dict]:
     """Résultat du dernier entraînement terminé (même forme que entrainement_web.json), ou None."""
     run = (await session.execute(
-        select(TransmissionRun).where(TransmissionRun.status == "termine")
+        select(TransmissionRun).where(TransmissionRun.status == "termine", TransmissionRun.source == source)
         .order_by(desc(TransmissionRun.finished_at), desc(TransmissionRun.id)).limit(1)
     )).scalars().first()
     if run is None or not run.result_json:
@@ -81,7 +90,8 @@ def _iso(d: Optional[datetime]) -> Optional[str]:
 async def history(session: AsyncSession, limit: int = 20) -> list[dict[str, Any]]:
     """Entraînements, du plus récent au plus ancien, avec les métriques de chaque modèle."""
     runs = (await session.execute(
-        select(TransmissionRun).order_by(desc(TransmissionRun.started_at), desc(TransmissionRun.id)).limit(limit)
+        select(TransmissionRun).where(TransmissionRun.source == "web")
+        .order_by(desc(TransmissionRun.started_at), desc(TransmissionRun.id)).limit(limit)
     )).scalars().all()
     if not runs:
         return []
@@ -104,3 +114,146 @@ async def history(session: AsyncSession, limit: int = 20) -> list[dict[str, Any]
         "episodes": r.n_episodes, "scenarios": r.scenarios, "meilleur_modele": r.best_model, "meilleur_f1": r.best_f1,
         "classement_validation": r.ranking, "erreur": r.error, "modeles": by_run.get(r.id, []),
     } for r in runs]
+
+
+# ── Détails de l'étude : métriques par rôle, SHAP, jeu de données, prédictions, alertes ──
+
+def _f(v):
+    return None if v is None else float(v)
+
+
+async def delete_details(session: AsyncSession, run_id: int) -> None:
+    for table in DETAIL_TABLES:
+        await session.execute(delete(table).where(table.run_id == run_id))
+
+
+async def delete_runs(session: AsyncSession, source: str) -> int:
+    """Supprime les entraînements d'une source (ex. l'étude de référence avant rechargement)."""
+    ids = (await session.execute(select(TransmissionRun.id).where(TransmissionRun.source == source))).scalars().all()
+    for rid in ids:
+        await delete_details(session, rid)
+        await session.execute(delete(TransmissionModelResult).where(TransmissionModelResult.run_id == rid))
+        await session.execute(delete(TransmissionRun).where(TransmissionRun.id == rid))
+    await session.commit()
+    return len(ids)
+
+
+async def _bulk(session: AsyncSession, table, rows: list[dict], chunk: int = 5000) -> None:
+    for i in range(0, len(rows), chunk):
+        await session.execute(insert(table), rows[i:i + chunk])
+
+
+async def store_details(session: AsyncSession, run_id: int, out: dict, records: Optional[dict] = None,
+                        all_episodes: Optional[list[dict]] = None, feature_label=None) -> dict:
+    """Écrit ce que les pages du site lisent : métriques train/val/test (niveaux ligne et alarme),
+    SHAP, et — si `records` est fourni — le jeu de données, les scores du meilleur modèle, ses
+    alertes et les épisodes (détectés ou non). Renvoie le nombre de lignes écrites par table."""
+    best = out.get("meilleur")
+    counts: dict[str, int] = {}
+    metrics = []
+    for key, m in (out.get("modeles") or {}).items():
+        pr = m.get("par_role") or {}
+        op = m.get("point_fonctionnement") or {}
+        for niveau in ("alarme", "ligne"):
+            for role, v in (pr.get(niveau) or {}).items():
+                metrics.append(dict(
+                    run_id=run_id, model_key=key, role=role, niveau=niveau, is_best=key == best,
+                    seuil=_f(op.get("seuil")), k=op.get("k") if niveau == "alarme" else 1,
+                    n=op.get("n") if niveau == "alarme" else 1,
+                    recall=_f(v.get("recall")), precision=_f(v.get("precision")), f1=_f(v.get("f1")), fpr=_f(v.get("fpr")),
+                    roc_auc=_f((pr.get("auc") or {}).get(role)), avg_precision=_f((pr.get("ap") or {}).get(role)),
+                    tp=v.get("tp"), fp=v.get("fp"), fn=v.get("fn"), tn=v.get("tn"),
+                    part_attaques=_f(v.get("part_attaques")), heures_normales=_f(v.get("heures_normales")),
+                    alertes=v.get("alertes"), fausses_alertes=v.get("fausses_alertes"),
+                    fausses_alertes_par_heure=_f(v.get("fausses_alarmes_evenements_par_heure")),
+                    episodes=v.get("episodes"), episodes_detectes=v.get("episodes_detectes"),
+                    delai_median_min=_f(v.get("delai_median_min")), delai_p90_min=_f(v.get("delai_p90_min")),
+                    per_attack=v.get("per_attack") or {}, per_episode=v.get("per_episode") or {}))
+    await _bulk(session, TransmissionMetric, metrics)
+    counts["transmission_metrics"] = len(metrics)
+
+    shap = out.get("shap") or {}
+    rows = []
+    label = feature_label or (lambda f: f)
+    if shap:
+        mk = shap.get("modele") or out.get("modele_shap") or best
+        for portee, lst in [("global", shap.get("global") or [])] + list((shap.get("par_scenario") or {}).items()):
+            for i, f in enumerate(lst, 1):
+                rows.append(dict(run_id=run_id, model_key=mk, portee=portee, rang=i, feature=f["feature"],
+                                 libelle=f.get("label") or label(f["feature"]), importance=float(f["importance"])))
+    await _bulk(session, TransmissionShap, rows)
+    counts["transmission_shap"] = len(rows)
+
+    lc = out.get("courbe_apprentissage") or {}
+    pts = [dict(run_id=run_id, model_key=lc.get("modele") or best, part_train=float(p["part_train"]),
+                lignes_train=int(p["lignes_train"]), ap_train=float(p["ap_train"]), ap_val=float(p["ap_val"]),
+                f1_train=_f(p.get("f1_train")), f1_val=_f(p.get("f1_val"))) for p in (lc.get("points") or [])]
+    await _bulk(session, TransmissionLearningPoint, pts)
+    counts["transmission_learning_curve"] = len(pts)
+
+    if records is not None:
+        df = records["df"]
+        ts = [d.to_pydatetime() for d in __import__("pandas").to_datetime(df["datetime"])]
+        split, ev = records["split"], records["evaluee"]
+        cols = {c: df[c].to_numpy() for c in ("weather_temp", "fridge_temp", "thermostat_temp", "fridge_true",
+                                              "thermostat_true", "fridge_cond", "thermo_status", "garde",
+                                              "label", "attack_type", "cible")}
+        data = [dict(run_id=run_id, idx=i, ts=ts[i], bloc=i // 720, role=str(split[i]), evaluee=bool(ev[i]),
+                     weather_temp=float(cols["weather_temp"][i]), fridge_temp=float(cols["fridge_temp"][i]),
+                     thermostat_temp=float(cols["thermostat_temp"][i]), fridge_true=float(cols["fridge_true"][i]),
+                     thermostat_true=float(cols["thermostat_true"][i]), fridge_cond=str(cols["fridge_cond"][i]),
+                     thermo_status=int(float(cols["thermo_status"][i] or 0)), garde=bool(cols["garde"][i]),
+                     label=int(cols["label"][i]),
+                     attack_type=str(cols["attack_type"][i]), cible=str(cols["cible"][i] or ""))
+                for i in range(len(df))]
+        await _bulk(session, TransmissionDatasetRow, data)
+        counts["transmission_dataset"] = len(data)
+        s, sig, al = records["scores"], records["signal"], records["alarme"]
+        preds = [dict(run_id=run_id, model_key=best, idx=i, score=round(float(s[i]), 5), signal=bool(sig[i]),
+                      alarme=bool(al[i])) for i in range(len(s))]
+        await _bulk(session, TransmissionPrediction, preds)
+        counts["transmission_predictions"] = len(preds)
+        alerts = [dict(run_id=run_id, model_key=best, **{k: (v.to_pydatetime() if hasattr(v, "to_pydatetime") else v)
+                                                        for k, v in a.items()}) for a in records["alertes"]]
+        await _bulk(session, TransmissionAlert, alerts)
+        counts["transmission_alerts"] = len(alerts)
+        eps = []
+        for e in records["episodes"]:
+            eps.append(dict(run_id=run_id, repetition=0, scenario=e["name"], capteur=e["sensor"], mecanisme=e["kind"],
+                            parametre=_f(e.get("param")), role=e["split"], start_idx=int(e["start"]),
+                            end_idx=int(e["end"]), start_ts=e["start_ts"].to_pydatetime(),
+                            end_ts=e["end_ts"].to_pydatetime(), detecte=e["detecte"], delai_min=_f(e["delai_min"])))
+        for e in all_episodes or []:
+            if e.get("run", 0) == 0:
+                continue
+            eps.append(dict(run_id=run_id, repetition=int(e["run"]), scenario=e["name"], capteur=e["sensor"],
+                            mecanisme=e["kind"], parametre=_f(e.get("param")), role=e["split"],
+                            start_idx=int(e["start"]), end_idx=int(e["end"]),
+                            start_ts=ts[int(e["start"])], end_ts=ts[min(len(ts) - 1, int(e["end"]) - 1)]))
+        await _bulk(session, TransmissionEpisode, eps)
+        counts["transmission_episodes"] = len(eps)
+    await session.commit()
+    return counts
+
+
+async def reference_run(session: AsyncSession) -> Optional[TransmissionRun]:
+    """L'étude de référence chargée en base (scripts/charger_base.py), sinon le dernier entraînement web."""
+    for source in ("reference", "web"):
+        run = (await session.execute(
+            select(TransmissionRun).where(TransmissionRun.status == "termine", TransmissionRun.source == source)
+            .order_by(desc(TransmissionRun.finished_at), desc(TransmissionRun.id)).limit(1)
+        )).scalars().first()
+        if run is not None:
+            return run
+    return None
+
+
+async def prune_heavy_details(session: AsyncSession, keep_run_id: int, source: str = "web") -> None:
+    """Les lignes lourdes (jeu de données, scores, alertes, épisodes) ne sont gardées que pour le
+    dernier entraînement d'une source ; les métriques et SHAP restent pour l'historique."""
+    ids = (await session.execute(select(TransmissionRun.id).where(TransmissionRun.source == source,
+                                                                 TransmissionRun.id != keep_run_id))).scalars().all()
+    for table in (TransmissionDatasetRow, TransmissionPrediction, TransmissionAlert, TransmissionEpisode):
+        if ids:
+            await session.execute(delete(table).where(table.run_id.in_(ids)))
+    await session.commit()

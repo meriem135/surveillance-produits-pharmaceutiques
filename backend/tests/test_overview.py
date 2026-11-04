@@ -30,9 +30,11 @@ OUT = {
                            "MITM_rejeu": {"n": 10, "detected": 7, "rate": 70.0},
                            "Injection_derive": {"n": 0, "detected": 0, "rate": 0.0}},
             "per_episode": {"MITM_gel": {"n": 1, "detected": 1, "delai_median_min": 7.4}},
-            "points_fonctionnement": {"rappel_0.90": {"libelle": "rappel 0,90", "seuils": [0.3],
-                                                      "test": {"recall": 0.9, "precision": 0.23,
-                                                               "fausses_alarmes_evenements_par_heure": 18.6}}},
+            "point_fonctionnement": {"seuil": 0.7, "k": 6, "n": 12, "contrainte_tenue": True},
+            "par_role": {"alarme": {"test": {"recall": 0.63, "precision": 0.96,
+                                             "fausses_alarmes_evenements_par_heure": 0.98}},
+                         "ligne": {"test": {"recall": 0.7, "precision": 0.8,
+                                            "fausses_alarmes_evenements_par_heure": 2.4}}},
         },
         "XGBoost": {"nom": "XGBoost", "type": "supervisé", "f1": 0.63, "precision": 0.85, "recall": 0.51,
                     "per_attack": {}},
@@ -108,7 +110,8 @@ def test_overview_reports_what_the_database_holds():
     best = last["modeles"][0]
     assert best["meilleur"] and (best["recall"], best["f2"], best["fausses_alarmes_par_heure"]) == (0.63, 0.67, 0.98)
     assert [m["modele"] for m in last["modeles"]] == ["RandomForest", "XGBoost"]
-    assert last["points_meilleur"][0]["fausses_alarmes_par_heure"] == 18.6
+    pts = {p["cle"]: p for p in last["points_meilleur"]}
+    assert pts["alarme_test"]["fausses_alarmes_par_heure"] == 0.98 and pts["ligne_test"]["seuil"] == 0.7
     sc = last["par_scenario"]
     assert [s["scenario"] for s in sc] == ["MITM_rejeu", "MITM_gel", "Injection_derive"]  # absent du test en dernier
     assert sc[1]["episodes_detectes"] == 1 and sc[1]["delai_median_min"] == 7.4
