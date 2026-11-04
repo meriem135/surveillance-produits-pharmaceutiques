@@ -1410,17 +1410,17 @@ export default function ShapDashboardPage() {
                       {[
                         {
                           key: 'attacks' as const,
-                          label: '🔥 Attaques',
+                          label: 'Attaques',
                           color: '#7C3AED',
                         },
                         {
                           key: 'normals' as const,
-                          label: '✅ Normales',
+                          label: 'Normales',
                           color: '#0D9488',
                         },
                         {
                           key: 'all' as const,
-                          label: '🌐 Tout',
+                          label: 'Tout',
                           color: '#D97706',
                         },
                       ].map((opt) => (
@@ -1808,7 +1808,7 @@ export default function ShapDashboardPage() {
                       className="text-[8px]"
                       style={{ color: '#D97706' }}
                     >
-                      ⚡ Filtres non appliqués — cliquez sur « Filtrer »
+                      Filtres non appliqués : cliquez sur « Filtrer »
                     </span>
                   )}{' '}
                   <span

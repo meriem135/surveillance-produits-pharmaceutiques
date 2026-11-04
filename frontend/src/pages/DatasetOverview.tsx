@@ -271,9 +271,9 @@ function Tendances({ data }: { data: DatasetPayload }) {
   }, [data]);
 
   const sensors = [
-    { key: 'Weather', color: '#0284C7', grad: '#0EA5E9', icon: '☁' },
-    { key: 'Fridge', color: '#16A34A', grad: '#00C853', icon: '❄' },
-    { key: 'Thermostat', color: '#EA580C', grad: '#EA580C', icon: '♨' },
+    { key: 'Weather', color: '#0284C7', grad: '#0EA5E9', icon: <CloudSun className="w-4 h-4" /> },
+    { key: 'Fridge', color: '#1F5FA6', grad: '#1F5FA6', icon: <Snowflake className="w-4 h-4" /> },
+    { key: 'Thermostat', color: '#8F5300', grad: '#8F5300', icon: <Thermometer className="w-4 h-4" /> },
   ];
 
   return (
@@ -284,7 +284,7 @@ function Tendances({ data }: { data: DatasetPayload }) {
           <Card key={s.key}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-lg">{s.icon}</span>
+                <span style={{ color: s.color }}>{s.icon}</span>
                 <div className="text-xs font-bold font-display" style={{ color: 'var(--text-primary)' }}>{s.key}</div>
               </div>
               <div className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${s.color} 10%, transparent)`, color: s.color }}>Area</div>

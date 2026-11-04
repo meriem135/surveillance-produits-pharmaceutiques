@@ -1,8 +1,7 @@
 /** Jeu de données — KPI lus dans transmission_dataset et transmission_episodes (GET /api/v1/etude/dataset). */
-import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Clock, Database, ShieldAlert, Layers, Scissors } from 'lucide-react';
+import { Area, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  Empty, Loading, Note, PageHeader, ROLE_FR, SCENARIO_FR, Section, Stat, Table, heure, nf, pct, tooltipStyle, useApi, usePalette,
+  BandLegend, Empty, Loading, Note, PageHeader, Paper, Readouts, ROLE_FR, SCENARIO_FR, Section, Stat, Table, heure, nf, pct, tooltipStyle, useApi, usePalette,
 } from '../../components/etude/kit';
 
 interface RoleRow { lignes: number; evaluees: number; attaques: number; attaques_evaluees: number; part_attaques: number | null; heures: number }
@@ -29,41 +28,43 @@ export default function DatasetPage() {
   const pal = usePalette();
   const header = <PageHeader title="Jeu de données" loading={loading} onRefresh={reload}
     subtitle="Traces réelles TON_IoT (frigo, thermostat, météo) fusionnées à 5 s, avec les attaques de transmission injectées (répétition 0 de l'étude)." />;
-  if (!data) return <div className="space-y-4">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
+  if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
   const t = data.total;
   const serie = data.serie.map(p => ({ ...p, zone: p.attaque ? 16 : null }));
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {header}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <Stat icon={<Database className="w-4 h-4" />} label="Mesures (pas de 5 s)" value={nf(t.lignes)} sub={`${dateFr2(t.debut)} → ${dateFr2(t.fin)}`} />
-        <Stat icon={<Clock className="w-4 h-4" />} label="Durée" value={`${nf(t.heures, 1)} h`} sub="3 capteurs alignés sur une grille commune" />
-        <Stat icon={<ShieldAlert className="w-4 h-4" />} label="Mesures falsifiées" value={nf(t.attaques)} sub={`${pct(t.attaques / t.lignes)} des mesures`} tone="var(--accent-danger)" />
-        <Stat icon={<Layers className="w-4 h-4" />} label="Épisodes d'attaque" value={nf(t.episodes_rep0)}
-          sub={`${nf(t.episodes_toutes_repetitions)} sur les ${t.repetitions} répétitions`} tone="var(--accent-warning)" />
-        <Stat icon={<Scissors className="w-4 h-4" />} label="Zone de garde (exclue)" value={nf(t.exclues_zone_de_garde)}
-          sub={`${nf(data.run.zone_de_garde_min ?? 0)} min après chaque épisode et en début de bloc qui change de rôle`} tone="var(--accent-purple)" />
-      </div>
+      <Readouts cols={5}>
+        <Stat label="Mesures au pas de 5 s" value={nf(t.lignes)} sub={`Du ${dateFr2(t.debut)} au ${dateFr2(t.fin)}`} />
+        <Stat label="Durée couverte" value={nf(t.heures, 1)} unit="h" sub="3 capteurs alignés sur une grille commune" />
+        <Stat label="Mesures falsifiées" value={nf(t.attaques)} tone="var(--accent-danger)" sub={`${pct(t.attaques / t.lignes)} des mesures`} />
+        <Stat label="Épisodes d’attaque" value={nf(t.episodes_rep0)} sub={`${nf(t.episodes_toutes_repetitions)} sur les ${t.repetitions} répétitions`} />
+        <Stat label="Zone de garde (exclue)" value={nf(t.exclues_zone_de_garde)}
+          sub={`${nf(data.run.zone_de_garde_min ?? 0)} min après chaque épisode et en début de bloc qui change de rôle`} />
+      </Readouts>
 
-      <Section title="Frigo : valeur transmise et mesure réelle" subtitle="Moyenne par tranche de 2 minutes ; zones rouges = attaque en cours." source={data.sources.serie}>
-        <div className="h-[280px]">
+      <Section title="Frigo : valeur transmise et mesure réelle" subtitle="Moyenne par tranche de 2 minutes. Pendant une attaque, la valeur transmise s’écarte de la mesure réelle." source={data.sources.serie}>
+        <BandLegend items={[
+          { label: 'Valeur transmise', color: pal.series[0], kind: 'line' },
+          { label: 'Mesure réelle', color: pal.series[2], kind: 'line' },
+          { label: 'Attaque en cours', color: pal.attack },
+        ]} />
+        <Paper height={280}>
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={serie} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-              <CartesianGrid stroke={pal.grid} strokeDasharray="3 3" />
-              <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 11 }} />
-              <YAxis domain={[0, 16]} tick={{ fill: pal.axis, fontSize: 11 }} unit="°" />
+            <ComposedChart data={serie} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
+              <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
+              <YAxis domain={[0, 16]} tick={{ fill: pal.axis, fontSize: 12 }} unit="°" />
               <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')}
                 formatter={(v, n) => (n === 'Attaque' ? ['oui', n] : [`${nf(Number(v), 2)} °C`, n])} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
               <Area dataKey="zone" name="Attaque" fill={pal.attack} stroke="none" isAnimationActive={false} connectNulls={false} />
               <Line dataKey="frigo_reel" name="Mesure réelle" stroke={pal.series[2]} dot={false} strokeWidth={1.2} isAnimationActive={false} />
-              <Line dataKey="frigo" name="Valeur transmise" stroke={pal.series[0]} dot={false} strokeWidth={1.2} isAnimationActive={false} />
+              <Line dataKey="frigo" name="Valeur transmise" stroke={pal.series[0]} dot={false} strokeWidth={1.3} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
-        </div>
+        </Paper>
       </Section>
 
-      <div className="grid lg:grid-cols-2 gap-5">
+      <div className="grid lg:grid-cols-2 gap-6">
         <Section title="Découpage train / validation / test" subtitle="Blocs d'une heure entrelacés (70 / 15 / 15), jamais mélangés ligne à ligne." source={data.sources.par_role}>
           <Table>
             <thead><tr><th>Rôle</th><th className="vc-num">Mesures</th><th className="vc-num">Évaluées</th><th className="vc-num">Falsifiées</th><th className="vc-num">Part d'attaques</th></tr></thead>
@@ -100,7 +101,7 @@ export default function DatasetPage() {
             {data.par_scenario.map(s => (
               <tr key={s.scenario}>
                 <td>{SCENARIO_FR[s.scenario] ?? s.scenario}</td><td>{s.capteur === 'fridge' ? 'frigo' : s.capteur ?? '—'}</td>
-                <td className="vc-num">{s.duree_moy_min == null ? '—' : `${nf(s.duree_moy_min, 1)} min`}</td>
+                <td className="vc-num">{s.duree_moy_min == null ? '—' : `${nf(s.duree_moy_min, 1)}\u00a0min`}</td>
                 <td className="vc-num">{['train', 'val', 'test'].map(r => s.episodes[r] ?? 0).join(' / ')}</td>
                 <td className="vc-num">{nf(Object.values(s.lignes).reduce((a, b) => a + b, 0))}</td>
               </tr>

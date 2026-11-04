@@ -199,15 +199,14 @@ export default function TrainingResultsPage() {
         {/* Summary cards */}
         <div className="p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: 'Capteurs', value: info?.sensors_used?.join(', '), icon: '📡' },
-            { label: 'Échantillons', value: info?.n_total_samples?.toLocaleString(), icon: '📊' },
-            { label: 'Normaux', value: info?.n_normal_samples?.toLocaleString(), icon: '✅' },
-            { label: 'Attaques', value: info?.n_attack_samples?.toLocaleString(), icon: '⚠️' },
-            { label: 'Features', value: `${info?.n_features_selected}/${info?.n_features_original}`, icon: '🔧' },
+            { label: 'Capteurs', value: info?.sensors_used?.join(', ') },
+            { label: 'Échantillons', value: info?.n_total_samples?.toLocaleString() },
+            { label: 'Normaux', value: info?.n_normal_samples?.toLocaleString() },
+            { label: 'Attaques', value: info?.n_attack_samples?.toLocaleString() },
+            { label: 'Features', value: `${info?.n_features_selected}/${info?.n_features_original}` },
           ].map(item => (
             <div key={item.label} className="p-3 rounded-xl text-center" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
-              <div className="text-lg mb-1">{item.icon}</div>
-              <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>{item.label}</div>
+              <div className="text-[12.5px]" style={{ color: 'var(--color-text-secondary)' }}>{item.label}</div>
               <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--color-text-primary)' }}>{item.value}</div>
             </div>
           ))}
@@ -401,7 +400,7 @@ export default function TrainingResultsPage() {
                       <td className="px-3 py-2">
                         <span className="text-[9px] font-mono" style={{
                           color: isRealAttack ? '#22C55E' : '#EF4444',
-                        }}>{isRealAttack ? '✅ VP' : '⚠️ FP'}</span>
+                        }}>{isRealAttack ? 'vrai positif' : 'faux positif'}</span>
                       </td>
                     </tr>
                   );

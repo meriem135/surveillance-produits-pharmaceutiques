@@ -1,7 +1,8 @@
+import { PageHeader } from '../components/etude/kit';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users, Plus, Trash2, Shield, UserCheck, Loader2, X,
+  Plus, Trash2, Shield, UserCheck, Loader2, X,
   Pencil, Power, KeyRound, AlertCircle, CheckCircle,
 } from 'lucide-react';
 import { authHeaders } from '../lib/auth';
@@ -17,8 +18,8 @@ interface UserRow {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: '#ef4444',
-  operator: '#3b82f6',
+  admin: 'var(--accent-danger)',
+  operator: 'var(--text-secondary)',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -114,30 +115,18 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: 'var(--accent-glow)' }}>
-            <Users className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Gestion des comptes</h1>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{users.length} comptes</p>
-          </div>
-        </div>
-        <button onClick={() => { setShowForm(!showForm); setEditing(null); setResetting(null); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-          style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
+      <PageHeader title="Comptes" subtitle={`${users.length} compte${users.length > 1 ? 's' : ''}. L’administrateur gère les accès ; les opérateurs consultent la surveillance et le modèle.`}>
+        <button onClick={() => { setShowForm(!showForm); setEditing(null); setResetting(null); }} className="vc-btn vc-btn-primary">
           <Plus className="w-4 h-4" /> Nouveau compte
         </button>
-      </div>
+      </PageHeader>
 
       {/* Flash success */}
       <AnimatePresence>
         {success && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm"
-            style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }}>
+            className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-sm"
+            style={{ background: 'var(--accent-glow)', border: '1px solid var(--accent-primary)', color: 'var(--accent-primary)' }}>
             <CheckCircle className="w-4 h-4" /> {success}
           </motion.div>
         )}
@@ -147,8 +136,8 @@ export default function AdminUsersPage() {
       <AnimatePresence>
         {formError && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm"
-            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}>
+            className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] text-sm"
+            style={{ background: 'color-mix(in srgb, var(--accent-danger) 9%, transparent)', border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }}>
             <AlertCircle className="w-4 h-4 shrink-0" /> {formError}
             <button onClick={() => setFormError('')} className="ml-auto"><X className="w-3 h-3" /></button>
           </motion.div>
@@ -159,7 +148,7 @@ export default function AdminUsersPage() {
       <AnimatePresence>
         {showForm && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="rounded-xl p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
+            className="rounded-[4px] p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>Créer un compte</h2>
               <button onClick={() => setShowForm(false)}><X className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} /></button>
@@ -172,7 +161,7 @@ export default function AdminUsersPage() {
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Rôle *</label>
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  className="w-full px-3 py-2 rounded-[4px] text-sm outline-none"
                   style={{ background: 'var(--color-bg-base)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}>
                   <option value="operator">Opérateur</option>
                   <option value="admin">Administrateur</option>
@@ -180,7 +169,7 @@ export default function AdminUsersPage() {
               </div>
               <div className="flex items-end">
                 <button type="submit" disabled={creating}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 rounded-[4px] text-sm font-medium disabled:opacity-50"
                   style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
                   {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />} Créer
                 </button>
@@ -194,7 +183,7 @@ export default function AdminUsersPage() {
       <AnimatePresence>
         {editing && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="rounded-xl p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
+            className="rounded-[4px] p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
                 Modifier « {editing.username} »
@@ -207,14 +196,14 @@ export default function AdminUsersPage() {
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Rôle</label>
                 <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                  className="w-full px-3 py-2 rounded-[4px] text-sm outline-none"
                   style={{ background: 'var(--color-bg-base)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}>
                   <option value="operator">Opérateur</option>
                   <option value="admin">Administrateur</option>
                 </select>
               </div>
               <div className="flex items-end">
-                <button type="submit" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+                <button type="submit" className="flex items-center gap-2 px-4 py-2 rounded-[4px] text-sm font-medium"
                   style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
                   <Pencil className="w-4 h-4" /> Enregistrer
                 </button>
@@ -228,7 +217,7 @@ export default function AdminUsersPage() {
       <AnimatePresence>
         {resetting && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="rounded-xl p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
+            className="rounded-[4px] p-5" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)' }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
                 Réinitialiser le mot de passe de « {resetting.username} »
@@ -239,7 +228,7 @@ export default function AdminUsersPage() {
               <div className="flex-1">
                 <Input label="Nouveau mot de passe (6+)" type="password" value={resetPwd} onChange={setResetPwd} required minLength={6} />
               </div>
-              <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium"
+              <button type="submit" className="px-4 py-2 rounded-[4px] text-sm font-medium"
                 style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
                 <KeyRound className="w-4 h-4 inline mr-1" /> Réinitialiser
               </button>
@@ -249,15 +238,15 @@ export default function AdminUsersPage() {
       </AnimatePresence>
 
       {/* Users table */}
-      <div className="rounded-xl overflow-x-auto" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
+      <div className="rounded-[4px] overflow-x-auto" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-card)' }}>
         <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Utilisateur</th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Email</th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Rôle</th>
-              <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Statut</th>
-              <th className="text-right px-5 py-3 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>Actions</th>
+              <th className="text-left px-5 py-3 text-[12.5px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Utilisateur</th>
+              <th className="text-left px-5 py-3 text-[12.5px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Email</th>
+              <th className="text-left px-5 py-3 text-[12.5px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Rôle</th>
+              <th className="text-left px-5 py-3 text-[12.5px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Statut</th>
+              <th className="text-right px-5 py-3 text-[12.5px] font-semibold" style={{ color: 'var(--color-text-secondary)' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -270,17 +259,17 @@ export default function AdminUsersPage() {
                 </td>
                 <td className="px-5 py-3 text-xs" style={{ color: 'var(--color-text-secondary)' }}>{u.email}</td>
                 <td className="px-5 py-3">
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[12.5px] font-semibold"
                     style={{
-                      background: `color-mix(in srgb, ${ROLE_COLORS[u.role] || '#94a3b8'} 12%, transparent)`,
-                      color: ROLE_COLORS[u.role] || '#94a3b8',
-                      border: `1px solid color-mix(in srgb, ${ROLE_COLORS[u.role] || '#94a3b8'} 25%, transparent)`,
+                      background: `color-mix(in srgb, ${ROLE_COLORS[u.role] || 'var(--text-muted)'} 12%, transparent)`,
+                      color: ROLE_COLORS[u.role] || 'var(--text-muted)',
+                      border: `1px solid color-mix(in srgb, ${ROLE_COLORS[u.role] || 'var(--text-muted)'} 25%, transparent)`,
                     }}>
                     <Shield className="w-2.5 h-2.5" /> {ROLE_LABELS[u.role] || u.role}
                   </span>
                 </td>
                 <td className="px-5 py-3">
-                  <span className="text-[10px] font-mono" style={{ color: u.is_active ? '#22c55e' : '#ef4444' }}>
+                  <span className="text-[13px]" style={{ color: u.is_active ? 'var(--accent-primary)' : 'var(--accent-danger)' }}>
                     {u.is_active ? 'Actif' : 'Inactif'}
                   </span>
                 </td>
@@ -288,19 +277,19 @@ export default function AdminUsersPage() {
                   <div className="flex items-center justify-end gap-1">
                     {u.role !== 'admin' && (
                       <>
-                        <ActionBtn icon={Pencil} title="Modifier" color="#3b82f6"
+                        <ActionBtn icon={Pencil} title="Modifier" color="var(--text-secondary)"
                           onClick={() => { setEditing(u); setEditForm({ email: u.email, full_name: u.full_name || '', role: u.role }); setShowForm(false); setResetting(null); }} />
                         <ActionBtn icon={Power} title={u.is_active ? 'Désactiver' : 'Activer'}
-                          color={u.is_active ? '#f97316' : '#22c55e'} spinning={toggling === u.id}
+                          color={u.is_active ? 'var(--accent-warning)' : 'var(--accent-primary)'} spinning={toggling === u.id}
                           onClick={() => handleToggle(u.id)} />
-                        <ActionBtn icon={KeyRound} title="Reset MDP" color="#eab308"
+                        <ActionBtn icon={KeyRound} title="Reset MDP" color="var(--accent-warning)"
                           onClick={() => { setResetting(u); setShowForm(false); setEditing(null); setResetPwd(''); }} />
-                        <ActionBtn icon={Trash2} title="Supprimer" color="#ef4444" spinning={deleting === u.id}
+                        <ActionBtn icon={Trash2} title="Supprimer" color="var(--accent-danger)" spinning={deleting === u.id}
                           onClick={() => handleDelete(u.id, u.username)} />
                       </>
                     )}
                     {u.role === 'admin' && (
-                      <span className="text-[10px] font-mono" style={{ color: 'var(--color-text-muted)' }}>—</span>
+                      <span className="text-[13px]" style={{ color: 'var(--color-text-muted)' }}>—</span>
                     )}
                   </div>
                 </td>
@@ -320,7 +309,7 @@ function Input({ label, value, onChange, type = 'text', ...props }: {
     <div>
       <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)}
-        className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+        className="w-full px-3 py-2 rounded-[4px] text-sm outline-none"
         style={{ background: 'var(--color-bg-base)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)' }}
         {...props} />
     </div>
@@ -332,7 +321,7 @@ function ActionBtn({ icon: Icon, title, color, onClick, spinning }: {
 }) {
   return (
     <button onClick={onClick} disabled={spinning} title={title}
-      className="p-1.5 rounded-lg transition-colors hover:bg-white/5 disabled:opacity-30">
+      className="p-1.5 rounded-[4px] transition-colors hover:bg-white/5 disabled:opacity-30">
       <Icon className="w-3.5 h-3.5" style={{ color }} />
     </button>
   );

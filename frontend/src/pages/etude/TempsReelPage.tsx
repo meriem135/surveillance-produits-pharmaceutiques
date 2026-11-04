@@ -1,10 +1,10 @@
 /** Temps réel — les mesures du jeu de données (table transmission_dataset) passent une à une dans le
  *  modèle sauvegardé ; le seuil et la règle de persistance décident de l'alerte (WS /api/v1/etude/live). */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { BellRing, CheckCircle2, Pause, Play, Square, XCircle } from 'lucide-react';
+import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Pause, Play, Square } from 'lucide-react';
 import { getToken } from '../../lib/auth';
-import { Empty, MODEL_FR, Note, PageHeader, Pill, ROLE_FR, SCENARIO_FR, Section, Stat, heure, nf, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
+import { BandLegend, Empty, MODEL_FR, Note, PageHeader, Paper, Readouts, ROLE_FR, SCENARIO_FR, Section, Stat, State, heure, nf, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
 
 interface Info { modele: string; nom: string; seuil: number; k: number; n: number; critere: string | null;
   roles: Record<string, { lignes: number; episodes: number }>; vitesse_defaut: number; sources: Record<string, string> }
@@ -53,98 +53,130 @@ export default function TempsReelPage() {
   }, [role, vitesse]);
 
   const header = <PageHeader title="Temps réel"
-    subtitle="Les mesures enregistrées passent une à une dans le modèle sauvegardé, comme un flux de capteurs : score, alerte et réalité côte à côte." />;
-  if (!info) return <div className="space-y-4">{header}{error ? <Empty>{error}</Empty> : <div className="vc-card h-40 animate-pulse" />}</div>;
+    subtitle="Les mesures enregistrées repassent une à une dans le modèle sauvegardé, comme un flux de capteurs : valeur transmise, score, alerte et réalité côte à côte." />;
+  if (!info) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <div className="vc-panel h-40 animate-pulse" />}</div>;
 
   const last = points[points.length - 1];
-  const chart = points.map(p => ({ ...p, reel: p.label ? 16 : null, alerte: p.alarme ? 16 : null }));
+  const chart = points.map(p => ({ ...p, reel: p.label ? [18.7, 19.9] : null, alerte: p.alarme ? [17.1, 18.3] : null }));
+  const etat = {
+    arret: { t: 'Arrêté', c: 'var(--text-muted)' }, connexion: { t: 'Connexion…', c: 'var(--text-secondary)' },
+    lecture: { t: 'Lecture en cours', c: 'var(--accent-primary)' }, pause: { t: 'En pause', c: 'var(--accent-warning)' },
+    fini: { t: 'Lecture terminée', c: 'var(--text-secondary)' },
+  }[state];
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {header}
-      <div className="vc-card p-4 flex flex-wrap items-center gap-3">
-        <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Données
-          <select value={role} onChange={e => setRole(e.target.value)} disabled={state === 'lecture'} className="ml-2 rounded-md px-2 py-1 text-sm"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-            {(['test', 'val', 'train'] as const).map(r => <option key={r} value={r}>{ROLE_FR[r]} ({nf(info.roles[r]?.lignes)} mesures évaluées)</option>)}
-          </select>
-        </label>
-        <label className="text-sm flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>Vitesse
-          <input type="range" min={6} max={180} step={6} value={vitesse} onChange={e => { const v = Number(e.target.value); setSpeed(v); send({ action: 'vitesse', vitesse: v }); }} />
-          <span className="tabular-nums text-xs w-28">{vitesse} mesures/s (×{nf(vitesse * 5)})</span>
-        </label>
-        <div className="flex gap-2 ml-auto">
-          {(state === 'arret' || state === 'fini') && <button onClick={start} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium" style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}><Play className="w-4 h-4" />Démarrer</button>}
-          {state === 'lecture' && <button onClick={() => { send({ action: 'pause' }); setState('pause'); }} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm" style={{ border: '1px solid var(--border)', color: 'var(--text-primary)' }}><Pause className="w-4 h-4" />Pause</button>}
-          {state === 'pause' && <button onClick={() => { send({ action: 'reprendre' }); setState('lecture'); }} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm" style={{ border: '1px solid var(--border)', color: 'var(--text-primary)' }}><Play className="w-4 h-4" />Reprendre</button>}
-          {(state === 'lecture' || state === 'pause') && <button onClick={() => { send({ action: 'stop' }); ws.current?.close(); setState('arret'); }} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm" style={{ border: '1px solid var(--border)', color: 'var(--accent-danger)' }}><Square className="w-4 h-4" />Arrêter</button>}
+      <div className="vc-fiche p-4 sm:p-5">
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+          <label className="text-[13px] font-semibold flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>Données rejouées
+            <select value={role} onChange={e => setRole(e.target.value)} disabled={state === 'lecture'} className="vc-select font-normal">
+              {(['test', 'val', 'train'] as const).map(r => <option key={r} value={r}>{ROLE_FR[r]} ({nf(info.roles[r]?.lignes)} mesures évaluées)</option>)}
+            </select>
+          </label>
+          <label className="text-[13px] font-semibold flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>Vitesse de lecture
+            <span className="flex items-center gap-2 h-[34px] font-normal">
+              <input type="range" min={6} max={180} step={6} value={vitesse} aria-label="Vitesse de lecture"
+                onChange={e => { const v = Number(e.target.value); setSpeed(v); send({ action: 'vitesse', vitesse: v }); }}
+                style={{ accentColor: 'var(--accent-primary)' }} />
+              <span className="tabular-nums text-[13px] w-36" style={{ color: 'var(--text-primary)' }}>{vitesse} mesures/s (×{nf(vitesse * 5)})</span>
+            </span>
+          </label>
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            {(state === 'arret' || state === 'fini') && <button onClick={start} className="vc-btn vc-btn-primary"><Play className="w-4 h-4" />Démarrer</button>}
+            {state === 'lecture' && <button onClick={() => { send({ action: 'pause' }); setState('pause'); }} className="vc-btn"><Pause className="w-4 h-4" />Pause</button>}
+            {state === 'pause' && <button onClick={() => { send({ action: 'reprendre' }); setState('lecture'); }} className="vc-btn"><Play className="w-4 h-4" />Reprendre</button>}
+            {(state === 'lecture' || state === 'pause') && <button onClick={() => { send({ action: 'stop' }); ws.current?.close(); setState('arret'); }} className="vc-btn vc-btn-danger"><Square className="w-4 h-4" />Arrêter</button>}
+          </div>
         </div>
-        <div className="w-full text-xs" style={{ color: 'var(--text-muted)' }}>
-          Modèle : <strong>{MODEL_FR[info.modele] ?? info.nom}</strong> · alerte si au moins {info.k} mesures sur {info.n} ont un score ≥ {nf(info.seuil, 3)}
-          {' '}· progression {nf(progress * 100, 0)} %{wsError && <span style={{ color: 'var(--accent-danger)' }}> · {wsError}</span>}
+        <div className="mt-4 pt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]" style={{ borderTop: '1px dashed var(--border)', color: 'var(--text-secondary)' }}>
+          <span className="inline-flex items-center gap-1.5 font-semibold" style={{ color: etat.c }} aria-live="polite">
+            <span className={`w-2.5 h-2.5 rounded-full ${state === 'lecture' ? 'animate-pulse-dot' : ''}`} style={{ background: etat.c }} />{etat.t}
+          </span>
+          <span>Modèle <strong style={{ color: 'var(--text-primary)' }}>{MODEL_FR[info.modele] ?? info.nom}</strong></span>
+          <span>Alerte si au moins <strong style={{ color: 'var(--text-primary)' }}>{info.k} mesures sur {info.n}</strong> ont un score ≥ <strong style={{ color: 'var(--text-primary)' }}>{nf(info.seuil, 3)}</strong></span>
+          <span className="flex items-center gap-2 min-w-[180px] flex-1 sm:flex-none sm:w-56">
+            <span className="flex-1 vc-meter"><span style={{ width: `${progress * 100}%`, background: 'var(--accent-primary)' }} /></span>
+            <span className="tabular-nums">{nf(progress * 100, 0)}&#8239;%</span>
+          </span>
+          {wsError && <State kind="manque">{wsError}</State>}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <Stat label="Mesures analysées" value={nf(stats?.mesures ?? 0)} sub={last ? new Date(last.ts).toLocaleString('fr-FR') : '—'} />
-        <Stat label="Score actuel" value={last ? nf(last.score, 3) : '—'} sub={last ? (last.alarme ? 'ALERTE en cours' : last.signal ? 'au-dessus du seuil' : 'normal') : '—'} tone={last?.alarme ? 'var(--accent-danger)' : undefined} />
-        <Stat icon={<BellRing className="w-4 h-4" />} label="Alertes levées" value={nf(stats?.alertes ?? 0)} tone="var(--accent-warning)" />
-        <Stat icon={<CheckCircle2 className="w-4 h-4" />} label="Alertes justes (terminées)" value={nf(stats?.vraies ?? 0)} tone="var(--accent-success)" />
-        <Stat icon={<XCircle className="w-4 h-4" />} label="Fausses alertes" value={nf(stats?.fausses ?? 0)} tone="var(--accent-danger)" />
-      </div>
+      <Readouts cols={5}>
+        <Stat label="Mesures analysées" value={nf(stats?.mesures ?? 0)} sub={last ? new Date(last.ts).toLocaleString('fr-FR') : 'en attente du flux'} />
+        <Stat label="Score actuel" value={last ? nf(last.score, 3) : '—'} alarm={!!last?.alarme}
+          sub={last ? (last.alarme ? 'Alerte en cours' : last.signal ? 'Au-dessus du seuil, pas encore persistant' : 'Sous le seuil') : '—'} />
+        <Stat label="Alertes levées" value={nf(stats?.alertes ?? 0)} tone="var(--alarm-amber-fill)" />
+        <Stat label="Alertes justes (terminées)" value={nf(stats?.vraies ?? 0)} tone="var(--accent-primary)" />
+        <Stat label="Fausses alertes" value={nf(stats?.fausses ?? 0)} tone="var(--accent-danger)" />
+      </Readouts>
 
-      <div className="grid xl:grid-cols-3 gap-5">
-        <Section title="Flux des capteurs" subtitle="Dernière heure : valeurs transmises ; rouge = attaque réelle, orange = alerte du modèle." className="xl:col-span-2" source={info.sources.mesures}>
+      <div className="grid xl:grid-cols-3 gap-6">
+        <Section title="Flux des capteurs" subtitle="Dernière heure rejouée : température transmise par le frigo et score du modèle." className="xl:col-span-2" source={info.sources.mesures}>
           {points.length ? (
             <>
-              <div className="h-[220px]">
+              <BandLegend items={[
+                { label: 'Frigo, valeur transmise', color: pal.series[0], kind: 'line' },
+                { label: 'Attaque réelle (piste du haut)', color: pal.attackLine },
+                { label: 'Alerte du modèle (piste du dessous)', color: pal.alert },
+              ]} />
+              <Paper height={220}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chart} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                    <CartesianGrid stroke={pal.grid} strokeDasharray="3 3" />
-                    <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 11 }} />
-                    <YAxis domain={[0, 16]} tick={{ fill: pal.axis, fontSize: 11 }} unit="°" />
+                  <ComposedChart data={chart} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
+                    <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
+                    <YAxis domain={[0, 20]} ticks={[0, 4, 8, 12, 16, 17.7, 19.3]} width={64} tickFormatter={(v: number) => (v > 19 ? 'attaque' : v > 17 ? 'alerte' : `${v} °C`)} tick={{ fill: pal.axis, fontSize: 12 }} />
                     <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={(v, n) => (n === 'Attaque réelle' || n === 'Alerte' ? ['oui', n] : [`${nf(Number(v), 2)} °C`, n])} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Area dataKey="reel" name="Attaque réelle" fill={pal.attack} stroke="none" isAnimationActive={false} />
-                    <Area dataKey="alerte" name="Alerte" fill={pal.alert} fillOpacity={0.2} stroke="none" isAnimationActive={false} />
-                    <Line dataKey="fridge" name="Frigo" stroke={pal.series[0]} dot={false} strokeWidth={1} isAnimationActive={false} />
+                    <Area dataKey="reel" name="Attaque réelle" fill={pal.attackLine} fillOpacity={1} stroke="none" isAnimationActive={false} />
+                    <Area dataKey="alerte" name="Alerte" fill={pal.alert} fillOpacity={1} stroke="none" isAnimationActive={false} />
+                    <Line dataKey="fridge" name="Frigo" stroke={pal.series[0]} dot={false} strokeWidth={1.4} isAnimationActive={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
-              </div>
-              <div className="h-[160px] mt-2">
+              </Paper>
+              <div className="mt-3 mb-1"><BandLegend items={[
+                { label: 'Score du modèle', color: pal.ink, kind: 'line' },
+                { label: `Seuil ${nf(info.seuil, 2)}`, color: pal.alert, kind: 'dash' },
+              ]} /></div>
+              <Paper height={150}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chart} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                    <CartesianGrid stroke={pal.grid} strokeDasharray="3 3" />
-                    <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 11 }} />
-                    <YAxis domain={[0, 1]} tick={{ fill: pal.axis, fontSize: 11 }} />
+                  <ComposedChart data={chart} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
+                    <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
+                    <YAxis domain={[0, 1]} width={64} tick={{ fill: pal.axis, fontSize: 12 }} />
                     <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={v => [nf(Number(v), 3), 'score']} />
-                    <Line dataKey="score" name="Score du modèle" stroke={pal.series[1]} dot={false} strokeWidth={1} isAnimationActive={false} />
-                    <ReferenceLine y={info.seuil} stroke={pal.axis} strokeDasharray="4 4" />
+                    <Line dataKey="score" name="Score du modèle" stroke={pal.ink} dot={false} strokeWidth={1.2} isAnimationActive={false} />
+                    <ReferenceLine y={info.seuil} stroke={pal.alert} strokeWidth={1.5} strokeDasharray="5 4" />
                   </ComposedChart>
                 </ResponsiveContainer>
-              </div>
+              </Paper>
             </>
-          ) : <Empty>Choisissez les données et cliquez sur « Démarrer » : le modèle analyse les mesures au fil de l'eau.</Empty>}
+          ) : <Empty>Choisissez les données puis cliquez sur « Démarrer » : le modèle analyse les mesures au fil de l’eau.</Empty>}
         </Section>
         <Section title="Journal des alertes" subtitle="Début et fin de chaque alerte, comparée à la réalité.">
           {events.length ? (
-            <ul className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+            <ol className="max-h-[440px] overflow-y-auto -my-1">
               {events.map((e, i) => (
-                <li key={i} className="text-xs rounded-md p-2" style={{ border: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                <li key={i} className="text-[13px] py-2 border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
                   {e.type === 'debut' ? (
-                    <><Pill tone="var(--accent-warning)">alerte</Pill> <span style={{ color: 'var(--text-primary)' }}>{e.ts && new Date(e.ts).toLocaleTimeString('fr-FR')}</span>
-                      <span style={{ color: 'var(--text-muted)' }}> · réalité : {SCENARIO_FR[e.attaque_reelle ?? 'normal'] ?? e.attaque_reelle} · score {nf(e.score, 3)}</span></>
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <State kind="alerte">Alerte levée</State>
+                        <span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{e.ts && new Date(e.ts).toLocaleTimeString('fr-FR')}</span>
+                      </div>
+                      <div className="mt-0.5" style={{ color: 'var(--text-muted)' }}>Réalité : {SCENARIO_FR[e.attaque_reelle ?? 'normal'] ?? e.attaque_reelle} ; score {nf(e.score, 3)}</div>
+                    </>
                   ) : (
-                    <>{e.vraie ? <Pill tone="var(--accent-success)">fin · alerte juste</Pill> : <Pill tone="var(--accent-danger)">fin · fausse alerte</Pill>}
-                      <span style={{ color: 'var(--text-muted)' }}> · durée {nf(e.duree_min, 1)} min</span></>
+                    <div className="flex items-center justify-between gap-2">
+                      {e.vraie ? <State kind="ok">Fin, alerte juste</State> : <State kind="manque">Fin, fausse alerte</State>}
+                      <span style={{ color: 'var(--text-muted)' }}>durée {nf(e.duree_min, 1)}&#160;min</span>
+                    </div>
                   )}
                 </li>
               ))}
-            </ul>
-          ) : <Empty>Aucune alerte pour l'instant.</Empty>}
+            </ol>
+          ) : <Empty>Aucune alerte pour l’instant.</Empty>}
         </Section>
       </div>
-      <Note>Les features (moyennes, écarts-types, quantiles sur 1 à 15 min) ne regardent que le passé ; le score de chaque mesure est calculé
-        en direct par le modèle sauvegardé. « Réalité » = étiquette du jeu de données, que le modèle ne voit pas.</Note>
+      <Note>Les variables (moyennes, écarts-types, quantiles sur 1 à 15 min) ne regardent que le passé ; le score de chaque mesure est calculé
+        en direct par le modèle sauvegardé. « Réalité » désigne l’étiquette du jeu de données, que le modèle ne voit pas.</Note>
     </div>
   );
 }

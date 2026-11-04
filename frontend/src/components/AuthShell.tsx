@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Moon, Sun, ShieldCheck, Radio, Brain, FileText } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { Wordmark } from './BandMark';
 
 /** Mise en page commune des écrans Connexion / Création de compte. */
 export default function AuthShell({ title, subtitle, children, footer, topLink }: {
@@ -10,64 +11,51 @@ export default function AuthShell({ title, subtitle, children, footer, topLink }
   const { theme, setTheme } = useTheme();
   return (
     <div className="min-h-screen grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" style={{ background: 'var(--bg-base)' }}>
-      {/* Panneau de présentation */}
-      <aside className="hidden lg:flex flex-col justify-between p-12" style={{ background: '#0B2530', color: '#E3F1F5' }}>
-        <Link to="/" className="flex items-center gap-2.5 no-underline" style={{ color: '#fff' }}>
-          <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: '#2CB5D0', color: '#04121A' }}>
-            <ShieldCheck className="w-5 h-5" />
-          </span>
-          <span className="font-semibold">VigiloChain</span>
-        </Link>
-        <div className="max-w-md">
-          <h1 className="text-3xl font-semibold leading-tight" style={{ color: '#fff' }}>
-            Détection d’intrusions IoT pour la chaîne du froid pharmaceutique
+      {/* Panneau de présentation, sur fond de papier d'enregistreur */}
+      <aside className="hidden lg:flex flex-col justify-between p-12 vc-paper !border-0 !border-r !rounded-none" style={{ borderColor: 'var(--border)' }}>
+        <Link to="/" className="no-underline self-start" aria-label="VigiloChain, accueil"><Wordmark sub="Chaîne du froid" /></Link>
+        <div className="max-w-md vc-fiche p-7">
+          <h1 className="text-[40px] leading-[1.02]" style={{ color: 'var(--text-primary)' }}>
+            Les mesures de la chaîne du froid sont-elles vraies&nbsp;?
           </h1>
-          <p className="mt-4 text-sm leading-relaxed" style={{ color: '#A9C6CF' }}>
-            Surveillance des capteurs frigo, thermostat et météo : attaques de transmission (MITM, injection)
-            détectées par apprentissage supervisé et expliquées avec SHAP.
+          <p className="mt-4 text-[15.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            Surveillance des capteurs frigo, thermostat et météo : les attaques de transmission (MITM, injection) sont détectées
+            par apprentissage supervisé et expliquées avec SHAP.
           </p>
-          <ul className="mt-8 space-y-3 text-sm">
+          <ul className="mt-6 space-y-2.5 text-[14.5px]" style={{ color: 'var(--text-secondary)' }}>
             {[
-              { icon: Radio, t: 'Traces réelles TON_IoT, attaques MITM et injection simulées' },
-              { icon: Brain, t: 'Modèles supervisés comparés, entraînement suivi en direct' },
-              { icon: FileText, t: 'Rapport de recommandation pour l’opérateur' },
-            ].map(({ icon: Icon, t }) => (
-              <li key={t} className="flex items-center gap-3" style={{ color: '#CFE3E9' }}>
-                <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0" style={{ background: 'rgba(44,181,208,0.15)', color: '#5FD0E6' }}>
-                  <Icon className="w-4 h-4" />
-                </span>
-                {t}
+              'Traces réelles TON_IoT, attaques MITM et injection simulées',
+              'Modèles comparés sur la validation, entraînement suivi en direct',
+              'Rapport de consignes pour l’opérateur',
+            ].map(t => (
+              <li key={t} className="flex items-start gap-2.5">
+                <span className="w-2 h-2 mt-[7px] shrink-0" style={{ background: 'var(--accent-primary)' }} aria-hidden />{t}
               </li>
             ))}
           </ul>
         </div>
-        <div className="text-xs" style={{ color: '#7FA3AE' }}>Projet de fin d’études — sécurité IoT, produits pharmaceutiques</div>
+        <div className="text-[13px]" style={{ color: 'var(--text-muted)' }}>Projet de fin d’études en sécurité IoT, produits pharmaceutiques</div>
       </aside>
 
       {/* Formulaire */}
       <main className="flex flex-col min-h-screen">
         <div className="flex items-center justify-between px-5 sm:px-8 h-16">
-          <Link to="/" className="lg:hidden flex items-center gap-2 no-underline" style={{ color: 'var(--text-primary)' }}>
-            <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-primary)', color: 'var(--accent-primary-fg)' }}>
-              <ShieldCheck className="w-[18px] h-[18px]" />
-            </span>
-            <span className="font-semibold text-sm">VigiloChain</span>
-          </Link>
+          <Link to="/" className="lg:hidden no-underline" aria-label="VigiloChain, accueil"><Wordmark /></Link>
           <div className="flex items-center gap-2 ml-auto">
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Changer de thème"
-              className="h-9 w-9 flex items-center justify-center rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}>
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              aria-label={theme === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'}
+              className="h-9 w-9 flex items-center justify-center rounded-[4px] border" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}>
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <Link to={topLink.to} className="h-9 px-3 inline-flex items-center rounded-md border text-sm no-underline"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}>{topLink.label}</Link>
+            <Link to={topLink.to} className="vc-btn no-underline">{topLink.label}</Link>
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center px-5 pb-12">
           <div className="w-full max-w-[400px]">
-            <h2 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>{title}</h2>
-            <p className="text-sm mt-1.5 mb-7" style={{ color: 'var(--text-secondary)' }}>{subtitle}</p>
+            <h2 className="text-[34px] leading-tight" style={{ color: 'var(--text-primary)' }}>{title}</h2>
+            <p className="text-[15px] mt-1.5 mb-7" style={{ color: 'var(--text-secondary)' }}>{subtitle}</p>
             {children}
-            {footer && <div className="mt-8 pt-5 text-sm text-center" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-secondary)' }}>{footer}</div>}
+            {footer && <div className="mt-8 pt-5 text-[14.5px] text-center" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-secondary)' }}>{footer}</div>}
           </div>
         </div>
       </main>
@@ -78,8 +66,8 @@ export default function AuthShell({ title, subtitle, children, footer, topLink }
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[13px] font-medium mb-1.5" style={{ color: 'var(--text-primary)' }}>
-        {label}{hint && <span className="font-normal" style={{ color: 'var(--text-muted)' }}> · {hint}</span>}
+      <span className="block text-[14px] font-semibold mb-1.5" style={{ color: 'var(--text-primary)' }}>
+        {label}{hint && <span className="font-normal" style={{ color: 'var(--text-muted)' }}> ({hint})</span>}
       </span>
       {children}
     </label>
@@ -87,7 +75,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 export const inputClass =
-  'w-full h-10 px-3 rounded-md text-sm outline-none border bg-[var(--bg-card)] border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]';
+  'w-full h-11 px-3 rounded-[4px] text-[15px] outline-none border bg-[var(--bg-panel)] border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]';
 
 export const primaryButtonClass =
-  'w-full h-10 rounded-md text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 hover:brightness-110 bg-[var(--accent-primary)] text-[var(--accent-primary-fg)]';
+  'w-full h-11 rounded-[4px] text-[15px] font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 bg-[var(--accent-primary)] text-[var(--accent-primary-fg)] hover:brightness-95';

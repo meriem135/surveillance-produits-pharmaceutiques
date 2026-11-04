@@ -1,6 +1,6 @@
 /** Rapport pour l'opérateur — GET /api/v1/transmission/report (étude de référence lue en base). */
 import { Download } from 'lucide-react';
-import { Empty, Loading, Note, PageHeader, Pill, Section, minutes, nf, pct, useApi } from '../../components/etude/kit';
+import { Empty, Loading, Note, PageHeader, Readouts, Section, Stat, State, type StateKind, minutes, nf, pct, useApi } from '../../components/etude/kit';
 
 interface Scen { scenario: string; capteur: string; description: string; famille: string; taux_detection: number | null; niveau: string;
   lignes_signalees: number | null; episodes: string; delai_median_min: number | null; ce_que_le_modele_regarde: string[]; risque: string; actions: string[] }
@@ -11,7 +11,8 @@ interface Report {
   scenarios: Scen[];
 }
 
-const tone = (n: string) => (n.startsWith('bien') ? 'var(--accent-success)' : n.startsWith('partiel') ? 'var(--accent-warning)' : 'var(--accent-danger)');
+const tone = (n: string) => (n.startsWith('bien') ? 'var(--accent-primary)' : n.startsWith('partiel') ? 'var(--alarm-amber-fill)' : 'var(--accent-danger)');
+const kind = (n: string): StateKind => (n.startsWith('bien') ? 'ok' : n.startsWith('partiel') ? 'alerte' : 'manque');
 
 export default function RapportPage() {
   const { data, error, loading, reload } = useApi<Report>('/api/v1/transmission/report');
@@ -25,48 +26,69 @@ export default function RapportPage() {
   const header = (
     <PageHeader title="Rapport pour l'opérateur" loading={loading} onRefresh={reload}
       subtitle="Que faire quand une alerte tombe : le modèle en service, ses performances et les consignes par type d'attaque.">
-      <button onClick={download} disabled={!data?.markdown} className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm"
-        style={{ border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}><Download className="w-3.5 h-3.5" />Markdown</button>
+      <button onClick={download} disabled={!data?.markdown} className="vc-btn vc-btn-primary"><Download className="w-4 h-4" />Télécharger le rapport (Markdown)</button>
     </PageHeader>
   );
-  if (!data) return <div className="space-y-4">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
+  if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
   const m = data.modele;
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {header}
       {!m ? <Empty>{data.message}</Empty> : (
-        <Section title={`Le modèle en service : ${m.nom}`} subtitle={`Réglage « ${m.point_fonctionnement} » · source : ${data.source} · ${data.date}`}>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
-            {[['Épisodes détectés', m.episodes], ['Fausses alertes / h', nf(m.fausses_alertes_par_heure, 2)], ['Précision', pct(m.precision)],
-              ['Rappel', pct(m.recall)], ['Délai médian', minutes(m.delai_median_min)]].map(([k, v]) => (
-              <div key={k} className="rounded-md p-3" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
-                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{k}</div>
-                <div className="text-lg font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{v}</div>
-              </div>
-            ))}
+        <section className="vc-fiche overflow-hidden">
+          <div className="p-5 sm:p-6">
+            <div className="text-[13px] font-semibold" style={{ color: 'var(--accent-primary)' }}>Le modèle en service</div>
+            <h2 className="mt-1 text-[36px] leading-none" style={{ color: 'var(--text-primary)' }}>{m.nom}</h2>
+            <p className="mt-2 text-[13px]" style={{ color: 'var(--text-muted)' }}>Réglage « {m.point_fonctionnement} ». Source : {data.source}, {data.date}.</p>
+            <p className="text-[15px] mt-3 max-w-[75ch]" style={{ color: 'var(--text-secondary)' }}>{m.lecture}</p>
           </div>
-          <p className="text-sm mt-4" style={{ color: 'var(--text-secondary)' }}>{m.lecture}</p>
-          <Note>{m.seuil}</Note>
-        </Section>
+          <div className="border-t" style={{ borderColor: 'var(--border)' }}>
+            <Readouts cols={5} className="!border-0 !rounded-none">
+              <Stat label="Épisodes détectés" value={m.episodes} tone="var(--accent-primary)" />
+              <Stat label="Fausses alertes par heure" value={nf(m.fausses_alertes_par_heure, 2)} tone="var(--alarm-amber-fill)" />
+              <Stat label="Précision" value={pct(m.precision)} />
+              <Stat label="Rappel" value={pct(m.recall)} />
+              <Stat label="Délai médian" value={nf(m.delai_median_min, 1)} unit="min" />
+            </Readouts>
+          </div>
+          <p className="px-5 sm:px-6 py-3 text-[13px] border-t" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>{m.seuil}</p>
+        </section>
       )}
-      <div className="grid lg:grid-cols-2 gap-5">
+
+      <div>
+        <h2 className="text-[24px]" style={{ color: 'var(--text-primary)' }}>Consignes par type d’attaque</h2>
+        <p className="text-[14px] mt-1 max-w-[75ch]" style={{ color: 'var(--text-secondary)' }}>Chaque fiche dit ce que le modèle regarde, le risque pour les produits et quoi faire.</p>
+      </div>
+      <div className="grid lg:grid-cols-2 gap-6 -mt-2">
         {data.scenarios.map(s => (
-          <Section key={s.scenario} title={`${s.famille} — ${s.capteur}`} subtitle={s.description}
-            action={<Pill tone={tone(s.niveau)}>{s.niveau}</Pill>}>
-            <div className="text-xs space-y-2" style={{ color: 'var(--text-secondary)' }}>
-              <div>Épisodes détectés <strong>{s.episodes}</strong> · délai médian <strong>{minutes(s.delai_median_min)}</strong>
-                {s.lignes_signalees != null && <> · {nf(s.lignes_signalees, 0)} % des mesures signalées</>}</div>
-              <div><strong>Ce que le modèle regarde :</strong> {s.ce_que_le_modele_regarde.join(', ')}</div>
-              <div><strong>Risque :</strong> {s.risque}</div>
-              <ol className="list-decimal pl-5 space-y-0.5">{s.actions.map(a => <li key={a}>{a}</li>)}</ol>
+          <article key={s.scenario} className="vc-panel overflow-hidden" style={{ borderLeft: `4px solid ${tone(s.niveau)}` }}>
+            <div className="vc-panel-head px-4 sm:px-5 pt-3.5 pb-3 flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-[19px] leading-tight" style={{ color: 'var(--text-primary)' }}>{s.famille}, {s.capteur}</h3>
+                <p className="text-[13px] mt-1" style={{ color: 'var(--text-secondary)' }}>{s.description}</p>
+              </div>
+              <State kind={kind(s.niveau)}>{s.niveau}</State>
             </div>
-          </Section>
+            <div className="p-4 sm:p-5 text-[14px] space-y-3" style={{ color: 'var(--text-secondary)' }}>
+              <dl className="grid grid-cols-3 gap-3">
+                <div><dt className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Épisodes détectés</dt><dd className="vc-readout-value" style={{ fontSize: 24 }}>{s.episodes}</dd></div>
+                <div><dt className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Délai médian</dt><dd className="vc-readout-value" style={{ fontSize: 24 }}>{minutes(s.delai_median_min)}</dd></div>
+                <div><dt className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Mesures signalées</dt><dd className="vc-readout-value" style={{ fontSize: 24 }}>{s.lignes_signalees != null ? `${nf(s.lignes_signalees, 0)}\u202f%` : '—'}</dd></div>
+              </dl>
+              <p><strong style={{ color: 'var(--text-primary)' }}>Ce que le modèle regarde :</strong> {s.ce_que_le_modele_regarde.join(', ')}</p>
+              <p><strong style={{ color: 'var(--text-primary)' }}>Risque :</strong> {s.risque}</p>
+              <div>
+                <strong style={{ color: 'var(--text-primary)' }}>Que faire</strong>
+                <ol className="list-decimal pl-5 mt-1 space-y-1">{s.actions.map(a => <li key={a}>{a}</li>)}</ol>
+              </div>
+            </div>
+          </article>
         ))}
       </div>
       {data.limites && data.limites.length > 0 && (
-        <Section title="Limites connues"><ul className="list-disc pl-5 text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>{data.limites.map(l => <li key={l}>{l}</li>)}</ul></Section>
+        <Section title="Limites connues"><ul className="list-disc pl-5 text-[14.5px] space-y-1.5 max-w-[90ch]" style={{ color: 'var(--text-secondary)' }}>{data.limites.map(l => <li key={l}>{l}</li>)}</ul></Section>
       )}
-      <Section title="Règles générales"><ul className="list-disc pl-5 text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>{data.regles_generales.map(l => <li key={l}>{l}</li>)}</ul>
+      <Section title="Règles générales"><ul className="list-disc pl-5 text-[14.5px] space-y-1.5 max-w-[90ch]" style={{ color: 'var(--text-secondary)' }}>{data.regles_generales.map(l => <li key={l}>{l}</li>)}</ul>
         <Note>{data.desequilibre}</Note></Section>
     </div>
   );

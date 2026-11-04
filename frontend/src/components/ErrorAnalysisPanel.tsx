@@ -89,7 +89,7 @@ export default function ErrorAnalysisPanel({ points, attackMetrics }: Props) {
         <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #EF4444, #FBBF24, transparent)' }} />
         <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
           <AlertTriangle className="w-4 h-4" style={{ color: '#EF4444' }} />
-          <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>⚠️ Analyse des Erreurs</h3>
+          <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>Analyse des erreurs</h3>
           <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: '#FBBF24' }}>
             FP: {errorData.fpRate.toFixed(2)}% · FN: {errorData.fnRate.toFixed(2)}%
           </span>

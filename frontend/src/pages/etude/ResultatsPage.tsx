@@ -1,9 +1,8 @@
 /** Résultats et métriques — transmission_metrics, transmission_model_results, transmission_learning_curve
  *  (GET /api/v1/etude/metrics). Le modèle est choisi sur la validation ; le test ne fait que confirmer. */
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { BellRing, CheckCircle2, Clock, Crosshair, Target, Trophy, XCircle } from 'lucide-react';
 import {
-  Empty, Loading, MODEL_FR, Note, PageHeader, Pill, ROLE_FR, SCENARIO_FR, Section, Stat, Table, minutes, nf, pct,
+  Empty, Loading, MODEL_FR, Note, PageHeader, Readouts, State, ROLE_FR, SCENARIO_FR, Section, Stat, Table, Tally, minutes, nf, pct,
   tooltipStyle, useApi, usePalette,
 } from '../../components/etude/kit';
 
@@ -38,7 +37,7 @@ export default function ResultatsPage() {
   const pal = usePalette();
   const header = <PageHeader title="Résultats et métriques" loading={loading} onRefresh={reload}
     subtitle="Un seul réglage d'alerte par modèle, choisi sur la validation ; les chiffres du test confirment le choix sans y avoir servi." />;
-  if (!data) return <div className="space-y-4">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
+  if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
   const ranking = data.classement_validation.filter(k => data.modeles[k]);
   const bestKey = ranking[0];
   const best = data.modeles[bestKey];
@@ -49,30 +48,33 @@ export default function ResultatsPage() {
   const lc = data.courbe_apprentissage.points.map(p => ({ ...p, pct: Math.round(p.part_train * 100) }));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {header}
       {best && bt && op && (
-        <>
-          <div className="vc-card p-4 flex flex-wrap items-center gap-3">
-            <Trophy className="w-5 h-5" style={{ color: 'var(--accent-warning)' }} />
-            <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
-              Meilleur modèle (choisi sur la validation) : <strong>{MODEL_FR[bestKey] ?? bestKey}</strong> — alerte quand au moins{' '}
-              <strong>{op.k} mesures sur les {op.n}</strong> dernières ({nf(op.persistance_min, 1)} min) ont un score ≥ <strong>{nf(op.seuil, 3)}</strong>.
-            </div>
-            <div className="text-xs w-full" style={{ color: 'var(--text-muted)' }}>Critère : {op.critere.replace(/(\d)\.(\d)/g, '$1,$2')}. Cumul de {reps} répétition{reps > 1 ? 's' : ''}, test jamais utilisé pour choisir.</div>
+        <section className="vc-fiche overflow-hidden">
+          <div className="p-5 sm:p-6">
+            <div className="text-[13px] font-semibold" style={{ color: 'var(--accent-primary)' }}>Meilleur modèle, choisi sur la validation</div>
+            <h2 className="mt-1 text-[36px] leading-none" style={{ color: 'var(--text-primary)' }}>{MODEL_FR[bestKey] ?? bestKey}</h2>
+            <p className="mt-3 text-[15px] max-w-[70ch]" style={{ color: 'var(--text-secondary)' }}>
+              Alerte quand au moins <strong style={{ color: 'var(--text-primary)' }}>{op.k} mesures sur les {op.n}</strong> dernières
+              ({nf(op.persistance_min, 1)} min) ont un score ≥ <strong style={{ color: 'var(--text-primary)' }}>{nf(op.seuil, 3)}</strong>.
+              Critère : {op.critere.replace(/(\d)\.(\d)/g, '$1,$2')}. Cumul de {reps} répétition{reps > 1 ? 's' : ''} ; le test n’a jamais servi à choisir.
+            </p>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <Stat icon={<Target className="w-4 h-4" />} label="Épisodes détectés (test)" value={`${bt.episodes_detectes}/${bt.episodes}`} sub={pct((bt.episodes_detectes ?? 0) / Math.max(1, bt.episodes ?? 1))} tone="var(--accent-success)" />
-            <Stat icon={<BellRing className="w-4 h-4" />} label="Fausses alertes / heure" value={nf(bt.fausses_alertes_par_heure, 2)} sub={`${nf(bt.fausses_alertes)} fausses sur ${nf(bt.alertes)} alertes`} tone="var(--accent-warning)" />
-            <Stat icon={<Crosshair className="w-4 h-4" />} label="Précision (mesures)" value={pct(bt.precision)} sub="part des mesures signalées vraiment falsifiées" />
-            <Stat icon={<Target className="w-4 h-4" />} label="Rappel (mesures)" value={pct(bt.recall)} sub="part des mesures falsifiées signalées" />
-            <Stat icon={<Clock className="w-4 h-4" />} label="Délai médian" value={minutes(bt.delai_median_min)} sub={`90 % des épisodes en moins de ${minutes(bt.delai_p90_min)}`} />
+          <div className="border-t" style={{ borderColor: 'var(--border)' }}>
+            <Readouts cols={5} className="!border-0 !rounded-none">
+              <Stat label="Épisodes détectés (test)" value={`${bt.episodes_detectes}/${bt.episodes}`} tone="var(--accent-primary)" sub={pct((bt.episodes_detectes ?? 0) / Math.max(1, bt.episodes ?? 1))} />
+              <Stat label="Fausses alertes par heure" value={nf(bt.fausses_alertes_par_heure, 2)} tone="var(--alarm-amber-fill)" sub={`${nf(bt.fausses_alertes)} fausses sur ${nf(bt.alertes)} alertes`} />
+              <Stat label="Précision (mesures)" value={pct(bt.precision)} sub="Mesures signalées vraiment falsifiées" />
+              <Stat label="Rappel (mesures)" value={pct(bt.recall)} sub="Mesures falsifiées signalées" />
+              <Stat label="Délai médian" value={nf(bt.delai_median_min, 1)} unit="min" sub={`90 % des épisodes en moins de ${minutes(bt.delai_p90_min)}`} />
+            </Readouts>
           </div>
-        </>
+        </section>
       )}
 
       <Section title="Comparaison des modèles" subtitle="Classement sur la validation : contrainte tenue (précision, fausses alertes/h), puis rappel, puis fausses alertes, puis délai." source={data.sources.modeles}>
-        <Table>
+        <Table min={860}>
           <thead><tr><th>#</th><th>Modèle</th><th>Réglage</th><th>Rôle</th><th className="vc-num">Épisodes</th><th className="vc-num">FA/h</th>
             <th className="vc-num">Précision</th><th className="vc-num">Rappel</th><th className="vc-num">F1</th><th className="vc-num">Délai</th><th className="vc-num">AP</th></tr></thead>
           <tbody>
@@ -83,13 +85,12 @@ export default function ResultatsPage() {
                 const v = m.alarme[r];
                 if (!v) return null;
                 return (
-                  <tr key={`${k}-${r}`} style={k === 'RF_v1' ? { opacity: 0.8 } : undefined}>
+                  <tr key={`${k}-${r}`} style={k === 'RF_v1' ? { color: 'var(--text-secondary)' } : k === bestKey ? { background: 'var(--accent-glow)' } : undefined}>
                     {j === 0 && <td rowSpan={2}>{k === 'RF_v1' ? 'réf.' : i + 1}</td>}
-                    {j === 0 && <td rowSpan={2}><div className="font-medium">{MODEL_FR[k] ?? k}</div>
-                      {o && (o.contrainte_tenue ? <Pill tone="var(--accent-success)"><CheckCircle2 className="w-3 h-3" />contrainte tenue</Pill>
-                        : <Pill tone="var(--accent-danger)"><XCircle className="w-3 h-3" />contrainte non tenue</Pill>)}</td>}
-                    {j === 0 && <td rowSpan={2} className="text-xs whitespace-nowrap">{o ? `≥ ${nf(o.seuil, 3)} · ${o.k}/${o.n}` : '—'}</td>}
-                    <td className="text-xs">{ROLE_FR[r]}</td>
+                    {j === 0 && <td rowSpan={2}><div className="font-semibold">{MODEL_FR[k] ?? k}</div>
+                      {o && (o.contrainte_tenue ? <State kind="ok">contrainte tenue</State> : <State kind="manque">contrainte non tenue</State>)}</td>}
+                    {j === 0 && <td rowSpan={2} className="text-[13px] whitespace-nowrap">{o ? `≥ ${nf(o.seuil, 3)}, ${o.k} sur ${o.n}` : '—'}</td>}
+                    <td className="text-[13px]">{ROLE_FR[r]}</td>
                     <td className="vc-num">{v.episodes_detectes}/{v.episodes}</td><td className="vc-num">{nf(v.fausses_alertes_par_heure, 2)}</td>
                     <td className="vc-num">{pct(v.precision)}</td><td className="vc-num">{pct(v.recall)}</td><td className="vc-num">{nf(v.f1, 3)}</td>
                     <td className="vc-num">{minutes(v.delai_median_min)}</td><td className="vc-num">{nf(v.avg_precision, 3)}</td>
@@ -121,19 +122,19 @@ export default function ResultatsPage() {
           </Table>
           {best?.diagnostic && <Note><strong>{MODEL_FR[bestKey]}</strong> : {best.diagnostic.verdict} (écart d'AP train − validation {nf(best.diagnostic.ecart_ap_train_val, 3)}).</Note>}
         </Section>
-        <Section title={`Courbe d'apprentissage — ${MODEL_FR[data.courbe_apprentissage.modele ?? ''] ?? '—'}`}
+        <Section title={`Courbe d’apprentissage, ${MODEL_FR[data.courbe_apprentissage.modele ?? ''] ?? '—'}`}
           subtitle="AP selon la part des blocs d'entraînement utilisée (moyenne de 3 rotations)." source={data.sources.courbe_apprentissage}>
           {lc.length ? (
             <div className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={lc} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid stroke={pal.grid} strokeDasharray="3 3" />
-                  <XAxis dataKey="pct" unit=" %" tick={{ fill: pal.axis, fontSize: 11 }} />
-                  <YAxis domain={[0.4, 1]} tick={{ fill: pal.axis, fontSize: 11 }} />
+                <LineChart data={lc} margin={{ top: 4, right: 8, left: -14, bottom: 0 }}>
+                  <CartesianGrid stroke={pal.grid} vertical={false} />
+                  <XAxis dataKey="pct" unit=" %" tick={{ fill: pal.axis, fontSize: 12 }} />
+                  <YAxis domain={[0.4, 1]} tick={{ fill: pal.axis, fontSize: 12 }} />
                   <Tooltip {...tooltipStyle} labelFormatter={v => `${v} % du train`} formatter={(v, n) => [nf(Number(v), 3), n]} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line dataKey="ap_train" name="AP entraînement" stroke={pal.series[1]} strokeWidth={2} isAnimationActive={false} />
-                  <Line dataKey="ap_val" name="AP validation" stroke={pal.series[0]} strokeWidth={2} isAnimationActive={false} />
+                  <Legend iconType="plainline" wrapperStyle={{ fontSize: 12.5 }} />
+                  <Line dataKey="ap_train" name="AP entraînement" stroke={pal.series[1]} strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3, fill: 'var(--bg-panel)' }} isAnimationActive={false} />
+                  <Line dataKey="ap_val" name="AP validation" stroke={pal.series[0]} strokeWidth={2} dot={{ r: 3, fill: 'var(--bg-panel)' }} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -145,13 +146,13 @@ export default function ResultatsPage() {
 
       {best && bt && (
         <div className="grid lg:grid-cols-2 gap-5">
-          <Section title={`Par scénario — ${MODEL_FR[bestKey]}, test`} subtitle="Épisodes détectés, délai médian et part des mesures falsifiées signalées." source={data.sources.modeles}>
+          <Section title={`Par scénario, ${MODEL_FR[bestKey]} sur le test`} subtitle="Épisodes détectés, délai médian et part des mesures falsifiées signalées." source={data.sources.modeles}>
             <Table>
               <thead><tr><th>Scénario</th><th className="vc-num">Épisodes</th><th className="vc-num">Délai</th><th className="vc-num">Mesures signalées</th></tr></thead>
               <tbody>
                 {Object.entries(bt.per_episode).map(([s, e]) => (
-                  <tr key={s}><td>{SCENARIO_FR[s] ?? s}</td><td className="vc-num">{e.detected}/{e.n}</td>
-                    <td className="vc-num">{minutes(e.delai_median_min)}</td><td className="vc-num">{nf(bt.per_attack[s]?.rate, 1)} %</td></tr>
+                  <tr key={s}><td>{SCENARIO_FR[s] ?? s}</td><td className="vc-num"><span className="inline-flex items-center gap-2 justify-end"><Tally detected={e.detected} total={e.n} />{e.detected}/{e.n}</span></td>
+                    <td className="vc-num">{minutes(e.delai_median_min)}</td><td className="vc-num">{nf(bt.per_attack[s]?.rate, 1)}&#8239;%</td></tr>
                 ))}
               </tbody>
             </Table>
@@ -163,7 +164,7 @@ export default function ResultatsPage() {
                 {(['val', 'test'] as const).flatMap(r => ([['ligne', 'mesure par mesure'], ['alarme', 'avec persistance']] as const).map(([lvl, lab]) => {
                   const v = best[lvl][r];
                   return v ? (
-                    <tr key={r + lvl}><td>{ROLE_FR[r]}</td><td className="text-xs">{lab}</td><td className="vc-num">{nf(v.fausses_alertes_par_heure, 2)}</td>
+                    <tr key={r + lvl}><td>{ROLE_FR[r]}</td><td className="text-[13px]">{lab}</td><td className="vc-num">{nf(v.fausses_alertes_par_heure, 2)}</td>
                       <td className="vc-num">{pct(v.precision)}</td><td className="vc-num">{pct(v.recall)}</td><td className="vc-num">{v.episodes_detectes}/{v.episodes}</td></tr>
                   ) : null;
                 }))}

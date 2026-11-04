@@ -117,11 +117,11 @@ export default function Phase2Page() {
       const metrics = result.model_metrics;
       if (metrics) {
         toast({
-          title: 'Entraînement terminé ✓',
+          title: 'Entraînement terminé',
           description: `F1: ${(metrics.f1 * 100).toFixed(1)}% · Recall: ${(metrics.recall * 100).toFixed(1)}% · ROC-AUC: ${(metrics.roc_auc * 100).toFixed(1)}%`,
         });
       } else {
-        toast({ title: 'Entraînement terminé ✓', description: 'Les visualisations sont prêtes.' });
+        toast({ title: 'Entraînement terminé', description: 'Les visualisations sont prêtes.' });
       }
 
       // Navigate to the results tab (keep sessionStorage for SHAP on Phase2Page)
