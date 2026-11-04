@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-22T02:08:36",
-  "duree_s": 515.1,
+  "generated_at": "2026-11-04T13:10:36",
+  "duree_s": 1382.7,
   "protocole": {
     "blocs": "blocs de 4 h, cycle de 5 (3 train / 1 val / 1 test) ; chaque épisode tient dans son bloc, donc dans un seul rôle",
     "repetitions": 10,
@@ -11,45 +11,45 @@
     "zone_de_garde_min": 60
   },
   "jeux_features": {
-    "A": "35 features de l'étude principale (fenêtres ≤ 15 min, EWMA 10 min)",
+    "A": "features de l'étude principale (fenêtres ≤ 15 min, dont min, max et quantiles)",
     "B": "A + moyennes glissantes 30 et 60 min, EWMA ≈ 1 h, par capteur"
   },
   "resultats": {
     "A": {
-      "fa_h_test": 1.87,
-      "auc_test_moyenne": 0.866,
+      "fa_h_test": 1.47,
+      "auc_test_moyenne": 0.977,
       "par_amplitude": {
         "-0.5": {
           "n": 15,
-          "detectes": 14,
-          "delai_median_min": 20.0,
+          "detectes": 15,
+          "delai_median_min": 8.1,
           "par_duree": {
             "1h": {
               "n": 4,
-              "detectes": 3,
-              "delai_median_min": 41.5
+              "detectes": 4,
+              "delai_median_min": 12.2
             },
             "2h": {
               "n": 6,
               "detectes": 6,
-              "delai_median_min": 12.8
+              "delai_median_min": 7.4
             },
             "3h": {
               "n": 5,
               "detectes": 5,
-              "delai_median_min": 44.2
+              "delai_median_min": 7.2
             }
           },
           "detectes_avant_min": {
             "20": {
               "n": 15,
-              "detectes": 7,
-              "part": 0.467
+              "detectes": 14,
+              "part": 0.933
             },
             "60": {
               "n": 15,
-              "detectes": 14,
-              "part": 0.933
+              "detectes": 15,
+              "part": 1.0
             },
             "120": {
               "n": 11,
@@ -66,29 +66,29 @@
         "-1.0": {
           "n": 15,
           "detectes": 15,
-          "delai_median_min": 9.5,
+          "delai_median_min": 9.1,
           "par_duree": {
             "1h": {
               "n": 6,
               "detectes": 6,
-              "delai_median_min": 9.9
+              "delai_median_min": 7.7
             },
             "2h": {
               "n": 4,
               "detectes": 4,
-              "delai_median_min": 6.1
+              "delai_median_min": 9.1
             },
             "3h": {
               "n": 5,
               "detectes": 5,
-              "delai_median_min": 10.5
+              "delai_median_min": 9.2
             }
           },
           "detectes_avant_min": {
             "20": {
               "n": 15,
-              "detectes": 12,
-              "part": 0.8
+              "detectes": 15,
+              "part": 1.0
             },
             "60": {
               "n": 15,
@@ -110,35 +110,35 @@
       }
     },
     "B": {
-      "fa_h_test": 1.2,
-      "auc_test_moyenne": 0.936,
+      "fa_h_test": 1.85,
+      "auc_test_moyenne": 0.97,
       "par_amplitude": {
         "-0.5": {
           "n": 15,
           "detectes": 14,
-          "delai_median_min": 23.6,
+          "delai_median_min": 10.0,
           "par_duree": {
             "1h": {
               "n": 4,
               "detectes": 3,
-              "delai_median_min": 18.9
+              "delai_median_min": 15.0
             },
             "2h": {
               "n": 6,
               "detectes": 6,
-              "delai_median_min": 20.9
+              "delai_median_min": 6.5
             },
             "3h": {
               "n": 5,
               "detectes": 5,
-              "delai_median_min": 28.1
+              "delai_median_min": 11.8
             }
           },
           "detectes_avant_min": {
             "20": {
               "n": 15,
-              "detectes": 7,
-              "part": 0.467
+              "detectes": 11,
+              "part": 0.733
             },
             "60": {
               "n": 15,
@@ -160,29 +160,29 @@
         "-1.0": {
           "n": 15,
           "detectes": 15,
-          "delai_median_min": 11.2,
+          "delai_median_min": 9.1,
           "par_duree": {
             "1h": {
               "n": 6,
               "detectes": 6,
-              "delai_median_min": 10.0
+              "delai_median_min": 8.4
             },
             "2h": {
               "n": 4,
               "detectes": 4,
-              "delai_median_min": 11.0
+              "delai_median_min": 8.9
             },
             "3h": {
               "n": 5,
               "detectes": 5,
-              "delai_median_min": 18.4
+              "delai_median_min": 10.9
             }
           },
           "detectes_avant_min": {
             "20": {
               "n": 15,
-              "detectes": 11,
-              "part": 0.733
+              "detectes": 14,
+              "part": 0.933
             },
             "60": {
               "n": 15,

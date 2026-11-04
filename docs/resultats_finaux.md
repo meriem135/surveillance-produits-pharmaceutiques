@@ -209,6 +209,13 @@ Les petits biais (−0,5 et −1 °C) étaient la limite connue de la version pr
 mesures signalées au seuil max F1, pour 3,2 fausses alertes/h) ; ils sont maintenant détectés dans 17 épisodes
 sur 18, mais **lentement** (6 à 11 min de délai médian) et seule une partie de leurs mesures est signalée.
 
+**Étude complémentaire : petits biais longs** (`transmission_biais_long.py`, blocs de 4 h, épisodes de 1 à
+3 h, 10 répétitions, Random Forest réglé, seuil le plus bas qui garde ≤ 1 fausse alerte/h sur la validation) :
+avec les features de l'étude principale, les biais −0,5 °C et −1 °C sont détectés dans **15 épisodes sur 15**
+chacun (délai médian 8,1 et 9,1 min ; 14/15 et 15/15 avant 20 min), pour 1,47 fausse alerte/h au test (seuil
+plus permissif que celui de l'étude principale) et une ROC-AUC de 0,977. Ajouter des moyennes sur 30 et 60 min
+et une EWMA d'une heure n'aide pas (14/15 et 15/15, 1,85 fausse alerte/h). Sur 30 épisodes de test seulement.
+
 ## 7. Entraînement contre validation et test : le diagnostic
 
 - **Sur-apprentissage des modèles arborescents.** Extra Trees, Random Forest, XGBoost, HistGradientBoosting

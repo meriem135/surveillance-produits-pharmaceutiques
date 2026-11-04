@@ -65,7 +65,7 @@ export default function TempsReelPage() {
         <label className="text-sm" style={{ color: 'var(--text-secondary)' }}>Données
           <select value={role} onChange={e => setRole(e.target.value)} disabled={state === 'lecture'} className="ml-2 rounded-md px-2 py-1 text-sm"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-            {(['test', 'val', 'train'] as const).map(r => <option key={r} value={r}>{ROLE_FR[r]} ({nf(info.roles[r]?.lignes)} mesures)</option>)}
+            {(['test', 'val', 'train'] as const).map(r => <option key={r} value={r}>{ROLE_FR[r]} ({nf(info.roles[r]?.lignes)} mesures évaluées)</option>)}
           </select>
         </label>
         <label className="text-sm flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>Vitesse

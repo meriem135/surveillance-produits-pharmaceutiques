@@ -556,7 +556,7 @@ def _shap_summary(model, df, feats, val_idx, test_idx, tr) -> dict:
 
 SEUIL_TXT = ("Un seul réglage d'alerte, choisi sur la VALIDATION : un seuil de score et une règle de persistance "
              "(alerte quand au moins {k} mesures sur les {n} dernières, soit {duree} min, dépassent le seuil). Il "
-             "donne le rappel le plus haut possible tout en gardant au moins {pmin} % d'alertes justes et au plus "
+             "donne le rappel le plus haut possible tout en gardant au moins {pmin} % de mesures signalées vraiment falsifiées et au plus "
              "{famax} fausse alerte par heure : l'opérateur ne doit pas être noyé de fausses alertes. Le modèle est "
              "choisi sur la validation ; les chiffres ci-dessous sont mesurés ensuite sur le test, qui n'a servi à "
              "aucun choix.")
@@ -589,7 +589,7 @@ def _niveau(rate: float | None) -> str:
 
 
 def _fmt_delai(d) -> str:
-    return "—" if d is None else f"{d:.1f} min"
+    return "—" if d is None else f"{d:.1f} min".replace(".", ",")
 
 
 def operator_report(models: dict | None = None, shap_data: dict | None = None, source: str | None = None) -> dict:
@@ -664,11 +664,12 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
                            "5 à 15 min, elle reste plus lente et moins sûre que pour les autres scénarios.")
     long_bias = _load_json(LONG_BIAS_RESULTS)
     if long_bias:
-        res = long_bias["resultats"].get("B", {})
+        res = long_bias["resultats"].get("A", {})
         for amp, x in res.get("par_amplitude", {}).items():
             h = x.get("detectes_avant_min", {})
             parts = ", ".join(f"{v['detectes']}/{v['n']} en moins de {k} min" for k, v in h.items() if v["n"])
-            limites.append(f"Étude complémentaire, biais long {amp} °C (1 à 3 h, moyennes sur 30 et 60 min) : {parts}.")
+            limites.append(f"Étude complémentaire, biais long {amp.replace('.', ',')} °C (épisodes de 1 à 3 h, features de l'étude "
+                           f"principale) : {parts} ({str(res.get('fa_h_test', '—')).replace('.', ',')} fausse(s) alerte(s)/h au test).")
     report["limites"] = limites
 
     md = report["modele"]

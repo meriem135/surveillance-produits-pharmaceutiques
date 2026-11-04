@@ -65,7 +65,7 @@ def info(src: dict) -> dict:
     df, cfg = src["df"], src["cfg"]
     return {"modele": cfg["modele"], "nom": cfg["nom"], "seuil": cfg["seuil"], "k": cfg["k"], "n": cfg["n"],
             "critere": cfg.get("critere"), "run_id": src["run_id"],
-            "roles": {r: {"lignes": int((df["role"] == r).sum()),
+            "roles": {r: {"lignes": int(((df["role"] == r) & df["evaluee"]).sum()),
                           "episodes": int(((df["role"] == r) & (df["label"] == 1) &
                                            (df["label"].shift(1, fill_value=0) == 0)).sum())}
                       for r in ("train", "val", "test")}}
@@ -77,7 +77,9 @@ class Streamer:
     def __init__(self, src: dict, role: str, start: int = 0):
         self.src = src
         df = src["df"]
-        self.rows = np.where(df["role"].to_numpy() == role)[0]
+        # Lignes évaluées seulement (hors zone de garde), comme l'évaluation hors ligne : les compteurs
+        # d'alertes du temps réel sont ainsi comparables aux métriques de la page Résultats.
+        self.rows = np.where((df["role"].to_numpy() == role) & df["evaluee"].to_numpy(bool))[0]
         self.pos = int(np.searchsorted(self.rows, start)) if start else 0
         self.k, self.n, self.seuil = int(src["cfg"]["k"]), int(src["cfg"]["n"]), float(src["cfg"]["seuil"])
         self.window: deque[bool] = deque(maxlen=self.n)
