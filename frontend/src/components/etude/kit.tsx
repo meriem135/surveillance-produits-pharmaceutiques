@@ -271,7 +271,7 @@ export function BandLegend({ items }: { items: { label: string; color: string; k
 }
 
 /** Tableau défilant horizontalement sur téléphone. */
-export function Table({ children, min = 560 }: { children: ReactNode; min?: number }) {
+export function Table({ children, min = 480 }: { children: ReactNode; min?: number }) {
   return (
     <div className="overflow-x-auto -mx-4 sm:mx-0">
       <table className="vc-table w-full text-sm" style={{ minWidth: min }}>{children}</table>

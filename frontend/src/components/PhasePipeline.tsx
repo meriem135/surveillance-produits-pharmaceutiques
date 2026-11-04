@@ -1,8 +1,9 @@
+import { Brain, Download, Search, ShieldCheck } from 'lucide-react';
 export interface PhaseItem {
   num: number;
   label: string;
   subtitle: string;
-  icon: string;
+  icon: import('react').ReactNode;
   color: string;
   status: 'completed' | 'active' | 'pending';
   progress: number;
@@ -11,19 +12,19 @@ export interface PhaseItem {
 export const PHASE_CONFIG: PhaseItem[] = [
   {
     num: 1, label: 'Ingestion IoT', subtitle: 'MQTT · flux temps réel des trois capteurs',
-    icon: '\u{1F4E5}', color: '#0891B2', status: 'completed', progress: 100,
+    icon: <Download className="w-5 h-5" />, color: '#0891B2', status: 'completed', progress: 100,
   },
   {
     num: 2, label: 'Détection d’anomalies', subtitle: 'One-Class SVM · jeu annuel simulé à partir des traces TON_IoT',
-    icon: '\u{1F9E0}', color: '#0D9488', status: 'completed', progress: 100,
+    icon: <Brain className="w-5 h-5" />, color: '#0D9488', status: 'completed', progress: 100,
   },
   {
     num: 3, label: 'Risk Scoring Prédictif', subtitle: 'CVE + 5 facteurs · Score 0-100',
-    icon: '\u{1F6E1}\uFE0F', color: '#E11D48', status: 'active', progress: 65,
+    icon: <ShieldCheck className="w-5 h-5" />, color: '#E11D48', status: 'active', progress: 65,
   },
   {
     num: 4, label: 'Threat Intelligence', subtitle: 'CTI Dashboard · LLM Analyst',
-    icon: '\u{1F50D}', color: '#7C3AED', status: 'pending', progress: 15,
+    icon: <Search className="w-5 h-5" />, color: '#7C3AED', status: 'pending', progress: 15,
   },
 ];
 

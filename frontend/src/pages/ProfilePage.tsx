@@ -93,7 +93,7 @@ export default function ProfilePage() {
         <h2 className="text-sm font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>Informations</h2>
         <form onSubmit={handleProfile} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>NOM COMPLET</label>
+            <label className="block text-[14px] font-semibold mb-1" style={{ color: 'var(--color-text-secondary)' }}>Nom complet</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input value={fullName} onChange={e => setFullName(e.target.value)}
@@ -101,7 +101,7 @@ export default function ProfilePage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>EMAIL</label>
+            <label className="block text-[14px] font-semibold mb-1" style={{ color: 'var(--color-text-secondary)' }}>E-mail</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -121,7 +121,7 @@ export default function ProfilePage() {
         <h2 className="text-sm font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>Changer le mot de passe</h2>
         <form onSubmit={handlePassword} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>MOT DE PASSE ACTUEL</label>
+            <label className="block text-[14px] font-semibold mb-1" style={{ color: 'var(--color-text-secondary)' }}>Mot de passe actuel</label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input type="password" value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} required
@@ -129,7 +129,7 @@ export default function ProfilePage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>NOUVEAU MOT DE PASSE (6+)</label>
+            <label className="block text-[14px] font-semibold mb-1" style={{ color: 'var(--color-text-secondary)' }}>Nouveau mot de passe (6+)</label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
               <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={6}

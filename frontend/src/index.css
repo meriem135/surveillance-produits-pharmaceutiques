@@ -324,3 +324,7 @@ table th { font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Pas d'étiquettes en capitales espacées : la casse normale se lit mieux */
+.uppercase { text-transform: none !important; }
+.tracking-wider, .tracking-widest, .tracking-wide { letter-spacing: 0 !important; }

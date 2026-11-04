@@ -73,7 +73,7 @@ export function PhaseShell({ phase, children, backgroundOrbs = false, hidePipeli
                       style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-success)' }} />
                       {trained !== undefined
-                        ? (trained ? 'TERMINÉE' : 'EN ATTENTE')
+                        ? (trained ? 'terminée' : 'en attente')
                         : (phase.status === 'completed' ? 'TERMINÉE' : phase.status === 'active' ? 'EN COURS' : 'PLANIFIÉE')}
                     </span>
                   </div>

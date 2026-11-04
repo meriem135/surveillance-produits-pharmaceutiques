@@ -16,7 +16,7 @@ export default function AuthShell({ title, subtitle, children, footer, topLink }
         <Link to="/" className="no-underline self-start" aria-label="VigiloChain, accueil"><Wordmark sub="Chaîne du froid" /></Link>
         <div className="max-w-md vc-fiche p-7">
           <h1 className="text-[40px] leading-[1.02]" style={{ color: 'var(--text-primary)' }}>
-            Les mesures de la chaîne du froid sont-elles vraies&nbsp;?
+            Les mesures de la chaîne du froid <span className="whitespace-nowrap">sont-elles vraies&nbsp;?</span>
           </h1>
           <p className="mt-4 text-[15.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             Surveillance des capteurs frigo, thermostat et météo : les attaques de transmission (MITM, injection) sont détectées

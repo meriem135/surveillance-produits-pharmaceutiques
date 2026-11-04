@@ -2,7 +2,7 @@
  *  (GET /api/v1/etude/metrics). Le modèle est choisi sur la validation ; le test ne fait que confirmer. */
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  Empty, Loading, MODEL_FR, Note, PageHeader, Readouts, State, ROLE_FR, SCENARIO_FR, Section, Stat, Table, Tally, minutes, nf, pct,
+  Empty, Loading, MODEL_FR, Note, PageHeader, Readouts, State, ROLE_FR, SCENARIO_FR, Section, Stat, Table, minutes, nf, pct,
   tooltipStyle, useApi, usePalette,
 } from '../../components/etude/kit';
 
@@ -104,7 +104,7 @@ export default function ResultatsPage() {
           courbe précision-rappel, indépendante du seuil). « réf. » : Random Forest avec les anciennes features, même protocole corrigé (avant / après).</Note>
       </Section>
 
-      <div className="grid lg:grid-cols-2 gap-5">
+      <div className="grid xl:grid-cols-2 gap-6">
         <Section title="Entraînement, validation, test : sur- ou sous-apprentissage ?" subtitle="Le même modèle mesuré sur ses données d'entraînement et sur des heures jamais vues." source={data.sources.modeles}>
           <Table>
             <thead><tr><th>Modèle</th><th className="vc-num">AP train</th><th className="vc-num">AP val</th><th className="vc-num">AP test</th><th className="vc-num">F1 train</th><th className="vc-num">F1 test</th></tr></thead>
@@ -145,13 +145,13 @@ export default function ResultatsPage() {
       </div>
 
       {best && bt && (
-        <div className="grid lg:grid-cols-2 gap-5">
+        <div className="grid xl:grid-cols-2 gap-6">
           <Section title={`Par scénario, ${MODEL_FR[bestKey]} sur le test`} subtitle="Épisodes détectés, délai médian et part des mesures falsifiées signalées." source={data.sources.modeles}>
             <Table>
               <thead><tr><th>Scénario</th><th className="vc-num">Épisodes</th><th className="vc-num">Délai</th><th className="vc-num">Mesures signalées</th></tr></thead>
               <tbody>
                 {Object.entries(bt.per_episode).map(([s, e]) => (
-                  <tr key={s}><td>{SCENARIO_FR[s] ?? s}</td><td className="vc-num"><span className="inline-flex items-center gap-2 justify-end"><Tally detected={e.detected} total={e.n} />{e.detected}/{e.n}</span></td>
+                  <tr key={s}><td>{SCENARIO_FR[s] ?? s}</td><td className="vc-num" style={e.detected < e.n ? { color: 'var(--accent-danger)' } : undefined}>{e.detected}/{e.n}</td>
                     <td className="vc-num">{minutes(e.delai_median_min)}</td><td className="vc-num">{nf(bt.per_attack[s]?.rate, 1)}&#8239;%</td></tr>
                 ))}
               </tbody>

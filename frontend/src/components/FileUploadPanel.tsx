@@ -1,3 +1,4 @@
+import { CloudSun, Lock, Snowflake, Thermometer } from 'lucide-react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -189,7 +190,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
     return (
       <div className="rounded-2xl glass glass-border p-5 flex items-center gap-3"
         style={{ borderColor: 'rgba(148,163,184,0.15)' }}>
-        <div style={{ fontSize: 22 }}>&#128274;</div>
+        <Lock className="w-6 h-6" aria-hidden />
         <div>
           <div className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
             Entraînement réservé aux administrateurs
@@ -245,9 +246,9 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             {[
-              { label: 'Station météo', icon: '\u{1F324}\uFE0F', file: weatherFile, setter: setWeatherFile, blobSetter: setWeatherBlob, color: '#FF6B6B' },
-              { label: 'Chambre Froide', icon: '\u2744\uFE0F', file: fridgeFile, setter: setFridgeFile, blobSetter: setFridgeBlob, color: '#4ECDC4' },
-              { label: 'Thermostat', icon: '\u{1F321}\uFE0F', file: thermostatFile, setter: setThermostatFile, blobSetter: setThermostatBlob, color: '#45B7D1' },
+              { label: 'Station météo', icon: <CloudSun className="w-6 h-6 mx-auto" />, file: weatherFile, setter: setWeatherFile, blobSetter: setWeatherBlob, color: '#FF6B6B' },
+              { label: 'Chambre Froide', icon: <Snowflake className="w-6 h-6 mx-auto" />, file: fridgeFile, setter: setFridgeFile, blobSetter: setFridgeBlob, color: '#4ECDC4' },
+              { label: 'Thermostat', icon: <Thermometer className="w-6 h-6 mx-auto" />, file: thermostatFile, setter: setThermostatFile, blobSetter: setThermostatBlob, color: '#45B7D1' },
             ].map(slot => (
               <div key={slot.label}
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}

@@ -131,7 +131,7 @@ export default function HomePage() {
           <div>
             <p className="text-[15px] font-semibold" style={{ color: 'var(--accent-primary)' }}>Projet de fin d’études en sécurité IoT</p>
             <h1 className="mt-3 text-[44px] sm:text-[60px] leading-[0.98]" style={{ color: 'var(--text-primary)' }}>
-              Les mesures de la chaîne du froid sont-elles vraies&nbsp;?
+              Les mesures de la chaîne du froid <span className="whitespace-nowrap">sont-elles vraies&nbsp;?</span>
             </h1>
             <p className="mt-6 text-[17px] sm:text-[18px] leading-relaxed max-w-[52ch]" style={{ color: 'var(--text-secondary)' }}>
               VigiloChain surveille les capteurs qui protègent les produits pharmaceutiques (chambre froide, thermostat de production,
