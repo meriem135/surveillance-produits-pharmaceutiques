@@ -431,7 +431,7 @@ function Header({ loading, loadedAt, onRefresh }: { loading: boolean; loadedAt: 
         <h1 className="text-[30px] sm:text-[34px] leading-[1.05]" style={{ color: 'var(--text-primary)' }}>Vue d’ensemble</h1>
         <p className="text-[15px] mt-2 max-w-[68ch] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
           Le détecteur d’attaques en service sur les capteurs de la chaîne du froid et ses résultats sur des heures
-          jamais vues. Chaque chiffre est relu dans PostgreSQL à l’ouverture.
+          jamais vues, relus dans PostgreSQL à chaque ouverture.
         </p>
       </div>
       <div className="flex items-center gap-3">
