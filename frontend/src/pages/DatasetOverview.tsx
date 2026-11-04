@@ -1,58 +1,23 @@
-import React, { useState, useEffect, useMemo, Component, type ReactNode } from 'react';
+/** Jeu de données de l'année simulée 2019 (archive phase 2), onglet de « Jeu annuel simulé ».
+ *  GET /api/v1/phase2/dataset-overview (dataset_fusionne.csv) et /api/v1/phase2/fusion-insights (matrices par saison). */
+import { Component, Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Database, Calendar, Thermometer, Snowflake, CloudSun,
-  BarChart2, TrendingUp, Target, GitBranch, Layers, Activity,
-} from 'lucide-react';
-import {
-  AreaChart, Area, BarChart, Bar, Line, ComposedChart,
-  XAxis, YAxis, Tooltip,   ResponsiveContainer, CartesianGrid, Legend,
-  ScatterChart, Scatter as RScatter,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart,
+  ResponsiveContainer, Scatter as RScatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { authHeaders } from '../lib/auth';
+import {
+  Empty, Loading, Note, Readouts, Section, Segmented, Stat, Table, nf, tooltipStyle, usePalette,
+} from '../components/etude/kit';
 
 const API = '/api/v1';
+const SRC = 'dataset_fusionne.csv (fichier du jeu annuel simulé)';
+const SRC_FUSION = 'dataset_fusionne.csv, calcul fusion-insights (corrélations par saison)';
 
 class ErrorBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
   render() { return this.state.hasError ? this.props.fallback : this.props.children; }
-}
-
-interface TooltipItem { color: string; name: string; value: number }
-function Tip({ active, payload, label }: { active?: boolean; payload?: TooltipItem[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
-      {label && <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</div>}
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
-          <span style={{ color: 'var(--text-secondary)' }}>{p.name}:</span>
-          <span className="font-mono font-bold" style={{ color: p.color }}>
-            {typeof p.value === 'number' ? p.value.toLocaleString() : String(p.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function PctTip({ active, payload, label }: { active?: boolean; payload?: TooltipItem[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
-      {label && <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{label}</div>}
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
-          <span style={{ color: 'var(--text-secondary)' }}>{p.name}:</span>
-          <span className="font-mono font-bold" style={{ color: p.color }}>
-            {typeof p.value === 'number' ? `${p.value.toFixed(2)}%` : String(p.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 interface DatasetPayload {
@@ -92,549 +57,395 @@ interface FusionExtra {
 }
 
 type TabId = 'vue' | 'tendances' | 'distributions' | 'correlations' | 'profils';
-
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'vue', label: 'Vue globale', icon: <Layers className="w-4 h-4" /> },
-  { id: 'distributions', label: 'Distributions', icon: <BarChart2 className="w-4 h-4" /> },
-  { id: 'tendances', label: 'Tendances capteurs', icon: <TrendingUp className="w-4 h-4" /> },
-  { id: 'correlations', label: 'Corrélations', icon: <GitBranch className="w-4 h-4" /> },
-  { id: 'profils', label: 'Profils saisonniers', icon: <Activity className="w-4 h-4" /> },
+const TABS: { value: TabId; label: string }[] = [
+  { value: 'vue', label: 'Vue globale' },
+  { value: 'distributions', label: 'Distributions' },
+  { value: 'tendances', label: 'Tendances capteurs' },
+  { value: 'correlations', label: 'Corrélations' },
+  { value: 'profils', label: 'Profils saisonniers' },
 ];
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+const SENSORS = ['weather', 'fridge', 'thermostat'] as const;
+const SENSOR_FR: Record<string, string> = { weather: 'Météo', fridge: 'Frigo', thermostat: 'Thermostat' };
+const SEASON_FR: Record<string, string> = { hiver: 'Hiver', printemps: 'Printemps', ete: 'Été', été: 'Été', automne: 'Automne' };
+const seasonFr = (s: string) => SEASON_FR[s.toLowerCase()] ?? s;
+const dayFr = (s: string) => {
+  const d = new Date(s.replace(' ', 'T'));
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+const kTick = (v: number) => (v >= 1000 ? `${nf(v / 1000)}k` : nf(v));
+
+/** Cellule de matrice de corrélation : bleu froid si positive, violet si négative ; le chiffre reste lisible. */
+function CorrCell({ v, diag, small = false }: { v: number; diag: boolean; small?: boolean }) {
+  const pal = usePalette();
+  const abs = Math.min(1, Math.abs(v));
+  const hue = v >= 0 ? pal.series[0] : pal.series[3];
+  const strong = !diag && abs > 0.55;
   return (
-    <div className="flex items-center gap-2 mb-3">
-      <div className="w-1 h-4 rounded-full" style={{ background: 'var(--accent-primary)' }} />
-      <h2 className="text-sm font-bold font-display" style={{ color: 'var(--text-primary)' }}>{children}</h2>
+    <div className={`${small ? 'h-8 text-[12px]' : 'h-11 text-[13px]'} flex items-center justify-center font-semibold`}
+      title={`r = ${nf(v, 3)}`}
+      style={{
+        background: diag ? 'var(--bg-subtle)' : `color-mix(in srgb, ${hue} ${Math.round(10 + abs * 70)}%, var(--bg-panel))`,
+        color: strong ? 'var(--bg-panel)' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums',
+      }}>
+      {nf(v, 2)}
     </div>
   );
 }
 
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function CorrLegend() {
+  const pal = usePalette();
   return (
-    <div className={`rounded-2xl p-5 ${className}`} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-      {children}
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px]" style={{ color: 'var(--text-secondary)' }}>
+      <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3" style={{ background: pal.series[0] }} />corrélation positive</span>
+      <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3" style={{ background: pal.series[3] }} />corrélation négative</span>
+      <span>teinte plus forte = |r| plus grand</span>
     </div>
   );
 }
 
-function StatCard({ icon: Icon, label, value, color, sub }: { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; value: string | number; color: string; sub?: string }) {
-  return (
-    <div className="p-4 rounded-xl flex items-center gap-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-      <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-        style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color }}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <div className="min-w-0">
-        <div className="text-xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>{value}</div>
-        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{label}</div>
-        {sub && <div className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--accent-primary)' }}>{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
-function SensorCard({ k, stats, split }: { k: string; stats: { min: number; max: number; mean: number; std: number; median: number }; split: { normal: { mean: number; std: number }; attack: { mean: number; std: number } } }) {
-  const colors: Record<string, string> = { weather: '#0284C7', fridge: '#16A34A', thermostat: '#EA580C' };
-  const labels: Record<string, string> = { weather: 'Weather', fridge: 'Fridge', thermostat: 'Thermostat' };
-  const icons: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = { weather: CloudSun, fridge: Snowflake, thermostat: Thermometer };
-  const Icon = icons[k] || Database;
-  const c = colors[k] || '#6366F1';
-  return (
-    <div className="rounded-2xl p-5" style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${c} 4%, var(--bg-card)), var(--bg-card))`, border: `1px solid color-mix(in srgb, ${c} 15%, var(--border))` }}>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${c} 12%, transparent)` }}>
-          <Icon className="w-4 h-4" style={{ color: c }} />
-        </div>
-        <div className="text-sm font-bold font-display" style={{ color: 'var(--text-primary)' }}>{labels[k]}</div>
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-[11px]">
-        <div className="space-y-1">
-          {(['min', 'max', 'mean', 'std'] as const).map(f => (
-            <div key={f} className="flex justify-between" style={{ color: 'var(--text-secondary)' }}>
-              <span>{f === 'std' ? 'σ' : f.charAt(0).toUpperCase() + f.slice(1)}</span>
-              <span className="font-mono" style={{ color: 'var(--text-primary)' }}>{stats[f]}</span>
-            </div>
-          ))}
-        </div>
-        <div className="space-y-1">
-          <div className="text-[10px] font-mono font-bold" style={{ color: c }}>N vs A</div>
-          <div className="flex justify-between" style={{ color: 'var(--text-secondary)' }}>
-            <span>N</span><span className="font-mono" style={{ color: '#22C55E' }}>{split.normal.mean} ± {split.normal.std}</span>
-          </div>
-          <div className="flex justify-between" style={{ color: 'var(--text-secondary)' }}>
-            <span>A</span><span className="font-mono" style={{ color: '#EF4444' }}>{split.attack.mean} ± {split.attack.std}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════ TAB SECTIONS ═══════════════
-
+// ─── Onglets ─────────────────────────────────────────────────────────────────
 function VueGlobale({ data }: { data: DatasetPayload }) {
+  const pal = usePalette();
   const g = data.global;
+  const seasonal = data.seasonal.map(s => ({ ...s, label: seasonFr(s.label) }));
+  const axis = { fill: pal.axis, fontSize: 12 };
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <StatCard icon={Database} label="Total" value={g.total.toLocaleString()} color="#6366F1" />
-        <StatCard icon={Target} label="Normal" value={g.normal.toLocaleString()} color="#22C55E" sub={`${(100 - g.attack_pct).toFixed(1)}%`} />
-        <StatCard icon={TrendingUp} label="Attaques" value={g.attack.toLocaleString()} color="#EF4444" sub={`${g.attack_pct}%`} />
-        <StatCard icon={Calendar} label="Durée" value={`${g.duration_days}j`} color="#F97316" />
-        <StatCard icon={BarChart2} label="Capteurs" value={g.sensors.length} color="#0284C7" sub={g.sensors.join(', ')} />
+    <div className="space-y-6">
+      <Readouts cols={5}>
+        <Stat label="Mesures" value={nf(g.total)} />
+        <Stat label="Normales" value={nf(g.normal)} tone="var(--accent-primary)" sub={`${nf(100 - g.attack_pct, 1)}\u202f%`} />
+        <Stat label="Attaques" value={nf(g.attack)} tone="var(--accent-danger)" sub={`${nf(g.attack_pct, 2)}\u202f%`} />
+        <Stat label="Durée" value={nf(g.duration_days)} unit="j" sub={`${dayFr(g.start)} au ${dayFr(g.end)}`} />
+        <Stat label="Capteurs" value={nf(g.sensors.length)} sub={g.sensors.map(s => SENSOR_FR[s] ?? s).join(', ')} />
+      </Readouts>
+
+      <Section title="Statistiques par capteur" subtitle="Toutes mesures, puis moyenne ± écart-type en fonctionnement normal et sous attaque (°C)." source={SRC} flush>
+        <Table min={640}>
+          <thead><tr><th>Capteur</th><th className="vc-num">Min</th><th className="vc-num">Max</th><th className="vc-num">Moyenne</th><th className="vc-num">σ</th>
+            <th className="vc-num">Médiane</th><th className="vc-num">Normal</th><th className="vc-num">Attaque</th></tr></thead>
+          <tbody>
+            {Object.entries(g.stats).map(([k, s]) => {
+              const sp = data.split_stats[k];
+              return (
+                <tr key={k}>
+                  <td className="font-semibold">{SENSOR_FR[k] ?? k}</td>
+                  <td className="vc-num">{nf(s.min, 2)}</td><td className="vc-num">{nf(s.max, 2)}</td><td className="vc-num">{nf(s.mean, 2)}</td>
+                  <td className="vc-num">{nf(s.std, 2)}</td><td className="vc-num">{nf(s.median, 2)}</td>
+                  <td className="vc-num">{sp ? `${nf(sp.normal.mean, 2)} ± ${nf(sp.normal.std, 2)}` : '—'}</td>
+                  <td className="vc-num" style={{ color: 'var(--accent-danger)' }}>{sp ? `${nf(sp.attack.mean, 2)} ± ${nf(sp.attack.std, 2)}` : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      </Section>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <Section title="Répartition par saison" subtitle="Mesures normales et attaquées, empilées." source={SRC}>
+          <div className="h-[240px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={seasonal} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
+                <CartesianGrid stroke={pal.grid} vertical={false} />
+                <XAxis dataKey="label" tick={axis} />
+                <YAxis tick={axis} tickFormatter={kTick} />
+                <Tooltip {...tooltipStyle} formatter={(v, n) => [nf(Number(v)), n]} />
+                <Legend iconType="square" wrapperStyle={{ fontSize: 12.5 }} />
+                <Bar dataKey="normal" stackId="a" fill={pal.series[0]} name="Normal" maxBarSize={56} isAnimationActive={false} />
+                <Bar dataKey="attack" stackId="a" fill={pal.danger} name="Attaque" maxBarSize={56} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Section>
+        <Section title="Attaques par mois" subtitle="Nombre d'attaques (barres) et part des mesures du mois (ligne)." source={SRC}>
+          <div className="h-[240px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={data.monthly} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
+                <CartesianGrid stroke={pal.grid} vertical={false} />
+                <XAxis dataKey="label" tick={axis} />
+                <YAxis yAxisId="left" tick={axis} />
+                <YAxis yAxisId="right" orientation="right" tick={axis} tickFormatter={(v: number) => `${nf(v)}\u202f%`} />
+                <Tooltip {...tooltipStyle} formatter={(v, n) => [n === '% attaque' ? `${nf(Number(v), 2)}\u202f%` : nf(Number(v)), n]} />
+                <Legend iconType="plainline" wrapperStyle={{ fontSize: 12.5 }} />
+                <Bar yAxisId="left" dataKey="attack" name="Attaques" fill={pal.danger} maxBarSize={28} isAnimationActive={false} />
+                <Line yAxisId="right" type="monotone" dataKey="attack_pct" name="% attaque" stroke={pal.ink} strokeWidth={2}
+                  dot={{ r: 3, fill: 'var(--bg-panel)' }} isAnimationActive={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </Section>
       </div>
-      <SectionTitle>Statistiques par capteur</SectionTitle>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {Object.entries(g.stats).map(([k, s]) => (
-          <SensorCard key={k} k={k} stats={s} split={data.split_stats[k]} />
-        ))}
-      </div>
-      <SectionTitle>Distribution par saison</SectionTitle>
-      <Card>
-        <div className="h-[220px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.seasonal} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
-              <defs>
-                <linearGradient id="normBar" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22C55E" stopOpacity={0.8} />
-                  <stop offset="100%" stopColor="#22C55E" stopOpacity={0.3} />
-                </linearGradient>
-                <linearGradient id="atkBar" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#EF4444" stopOpacity={0.9} />
-                  <stop offset="100%" stopColor="#EF4444" stopOpacity={0.3} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-              <Tooltip content={<Tip />} />
-              <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
-              <Bar dataKey="normal" stackId="a" fill="url(#normBar)" name="Normal" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="attack" stackId="a" fill="url(#atkBar)" name="Attaque" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-      <SectionTitle>Attaques par mois</SectionTitle>
-      <Card>
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data.monthly} margin={{ top: 10, right: 30, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="atkBarGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#EF4444" stopOpacity={0.9} />
-                  <stop offset="100%" stopColor="#EF4444" stopOpacity={0.3} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-              <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} label={{ value: 'Attaques', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: 'var(--text-secondary)' } }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} label={{ value: '% Attaque', angle: 90, position: 'insideRight', style: { fontSize: 10, fill: 'var(--text-secondary)' } }} />
-              <Tooltip content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const d = payload[0]?.payload;
-                return (
-                  <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
-                    <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{d?.label}</div>
-                    <div className="text-[11px] font-mono" style={{ color: '#EF4444' }}>Attaques : {d?.attack}</div>
-                    <div className="text-[11px] font-mono" style={{ color: '#22C55E' }}>Normal : {d?.normal}</div>
-                    <div className="text-[11px] font-mono mt-1" style={{ color: '#7C3AED' }}>% Attaque : {d?.attack_pct}%</div>
-                  </div>
-                );
-              }} />
-              <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
-              <Bar yAxisId="left" dataKey="attack" fill="url(#atkBarGrad)" name="Attaques" radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="attack_pct" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 3, fill: '#7C3AED', strokeWidth: 0 }} activeDot={{ r: 5, fill: '#7C3AED', strokeWidth: 2, stroke: 'var(--bg-base)' }} name="% Attaque" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
     </div>
   );
 }
+
+interface TrendRow { label: string; isAttack: boolean; [k: string]: string | number | boolean }
 
 function Tendances({ data }: { data: DatasetPayload }) {
-  const trendData = useMemo(() => {
+  const pal = usePalette();
+  const trendData = useMemo<TrendRow[]>(() => {
     const w = data.trends.weather || [];
     return w.map((pt, i) => {
       const dt = pt.datetime;
-      const short = dt.length > 10 ? dt.substring(5, 16).replace('T', ' ') : dt;
       return {
-        label: short,
-        Weather: pt.value,
-        Fridge: data.trends.fridge[i]?.value ?? 0,
-        Thermostat: data.trends.thermostat[i]?.value ?? 0,
+        label: dt.length > 10 ? dt.substring(5, 16).replace('T', ' ') : dt,
+        weather: pt.value,
+        fridge: data.trends.fridge[i]?.value ?? 0,
+        thermostat: data.trends.thermostat[i]?.value ?? 0,
         isAttack: pt.label === 1,
       };
     });
   }, [data]);
-
-  const sensors = [
-    { key: 'Weather', color: '#0284C7', grad: '#0EA5E9', icon: <CloudSun className="w-4 h-4" /> },
-    { key: 'Fridge', color: '#1F5FA6', grad: '#1F5FA6', icon: <Snowflake className="w-4 h-4" /> },
-    { key: 'Thermostat', color: '#8F5300', grad: '#8F5300', icon: <Thermometer className="w-4 h-4" /> },
-  ];
+  const axis = { fill: pal.axis, fontSize: 12 };
 
   return (
-    <div className="space-y-5">
-      <SectionTitle>Tendances des 3 capteurs</SectionTitle>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {sensors.map(s => (
-          <Card key={s.key}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span style={{ color: s.color }}>{s.icon}</span>
-                <div className="text-xs font-bold font-display" style={{ color: 'var(--text-primary)' }}>{s.key}</div>
-              </div>
-              <div className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${s.color} 10%, transparent)`, color: s.color }}>Area</div>
-            </div>
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 10, right: 5, left: -15, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id={`trend-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={s.color} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={s.grad} stopOpacity={0} />
-                    </linearGradient>
-                    <filter id={`glow-${s.key}`}>
-                      <feGaussianBlur stdDeviation="2" result="blur" />
-                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                    </filter>
-                  </defs>
-                  <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} minTickGap={80} />
-                  <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
-                  <Tooltip content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0]?.payload;
-                    return (
-                      <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
-                        <div className="text-[10px] font-mono mb-1" style={{ color: 'var(--text-secondary)' }}>{d?.label}</div>
-                        <div className="text-sm font-bold" style={{ color: s.color }}>{d?.[s.key]?.toFixed(2)}</div>
-                        {d?.isAttack && <div className="text-[10px] font-bold mt-1" style={{ color: '#EF4444' }}>● ATTAQUE</div>}
-                      </div>
-                    );
-                  }} />
-                  <Area type="monotone" dataKey={s.key} stroke={s.color} strokeWidth={2} fill={`url(#trend-${s.key})`}
-                    dot={false} activeDot={{ r: 5, fill: s.color, strokeWidth: 2, stroke: 'var(--bg-base)', filter: `url(#glow-${s.key})` }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        ))}
-      </div>
-
+    <div className="grid lg:grid-cols-2 3xl:grid-cols-3 gap-6">
+      {SENSORS.map(k => (
+        <Section key={k} title={SENSOR_FR[k]} subtitle={`Échantillon de ${nf(trendData.length)} mesures sur l'année (°C).`} source={SRC}>
+          <div className="h-[230px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
+                <CartesianGrid stroke={pal.grid} vertical={false} />
+                <XAxis dataKey="label" tick={axis} minTickGap={80} />
+                <YAxis tick={axis} domain={['auto', 'auto']} />
+                <Tooltip content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const row = payload[0]?.payload as TrendRow | undefined;
+                  if (!row) return null;
+                  return (
+                    <div className="px-3 py-2" style={tooltipStyle.contentStyle}>
+                      <div style={tooltipStyle.labelStyle}>{row.label}</div>
+                      <div className="font-semibold mt-0.5">{nf(Number(row[k]), 2)}&nbsp;°C</div>
+                      {row.isAttack && <div className="mt-0.5 font-semibold" style={{ color: 'var(--accent-danger)' }}>Mesure attaquée</div>}
+                    </div>
+                  );
+                }} />
+                <Line type="monotone" dataKey={k} name={SENSOR_FR[k]} stroke={pal.series[0]} strokeWidth={1.6} dot={false} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Section>
+      ))}
     </div>
   );
 }
 
 function Distributions({ data }: { data: DatasetPayload }) {
-  const sensorMeta: Record<string, { color: string; grad: string; label: string }> = {
-    weather: { color: '#0284C7', grad: '#0EA5E9', label: 'Weather' },
-    fridge: { color: '#16A34A', grad: '#00C853', label: 'Fridge' },
-    thermostat: { color: '#EA580C', grad: '#EA580C', label: 'Thermostat' },
-  };
-
+  const pal = usePalette();
+  const axis = { fill: pal.axis, fontSize: 12 };
   return (
-    <div className="space-y-5">
-      <SectionTitle>Distribution des températures (Normal vs Attaque)</SectionTitle>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="space-y-6">
+      <div className="grid lg:grid-cols-2 3xl:grid-cols-3 gap-6">
         {Object.entries(data.histograms).map(([k, h]) => {
-          const m = sensorMeta[k]!;
-          const chartData = h.bin_centers.map((c, i) => ({
-            bin: c.toFixed(1),
-            Normal: h.normal[i],
-            Attaque: h.attack[i],
-          }));
+          const chartData = h.bin_centers.map((c, i) => ({ bin: nf(c, 1), Normal: h.normal[i], Attaque: h.attack[i] }));
           return (
-            <Card key={k}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: m.color }} />
-                  <div className="text-xs font-bold font-display" style={{ color: 'var(--text-primary)' }}>{m.label}</div>
-                </div>
-                <div className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${m.color} 10%, transparent)`, color: m.color }}>KDE</div>
-              </div>
-              <div className="h-[200px]">
+            <Section key={k} title={`${SENSOR_FR[k] ?? k} : distribution des températures`} subtitle="Nombre de mesures par classe de température (°C), normal et attaque." source={SRC}>
+              <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id={`normGrad-${k}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#22C55E" stopOpacity={0.5} />
-                        <stop offset="100%" stopColor="#22C55E" stopOpacity={0.1} />
-                      </linearGradient>
-                      <linearGradient id={`atkGrad-${k}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#EF4444" stopOpacity={0.6} />
-                        <stop offset="100%" stopColor="#EF4444" stopOpacity={0.1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
-                    <XAxis dataKey="bin" tick={{ fontSize: 8 }} tickLine={false} axisLine={false} interval={3} />
-                    <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
-                    <Tooltip content={<Tip />} />
-                    <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
-                    <Bar dataKey="Normal" fill={`url(#normGrad-${k})`} name="Normal" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="Attaque" fill={`url(#atkGrad-${k})`} name="Attaque" radius={[3, 3, 0, 0]} />
+                  <BarChart data={chartData} margin={{ top: 4, right: 4, left: -4, bottom: 0 }}>
+                    <CartesianGrid stroke={pal.grid} vertical={false} />
+                    <XAxis dataKey="bin" tick={{ ...axis, fontSize: 11 }} interval={3} />
+                    <YAxis tick={axis} tickFormatter={kTick} />
+                    <Tooltip {...tooltipStyle} labelFormatter={l => `${l}\u00a0°C`} formatter={(v, n) => [nf(Number(v)), n]} />
+                    <Legend iconType="square" wrapperStyle={{ fontSize: 12.5 }} />
+                    <Bar dataKey="Normal" fill={pal.series[0]} isAnimationActive={false} />
+                    <Bar dataKey="Attaque" fill={pal.danger} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </Card>
+            </Section>
           );
         })}
       </div>
 
-      <SectionTitle>% d'attaques par heure</SectionTitle>
-      <Card>
-        <div className="h-[180px]">
+      <Section title="Part des mesures attaquées par heure" subtitle="Sur toute l'année, à chaque heure de la journée." source={SRC}>
+        <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.profiles.hourly_attack_pct.map((v, i) => ({ hour: `${i}h`, pct: v }))} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-              <defs>
-                <linearGradient id="atkPctGrad3" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#EF4444" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#EF4444" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
-              <XAxis dataKey="hour" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} interval={3} />
-              <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v.toFixed(1)}%`} />
-              <Tooltip content={<PctTip />} />
-              <Area type="monotone" dataKey="pct" stroke="#EF4444" strokeWidth={2.5} fill="url(#atkPctGrad3)"
-                dot={{ r: 2.5, fill: '#EF4444', strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: '#EF4444', strokeWidth: 2, stroke: 'var(--bg-base)' }}
-                name="Attaque %" />
+            <AreaChart data={data.profiles.hourly_attack_pct.map((v, i) => ({ hour: `${i}h`, pct: v }))} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+              <CartesianGrid stroke={pal.grid} vertical={false} />
+              <XAxis dataKey="hour" tick={axis} interval={1} />
+              <YAxis tick={axis} tickFormatter={(v: number) => `${nf(v, 1)}\u202f%`} />
+              <Tooltip {...tooltipStyle} formatter={v => [`${nf(Number(v), 2)}\u202f%`, 'Mesures attaquées']} />
+              <Area type="monotone" dataKey="pct" stroke={pal.danger} strokeWidth={2} fill={pal.attack}
+                dot={{ r: 2.5, fill: pal.danger, strokeWidth: 0 }} isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
-      </Card>
+      </Section>
     </div>
   );
 }
 
 function Correlations({ data }: { data: DatasetPayload }) {
+  const pal = usePalette();
   const corr = data.correlations;
-  const scatterPairs = [
-    { x: 'weather', y: 'fridge', xLabel: 'Weather', yLabel: 'Fridge', color1: '#0284C7', color2: '#16A34A', corrVal: corr.matrix[0][1] },
-    { x: 'weather', y: 'thermostat', xLabel: 'Weather', yLabel: 'Thermostat', color1: '#0284C7', color2: '#EA580C', corrVal: corr.matrix[0][2] },
-    { x: 'fridge', y: 'thermostat', xLabel: 'Fridge', yLabel: 'Thermostat', color1: '#16A34A', color2: '#EA580C', corrVal: corr.matrix[1][2] },
-  ];
+  const axis = { fill: pal.axis, fontSize: 12 };
 
   const scatterSeries = useMemo(() => {
+    const pairs = [
+      { x: 'weather', y: 'fridge', corrVal: corr.matrix[0]?.[1] ?? 0 },
+      { x: 'weather', y: 'thermostat', corrVal: corr.matrix[0]?.[2] ?? 0 },
+      { x: 'fridge', y: 'thermostat', corrVal: corr.matrix[1]?.[2] ?? 0 },
+    ] as const;
     const cap = 400;
-    const sample = (arr: typeof data.scatter) => {
+    const sample = (arr: DatasetPayload['scatter']) => {
       if (arr.length <= cap) return arr;
       const step = Math.ceil(arr.length / cap);
       return arr.filter((_, i) => i % step === 0);
     };
     const normal = sample(data.scatter.filter(p => p.label === 0));
     const attack = sample(data.scatter.filter(p => p.label === 1));
-    return scatterPairs.map(pair => ({
+    return pairs.map(pair => ({
       ...pair,
-      normalData: normal.map(p => ({ x: p[pair.x as keyof typeof data.scatter[number]] as number, y: p[pair.y as keyof typeof data.scatter[number]] as number })),
-      attackData: attack.map(p => ({ x: p[pair.x as keyof typeof data.scatter[number]] as number, y: p[pair.y as keyof typeof data.scatter[number]] as number })),
+      normalData: normal.map(p => ({ x: p[pair.x], y: p[pair.y] })),
+      attackData: attack.map(p => ({ x: p[pair.x], y: p[pair.y] })),
     }));
-  }, [data, scatterPairs]);
+  }, [data, corr]);
 
   return (
-    <div className="space-y-5">
-      <SectionTitle>Scatter plots — paires de capteurs (Normal vert, Attaque rouge)</SectionTitle>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {scatterSeries.map(pair => {
-          const corrColor = pair.corrVal > 0 ? '#22C55E' : '#EF4444';
-          return (
-            <Card key={`${pair.x}-${pair.y}`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-bold font-display" style={{ color: 'var(--text-primary)' }}>{pair.xLabel} vs {pair.yLabel}</div>
-                <div className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${corrColor} 15%, transparent)`, color: corrColor }}>
-                  r = {pair.corrVal.toFixed(2)}
-                </div>
-              </div>
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart margin={{ top: 10, right: 10, left: -15, bottom: 10 }}>
-                    <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" />
-                    <XAxis type="number" dataKey="x" name={pair.xLabel} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
-                    <YAxis type="number" dataKey="y" name={pair.yLabel} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
-                    <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0]?.payload;
-                      return (
-                        <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
-                          <div className="text-[11px] font-mono" style={{ color: pair.color1 }}>{pair.xLabel}: {d?.x?.toFixed(2)}</div>
-                          <div className="text-[11px] font-mono" style={{ color: pair.color2 }}>{pair.yLabel}: {d?.y?.toFixed(2)}</div>
-                        </div>
-                      );
-                    }} />
-                    <RScatter name="Normal" data={pair.normalData} fill="#22C55E" fillOpacity={0.45} r={2.5} />
-                    <RScatter name="Attaque" data={pair.attackData} fill="#EF4444" fillOpacity={0.7} r={3.5} />
-                    <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          );
-        })}
+    <div className="space-y-6">
+      <div className="grid lg:grid-cols-2 3xl:grid-cols-3 gap-6">
+        {scatterSeries.map(pair => (
+          <Section key={`${pair.x}-${pair.y}`} title={`${SENSOR_FR[pair.x]} et ${SENSOR_FR[pair.y]}`}
+            subtitle={<>Coefficient de corrélation r = <strong style={{ color: 'var(--text-primary)' }}>{nf(pair.corrVal, 2)}</strong> ; au plus 400 points par classe.</>}
+            source={SRC}>
+            <div className="h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 8, right: 8, left: -8, bottom: 4 }}>
+                  <CartesianGrid stroke={pal.grid} />
+                  <XAxis type="number" dataKey="x" name={SENSOR_FR[pair.x]} tick={axis} domain={['auto', 'auto']} />
+                  <YAxis type="number" dataKey="y" name={SENSOR_FR[pair.y]} tick={axis} domain={['auto', 'auto']} />
+                  <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const p = payload[0]?.payload as { x: number; y: number } | undefined;
+                    return (
+                      <div className="px-3 py-2" style={tooltipStyle.contentStyle}>
+                        <div>{SENSOR_FR[pair.x]} : {nf(p?.x, 2)}&nbsp;°C</div>
+                        <div>{SENSOR_FR[pair.y]} : {nf(p?.y, 2)}&nbsp;°C</div>
+                      </div>
+                    );
+                  }} />
+                  <RScatter name="Normal" data={pair.normalData} fill={pal.series[0]} fillOpacity={0.35} isAnimationActive={false} />
+                  <RScatter name="Attaque" data={pair.attackData} fill={pal.danger} fillOpacity={0.75} isAnimationActive={false} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12.5 }} />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+          </Section>
+        ))}
       </div>
-      <SectionTitle>Matrice de corrélation</SectionTitle>
-      <Card>
-        <div className="flex justify-center">
-          <div className="grid gap-1" style={{ gridTemplateColumns: `80px repeat(${corr.labels.length}, 80px)` }}>
-            <div />
-            {corr.labels.map(l => <div key={l} className="text-center text-[10px] font-mono font-bold" style={{ color: 'var(--text-secondary)' }}>{l}</div>)}
+
+      <Section title="Matrice de corrélation" subtitle="Corrélation de Pearson entre les trois capteurs, sur toute l'année." source={SRC}>
+        <div className="overflow-x-auto">
+          <div className="grid gap-px w-max" style={{ gridTemplateColumns: `minmax(90px, auto) repeat(${corr.labels.length}, minmax(80px, 110px))`, background: 'var(--border)', border: '1px solid var(--border)' }}>
+            <div style={{ background: 'var(--bg-panel)' }} />
+            {corr.labels.map(l => (
+              <div key={l} className="px-2 py-1.5 text-center text-[12.5px] font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>{SENSOR_FR[l] ?? l}</div>
+            ))}
             {corr.matrix.map((row, i) => (
-              <React.Fragment key={i}>
-                <div className="text-[10px] font-mono font-bold text-right pr-2 flex items-center justify-end" style={{ color: 'var(--text-secondary)' }}>{corr.labels[i]}</div>
-                {row.map((v, j) => {
-                  const abs = Math.abs(v);
-                  const bg = i === j ? 'rgba(124,58,237,0.3)' : v > 0 ? `rgba(34,197,94,${0.15 + abs * 0.6})` : `rgba(239,68,68,${0.15 + abs * 0.6})`;
-                  return (
-                    <div key={j} className="h-10 rounded flex items-center justify-center text-[11px] font-mono font-bold" style={{ background: bg, color: abs > 0.5 ? '#fff' : 'var(--text-primary)' }}>
-                      {v.toFixed(2)}
-                    </div>
-                  );
-                })}
-              </React.Fragment>
+              <Fragment key={i}>
+                <div className="px-2 flex items-center text-[12.5px] font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>{SENSOR_FR[corr.labels[i]] ?? corr.labels[i]}</div>
+                {row.map((v, j) => <CorrCell key={j} v={v} diag={i === j} />)}
+              </Fragment>
             ))}
           </div>
         </div>
-      </Card>
+        <div className="mt-3"><CorrLegend /></div>
+      </Section>
     </div>
   );
 }
 
 function Profils({ data, fusion }: { data: DatasetPayload; fusion: FusionExtra | null }) {
+  const pal = usePalette();
   const seasonCorr = fusion?.seasonal_corr ?? null;
+  const axis = { fill: pal.axis, fontSize: 12 };
+  const seasonal = data.seasonal.map(s => ({ ...s, label: seasonFr(s.label), pct: s.total > 0 ? +(s.attack / s.total * 100).toFixed(1) : 0 }));
 
   return (
-    <div className="space-y-5">
-      <SectionTitle>Valeurs moyennes par capteur et par saison</SectionTitle>
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px]">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th className="text-left py-2 px-3 font-bold" style={{ color: 'var(--text-primary)' }}>Saison</th>
-                {['weather', 'fridge', 'thermostat'].map(k => (
-                  <th key={k} colSpan={3} className="text-center py-2 px-3 font-bold" style={{ color: k === 'weather' ? '#0284C7' : k === 'fridge' ? '#16A34A' : '#EA580C' }}>{k}</th>
+    <div className="space-y-6">
+      <Section title="Valeurs par capteur et par saison" subtitle="Moyenne, écart-type et médiane, en °C." source={SRC} flush>
+        <Table min={760}>
+          <thead>
+            <tr>
+              <th rowSpan={2}>Saison</th>
+              {SENSORS.map(k => <th key={k} colSpan={3} className="text-center">{SENSOR_FR[k]}</th>)}
+            </tr>
+            <tr>
+              {SENSORS.map(k => (
+                <Fragment key={k}>
+                  <th className="vc-num">Moyenne</th><th className="vc-num">σ</th><th className="vc-num">Médiane</th>
+                </Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.seasonal_sensors.map((row, i) => (
+              <tr key={i}>
+                <td className="font-semibold">{seasonFr(String(row.season))}</td>
+                {SENSORS.map(k => (
+                  <Fragment key={k}>
+                    <td className="vc-num">{nf(Number(row[`${k}_mean`]), 2)}</td>
+                    <td className="vc-num" style={{ color: 'var(--text-secondary)' }}>{nf(Number(row[`${k}_std`]), 2)}</td>
+                    <td className="vc-num" style={{ color: 'var(--text-secondary)' }}>{nf(Number(row[`${k}_median`]), 2)}</td>
+                  </Fragment>
                 ))}
               </tr>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th />
-                {['weather', 'fridge', 'thermostat'].map(k => (
-                  <React.Fragment key={k}>
-                    <th className="text-center py-1 px-2 font-normal" style={{ color: 'var(--text-secondary)' }}>Moy</th>
-                    <th className="text-center py-1 px-2 font-normal" style={{ color: 'var(--text-secondary)' }}>σ</th>
-                    <th className="text-center py-1 px-2 font-normal" style={{ color: 'var(--text-secondary)' }}>Med</th>
-                  </React.Fragment>
+            ))}
+          </tbody>
+        </Table>
+      </Section>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <Section title="Répartition saisonnière" subtitle="Mesures normales et attaquées (barres empilées), part d'attaques (ligne)." source={SRC}>
+          <div className="h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={seasonal} margin={{ top: 8, right: 4, left: -8, bottom: 0 }}>
+                <CartesianGrid stroke={pal.grid} vertical={false} />
+                <XAxis dataKey="label" tick={axis} />
+                <YAxis yAxisId="left" tick={axis} tickFormatter={kTick} />
+                <YAxis yAxisId="right" orientation="right" tick={axis} tickFormatter={(v: number) => `${nf(v)}\u202f%`} />
+                <Tooltip {...tooltipStyle} formatter={(v, n) => [n === '% attaque' ? `${nf(Number(v), 1)}\u202f%` : nf(Number(v)), n]} />
+                <Legend iconType="plainline" wrapperStyle={{ fontSize: 12.5 }} />
+                <Bar yAxisId="left" dataKey="normal" stackId="a" fill={pal.series[0]} name="Normal" maxBarSize={56} isAnimationActive={false} />
+                <Bar yAxisId="left" dataKey="attack" stackId="a" fill={pal.danger} name="Attaque" maxBarSize={56} isAnimationActive={false} />
+                <Line yAxisId="right" type="monotone" dataKey="pct" stroke={pal.ink} strokeWidth={2} dot={{ r: 3.5, fill: 'var(--bg-panel)' }} name="% attaque" isAnimationActive={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </Section>
+
+        <Section title="Corrélations 3 × 3 par saison" subtitle="Ordre des lignes et colonnes : météo, frigo, thermostat." source={SRC_FUSION}>
+          {!seasonCorr || !seasonCorr.seasons?.length ? (
+            <Empty>Matrices non disponibles.</Empty>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                {seasonCorr.seasons.map(s => (
+                  <div key={s.season} className="min-w-0">
+                    <div className="text-[13px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{seasonFr(s.label)}</div>
+                    <div className="grid gap-px" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', background: 'var(--border)', border: '1px solid var(--border)' }}>
+                      {s.matrix.map((rowArr, i) => rowArr.map((v, j) => <CorrCell key={`${i}-${j}`} v={v} diag={i === j} small />))}
+                    </div>
+                  </div>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.seasonal_sensors.map((row, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td className="py-2 px-3 font-bold" style={{ color: 'var(--text-primary)' }}>{String(row.season)}</td>
-                  {['weather', 'fridge', 'thermostat'].map(k => (
-                    <React.Fragment key={k}>
-                      <td className="text-center py-2 px-2 font-mono" style={{ color: 'var(--text-primary)' }}>{String(row[`${k}_mean`])}</td>
-                      <td className="text-center py-2 px-2 font-mono" style={{ color: 'var(--text-secondary)' }}>{String(row[`${k}_std`])}</td>
-                      <td className="text-center py-2 px-2 font-mono" style={{ color: 'var(--text-secondary)' }}>{String(row[`${k}_median`])}</td>
-                    </React.Fragment>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-      <SectionTitle>Répartition saisonnière — Normal vs Attaque + % attaque</SectionTitle>
-      <Card>
-        <div className="h-[240px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data.seasonal.map(s => ({ ...s, pct: s.total > 0 ? +(s.attack / s.total * 100).toFixed(1) : 0 }))} margin={{ top: 10, right: 30, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="seasonNormGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22C55E" stopOpacity={0.8} />
-                  <stop offset="100%" stopColor="#22C55E" stopOpacity={0.25} />
-                </linearGradient>
-                <linearGradient id="seasonAtkGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#EF4444" stopOpacity={0.9} />
-                  <stop offset="100%" stopColor="#EF4444" stopOpacity={0.25} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-              <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} />
-              <Tooltip content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const d = payload[0]?.payload;
-                return (
-                  <div className="rounded-xl p-3 shadow-2xl" style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)' }}>
-                    <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{d?.label}</div>
-                    <div className="text-[11px] font-mono" style={{ color: '#22C55E' }}>Normal : {d?.normal}</div>
-                    <div className="text-[11px] font-mono" style={{ color: '#EF4444' }}>Attaques : {d?.attack}</div>
-                    <div className="text-[11px] font-mono mt-1" style={{ color: '#7C3AED' }}>% Attaque : {d?.pct}%</div>
-                  </div>
-                );
-              }} />
-              <Legend wrapperStyle={{ fontSize: 10 }} iconType="plainline" iconSize={10} />
-              <Bar yAxisId="left" dataKey="normal" stackId="a" fill="url(#seasonNormGrad)" name="Normal" />
-              <Bar yAxisId="left" dataKey="attack" stackId="a" fill="url(#seasonAtkGrad)" name="Attaque" radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="pct" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 4, fill: '#7C3AED', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#7C3AED', strokeWidth: 2, stroke: 'var(--bg-base)' }} name="% Attaque" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-      <SectionTitle>Matrices 3×3 par saison (Fusion Insights)</SectionTitle>
-      <Card>
-        {!seasonCorr || !seasonCorr.seasons?.length ? (
-          <div className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>Matrices non disponibles</div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {seasonCorr.seasons.map(s => (
-                <div key={s.season}>
-                  <div className="text-[10px] font-bold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{s.label}</div>
-                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(3, minmax(34px, 1fr))` }}>
-                    {s.matrix.map((rowArr, i) => rowArr.map((v, j) => {
-                      const abs = Math.abs(v);
-                      const bg = i === j ? 'rgba(124,58,237,0.3)' : v > 0 ? `rgba(34,197,94,${0.12 + abs * 0.55})` : `rgba(239,68,68,${0.12 + abs * 0.55})`;
-                      return (
-                        <div key={`${i}-${j}`} className="h-7 rounded flex items-center justify-center text-[9px] font-mono font-bold"
-                          style={{ background: bg, color: abs > 0.5 ? '#fff' : 'var(--text-primary)' }}>
-                          {v.toFixed(2)}
-                        </div>
-                      );
-                    }))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 flex items-center gap-1.5 text-[9px] justify-end" style={{ color: 'var(--text-secondary)' }}>
-              <span className="w-2 h-2 rounded-sm" style={{ background: 'rgba(34,197,94,0.5)' }} /> positive
-              <span className="w-2 h-2 rounded-sm ml-2" style={{ background: 'rgba(239,68,68,0.5)' }} /> négative
-            </div>
-          </>
-        )}
-      </Card>
+              </div>
+              <div className="mt-3"><CorrLegend /></div>
+            </>
+          )}
+        </Section>
+      </div>
     </div>
   );
 }
 
-// ═══════════════ MAIN ═══════════════
-
+// ─── Composant principal ────────────────────────────────────────────────────
 export default function DatasetOverview() {
   const [data, setData] = useState<DatasetPayload | null>(null);
   const [fusion, setFusion] = useState<FusionExtra | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>('vue');
-  const [visibleTab, setVisibleTab] = useState<TabId>('vue');
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setVisibleTab(tab));
-    return () => cancelAnimationFrame(id);
-  }, [tab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -659,57 +470,35 @@ export default function DatasetOverview() {
     return () => { cancelled = true; };
   }, []);
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }} /></div>;
-  }
+  if (loading) return <Loading />;
 
   if (error || !data) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-        <Database className="w-12 h-12" style={{ color: 'var(--text-secondary)' }} />
-        <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>Impossible de charger le dataset</div>
-        {error && <div className="text-[10px] font-mono" style={{ color: 'var(--accent-danger)' }}>{error}</div>}
-      </div>
+      <Empty>
+        Impossible de charger le jeu de données.
+        {error && <div className="mt-1 text-[12.5px]" style={{ color: 'var(--accent-danger)' }}>{error}</div>}
+      </Empty>
     );
   }
 
   const g = data.global;
 
   return (
-    <ErrorBoundary fallback={<div className="text-sm text-center p-8" style={{ color: 'var(--accent-danger)' }}>Erreur de rendu</div>}>
-      <div className="max-w-7xl mx-auto space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-display font-bold" style={{ color: 'var(--text-primary)' }}>Vue globale du dataset</h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-              {data.filename} — {g.start} → {g.end} — {g.duration_days} jours — {g.total.toLocaleString()} échantillons
-            </p>
-          </div>
+    <ErrorBoundary fallback={<Empty>Erreur d'affichage de cet onglet.</Empty>}>
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[14px] max-w-[90ch]" style={{ color: 'var(--text-secondary)' }}>
+            <code>{data.filename}</code> : du {dayFr(g.start)} au {dayFr(g.end)}, {nf(g.duration_days)} jours, {nf(g.total)} mesures.
+          </p>
+          <Segmented label="Analyse du jeu de données" value={tab} onChange={setTab} options={TABS} />
         </div>
 
-        {/* Horizontal Tabs */}
-        <div className="flex gap-1 p-1 rounded-xl overflow-x-auto" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold font-display whitespace-nowrap transition-all"
-              style={{
-                background: tab === t.id ? 'color-mix(in srgb, var(--accent-primary) 15%, transparent)' : 'transparent',
-                color: tab === t.id ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                border: tab === t.id ? '1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent)' : '1px solid transparent',
-              }}>
-              {t.icon}
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Tab Content */}
-        {visibleTab === 'vue' && <VueGlobale data={data} />}
-        {visibleTab === 'tendances' && <Tendances data={data} />}
-        {visibleTab === 'distributions' && <Distributions data={data} />}
-        {visibleTab === 'correlations' && <Correlations data={data} />}
-        {visibleTab === 'profils' && <Profils data={data} fusion={fusion} />}
+        {tab === 'vue' && <VueGlobale data={data} />}
+        {tab === 'tendances' && <Tendances data={data} />}
+        {tab === 'distributions' && <Distributions data={data} />}
+        {tab === 'correlations' && <Correlations data={data} />}
+        {tab === 'profils' && <Profils data={data} fusion={fusion} />}
+        {tab === 'tendances' && <Note>Les mesures attaquées sont signalées dans l'infobulle de chaque point.</Note>}
       </div>
     </ErrorBoundary>
   );

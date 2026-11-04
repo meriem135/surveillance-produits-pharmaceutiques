@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+/** Résultats phase 2 (archive de l'année simulée 2019) : dernier One-Class SVM multivarié enregistré.
+ *  GET /api/v1/phase2/training-results : ml_models.result_json (repli : sessionStorage « phase2_train_result »). */
+import { useEffect, useMemo, useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  Bar, BarChart, CartesianGrid, Legend, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  Brain, Activity, AlertTriangle,
-  Zap, Calendar, TrendingUp, Loader2, CheckCircle2,
-} from 'lucide-react';
+  Empty, Loading, Meter, Note, PageHeader, Readouts, Section, Stat, State, Table, nf, pct, tooltipStyle, usePalette,
+} from '../components/etude/kit';
 
 interface ModelMetrics {
   precision: number; recall: number; f1: number; roc_auc: number;
@@ -37,25 +38,6 @@ interface TimelinePoint {
   anomaly_score: number;
 }
 
-interface FeatureImportance {
-  feature: string; importance: number;
-}
-
-interface ShapData {
-  available: boolean;
-  global_importance: Array<{ feature: string; shap_importance: number }>;
-  sample_explanations: Array<{
-    index: number; anomaly_score: number;
-    top_features_anomaly: Array<{ feature: string; shap_value: number; feature_value: number }>;
-    top_features_normal: Array<{ feature: string; shap_value: number; feature_value: number }>;
-  }>;
-  n_samples_explained: number;
-  full_matrix?: Array<{ sample_index: number; values: Record<string, number> }>;
-  feature_names?: string[];
-  timestamps?: string[];
-  seasonal_breakdown?: Record<string, { count: number; importance: Array<{ feature: string; shap_importance: number }> }>;
-}
-
 interface TrainingResult {
   status: string;
   training_info: {
@@ -74,32 +56,55 @@ interface TrainingResult {
   monthly_breakdown: MonthlyData[];
   seasonal_breakdown: SeasonalData[];
   timeline: TimelinePoint[];
-  feature_importance: FeatureImportance[];
-  shap?: ShapData;
+  feature_importance: { feature: string; importance: number }[];
 }
 
-const ATTACK_META: Record<string, { label: string; color: string; severity: string }> = {
-  IoT_DDoS_normal: { label: 'DDoS', color: '#EF4444', severity: 'Critique' },
-  IoT_DoS_normal: { label: 'DoS', color: '#F97316', severity: 'Élevé' },
-  IoT_MITM_normal: { label: 'MITM', color: '#EAB308', severity: 'Élevé' },
-  IoT_XSS_normal: { label: 'XSS', color: '#8B5CF6', severity: 'Moyen' },
-  IoT_backdoor_normal: { label: 'Backdoor', color: '#DC2626', severity: 'Critique' },
-  IoT_Injection_normal: { label: 'Injection', color: '#7C3AED', severity: 'Élevé' },
-  IoT_password_normal: { label: 'Password', color: '#F59E0B', severity: 'Moyen' },
-  IoT_ransomware_normal: { label: 'Ransomware', color: '#991B1B', severity: 'Critique' },
-  IoT_scanning_normal: { label: 'Scanning', color: '#06B6D4', severity: 'Faible' },
-  MITM_fridge_freeze: { label: 'MITM · frigo figé', color: '#0EA5E9', severity: 'Critique' },
-  Injection_fridge_plausible: { label: 'Injection plausible · frigo', color: '#7C3AED', severity: 'Critique' },
+const SOURCE = 'ml_models.result_json (dernier OCSVM_Multivarie)';
+
+const ATTACK_META: Record<string, { label: string; severity: string }> = {
+  IoT_DDoS_normal: { label: 'DDoS', severity: 'Critique' },
+  IoT_DoS_normal: { label: 'DoS', severity: 'Élevé' },
+  IoT_MITM_normal: { label: 'MITM', severity: 'Élevé' },
+  IoT_XSS_normal: { label: 'XSS', severity: 'Moyen' },
+  IoT_backdoor_normal: { label: 'Porte dérobée', severity: 'Critique' },
+  IoT_Injection_normal: { label: 'Injection', severity: 'Élevé' },
+  IoT_password_normal: { label: 'Mot de passe', severity: 'Moyen' },
+  IoT_ransomware_normal: { label: 'Rançongiciel', severity: 'Critique' },
+  IoT_scanning_normal: { label: 'Balayage de ports', severity: 'Faible' },
+  MITM_fridge_freeze: { label: 'MITM, frigo figé', severity: 'Critique' },
+  Injection_fridge_plausible: { label: 'Injection plausible, frigo', severity: 'Critique' },
 };
 
-const SEASON_LABELS: Record<string, { label: string; color: string }> = {
-  winter: { label: 'Hiver', color: '#60A5FA' },
-  spring: { label: 'Printemps', color: '#34D399' },
-  summer: { label: 'Été', color: '#FBBF24' },
-  autumn: { label: 'Automne', color: '#F97316' },
-};
+const SEASON_FR: Record<string, string> = { winter: 'Hiver', spring: 'Printemps', summer: 'Été', autumn: 'Automne' };
+const SENSOR_FR: Record<string, string> = { weather: 'météo', fridge: 'frigo', thermostat: 'thermostat' };
+
+/** Matrice de confusion du test, lisible sans la couleur (libellés + chiffres). */
+function Confusion({ m }: { m: ModelMetrics }) {
+  const cell = (label: string, v: number, good: boolean) => (
+    <div className="p-2.5 text-center" style={{ background: good ? 'color-mix(in srgb, var(--accent-primary) 9%, var(--bg-panel))' : 'color-mix(in srgb, var(--accent-danger) 8%, var(--bg-panel))' }}>
+      <div className="vc-readout-value" style={{ fontSize: 24, color: good ? 'var(--text-primary)' : 'var(--accent-danger)' }}>{nf(v)}</div>
+      <div className="text-[12px] mt-1" style={{ color: 'var(--text-secondary)' }}>{label}</div>
+    </div>
+  );
+  const head = 'px-2 py-1 text-center font-semibold';
+  return (
+    <div className="grid grid-cols-[auto_1fr_1fr] gap-px text-[12px]" style={{ background: 'var(--border)', border: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--bg-panel)' }} />
+      <div className={head} style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Prédit attaque</div>
+      <div className={head} style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Prédit normal</div>
+      <div className="px-2 flex items-center font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Attaque</div>
+      {cell('vrais positifs', m.tp, true)}{cell('attaques manquées', m.fn, false)}
+      <div className="px-2 flex items-center font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Normal</div>
+      {cell('fausses alertes', m.fp, false)}{cell('vrais négatifs', m.tn, true)}
+    </div>
+  );
+}
+
+const rateKind = (r: number) => (r >= 90 ? 'ok' : r >= 70 ? 'alerte' : 'manque') as 'ok' | 'alerte' | 'manque';
+const rateColor = (r: number) => (r >= 90 ? 'var(--accent-primary)' : r >= 70 ? 'var(--accent-warning)' : 'var(--accent-danger)');
 
 export default function TrainingResultsPage() {
+  const pal = usePalette();
   const [result, setResult] = useState<TrainingResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +117,7 @@ export default function TrainingResultsPage() {
     const fetchResults = async () => {
       try {
         const r = await fetch('/api/v1/phase2/training-results');
-        const text = await r.text(); // read as text: gère les réponses 502/vides sans erreur "Unexpected end of JSON input"
+        const text = await r.text(); // lu en texte : gère les réponses 502/vides sans « Unexpected end of JSON input »
         if (!text) throw new Error('Réponse vide du serveur (backend indisponible ?).');
         const data = JSON.parse(text);
         const saved = sessionStorage.getItem('phase2_train_result');
@@ -120,7 +125,7 @@ export default function TrainingResultsPage() {
         else if (data.error) setError(data.error);
         else setResult(data);
       } catch (e: unknown) {
-        // Repli : afficher le résultat déjà sauvegardé par l'entraînement (sessionStorage)
+        // Repli : le résultat déjà sauvegardé par l'entraînement (sessionStorage)
         const saved = sessionStorage.getItem('phase2_train_result');
         if (saved) {
           try { setResult(JSON.parse(saved)); return; } catch { /* ignore */ }
@@ -133,356 +138,192 @@ export default function TrainingResultsPage() {
     fetchResults();
   }, []);
 
-  const filteredAttacks = useMemo(() => {
-    if (!result) return [];
-    let attacks = result.attack_metrics || [];
-    if (attackFilter) attacks = attacks.filter(a => a.attack_type === attackFilter);
-    return attacks;
-  }, [result, attackFilter]);
+  const allAttacks = useMemo(() => result?.attack_metrics ?? [], [result]);
+  const filteredAttacks = useMemo(
+    () => (attackFilter ? allAttacks.filter(a => a.attack_type === attackFilter) : allAttacks),
+    [allAttacks, attackFilter],
+  );
+  const flagged = useMemo(() => (result?.timeline ?? []).filter(p => p.prediction === 1), [result]);
+  const monthly = useMemo(() => (result?.monthly_breakdown ?? []).map(d => ({
+    ...d, precision: (d.precision || 0) * 100, recall: (d.recall || 0) * 100,
+  })), [result]);
+  const seasonal = useMemo(() => (result?.seasonal_breakdown ?? []).map(d => ({
+    season: SEASON_FR[d.season] ?? d.season,
+    precision: (d.precision || 0) * 100,
+    recall: (d.recall || 0) * 100,
+    detection: d.attacks > 0 ? (d.detected / d.attacks) * 100 : 0,
+  })), [result]);
 
-  if (loading) {
+  const header = (
+    <PageHeader title="Résultats phase 2"
+      subtitle="Archive de l'année simulée 2019 (phase 2) : dernier One-Class SVM multivarié entraîné, mesuré sur le test du découpage temporel 70/15/15. Ce n'est pas l'étude de référence sur traces réelles." />
+  );
+
+  if (loading) return <div className="space-y-5">{header}<Loading /></div>;
+
+  if (error || !result) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center glass rounded-2xl p-8 glass-border">
-          <Loader2 className="w-10 h-10 mx-auto mb-3 animate-spin" style={{ color: 'var(--color-accent-cyan)' }} />
-          <p style={{ color: 'var(--color-text-secondary)' }}>Chargement des résultats...</p>
-        </div>
+      <div className="space-y-5">
+        {header}
+        <Empty>
+          <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>Aucun résultat d'entraînement</div>
+          <p className="mt-1">{error || "Lancez un entraînement depuis l'onglet ML et anomalies pour voir les résultats ici."}</p>
+          <a href="/#/dashboard/phase2" className="vc-btn mt-3 no-underline">Aller à ML et anomalies</a>
+        </Empty>
       </div>
     );
   }
 
-  const hasResult = !error && !!result;
+  const info = result.training_info;
+  const m = result.model_metrics;
+  const shown = flagged.slice(0, 40);
 
-  const metrics = result?.model_metrics;
-  const info = result?.training_info;
+  const toggle = (id: string) => setExpandedAttack(prev => (prev === id ? null : id));
 
   return (
-    <div className="space-y-4 pb-8 px-1">
-      {!hasResult && (
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center glass rounded-2xl p-8 glass-border" style={{ maxWidth: 480 }}>
-            <AlertTriangle className="w-12 h-12 mx-auto mb-3" style={{ color: 'var(--color-accent-warning)' }} />
-            <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>Aucun résultat d'entraînement</h3>
-            <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-              {error || "Lancez un entraînement depuis l'onglet ML & Anomalies pour voir les résultats ici."}
-            </p>
-            <a href="/#/dashboard/phase2"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold no-underline cursor-pointer transition-all"
-              style={{
-                background: 'linear-gradient(135deg, rgba(8,145,178,0.2), rgba(168,139,250,0.2))',
-                color: 'var(--color-accent-cyan)',
-                border: '1px solid rgba(8,145,178,0.3)',
-              }}>
-              <Brain className="w-4 h-4" />
-              Aller à ML & Anomalies
-            </a>
-          </div>
+    <div className="space-y-6">
+      {header}
+
+      <Readouts cols={5}>
+        <Stat label="Durée d'entraînement" value={nf(info?.duration_seconds, 1)} unit="s" />
+        <Stat label="Capteurs" value={nf(info?.sensors_used?.length)} sub={info?.sensors_used?.map(s => SENSOR_FR[s] ?? s).join(', ')} />
+        <Stat label="Échantillons" value={nf(info?.n_total_samples)} sub={`dont ${nf(info?.n_normal_samples)} normaux d'entraînement`} />
+        <Stat label="Attaques dans le jeu" value={nf(info?.n_attack_samples)} tone="var(--accent-danger)" />
+        <Stat label="Variables retenues" value={`${nf(info?.n_features_selected)}/${nf(info?.n_features_original)}`} />
+      </Readouts>
+
+      {m && (
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Section title="Métriques du modèle" subtitle="Mesurées sur le jeu de test, jamais utilisé pour régler le modèle." source={SOURCE}>
+            <Readouts cols={3}>
+              <Stat label="F1" value={pct(m.f1)} tone="var(--accent-primary)" />
+              <Stat label="Précision" value={pct(m.precision)} sub="Alertes vraiment dues à une attaque" />
+              <Stat label="Rappel" value={pct(m.recall)} sub="Attaques signalées" />
+              <Stat label="ROC-AUC" value={pct(m.roc_auc)} />
+              <Stat label="Taux de faux positifs" value={pct(m.fpr, 2)} tone="var(--alarm-amber-fill)" />
+              <Stat label="Précision moyenne (AP)" value={pct(m.average_precision)} />
+            </Readouts>
+          </Section>
+          <Section title="Matrice de confusion" subtitle={`${nf(m.tp + m.fn)} mesures d'attaque et ${nf(m.fp + m.tn)} mesures normales dans le test.`} source={SOURCE}>
+            <Confusion m={m} />
+          </Section>
         </div>
       )}
 
-      {hasResult && result && (
-      <>
-      {/* ═══ HEADER ═══ */}
-      <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
-        style={{ borderColor: 'rgba(34,197,94,0.3)' }}>
-        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #22C55E, #10B981, transparent)' }} />
-        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-          <CheckCircle2 className="w-4 h-4" style={{ color: '#22C55E' }} />
-          <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            Résultats de l'Entraînement
-          </h3>
-          <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: '#22C55E' }}>
-            {info?.duration_seconds?.toFixed(1)}s
-          </span>
-        </div>
-
-        {/* Summary cards */}
-        <div className="p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[
-            { label: 'Capteurs', value: info?.sensors_used?.join(', ') },
-            { label: 'Échantillons', value: info?.n_total_samples?.toLocaleString() },
-            { label: 'Normaux', value: info?.n_normal_samples?.toLocaleString() },
-            { label: 'Attaques', value: info?.n_attack_samples?.toLocaleString() },
-            { label: 'Features', value: `${info?.n_features_selected}/${info?.n_features_original}` },
-          ].map(item => (
-            <div key={item.label} className="p-3 rounded-xl text-center" style={{ background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)' }}>
-              <div className="text-[12.5px]" style={{ color: 'var(--color-text-secondary)' }}>{item.label}</div>
-              <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--color-text-primary)' }}>{item.value}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ═══ MODEL METRICS ═══ */}
-      <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
-        style={{ borderColor: 'rgba(150,206,180,0.12)' }}>
-        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #96CEB4, #0891B2, transparent)' }} />
-        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-          <Activity className="w-4 h-4" style={{ color: '#96CEB4' }} />
-          <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            Métriques du Modèle
-          </h3>
-        </div>
-        <div className="p-5">
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
-            {[
-              { label: 'F1 Score', value: metrics?.f1, color: '#22C55E' },
-              { label: 'Précision', value: metrics?.precision, color: '#8B5CF6' },
-              { label: 'Rappel', value: metrics?.recall, color: '#3B82F6' },
-              { label: 'ROC-AUC', value: metrics?.roc_auc, color: '#F59E0B' },
-              { label: 'FPR', value: metrics?.fpr, color: '#EF4444' },
-              { label: 'Avg Precision', value: metrics?.average_precision, color: '#0891B2' },
-            ].map(m => (
-              <div key={m.label} className="p-3 rounded-xl text-center glass glass-border" style={{ borderColor: `${m.color}25` }}>
-                <div className="font-display font-bold text-xl" style={{ color: m.color }}>
-                  {m.value != null ? `${(m.value * 100).toFixed(1)}%` : 'N/A'}
-                </div>
-                <div className="text-[9px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{m.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Confusion matrix */}
-          {metrics && (
-            <div className="rounded-xl p-4 glass" style={{ border: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-              <div className="text-[10px] font-bold mb-2" style={{ color: 'var(--color-text-secondary)' }}>Matrice de Confusion</div>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: 'VP · Attaque détectée', value: metrics.tp, color: '#22C55E' },
-                  { label: 'FP · Fausse alerte', value: metrics.fp, color: '#F97316' },
-                  { label: 'FN · Attaque manquée', value: metrics.fn, color: '#EF4444' },
-                  { label: 'VN · Normal correct', value: metrics.tn, color: '#60A5FA' },
-                ].map(c => (
-                  <div key={c.label} className="p-3 rounded-xl text-center" style={{ background: `${c.color}12`, border: `1px solid ${c.color}20` }}>
-                    <div className="font-bold text-lg" style={{ color: c.color }}>{c.value?.toLocaleString() || 'N/A'}</div>
-                    <div className="text-[9px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{c.label}</div>
-                  </div>
+      {allAttacks.length > 0 && (
+        <Section title="Détection par type d'attaque" subtitle={`${filteredAttacks.length} type${filteredAttacks.length > 1 ? 's' : ''} affiché${filteredAttacks.length > 1 ? 's' : ''}. Cliquez une ligne pour la marquer.`}
+          source={`${SOURCE} → attack_metrics`} flush
+          action={
+            <label className="flex items-center gap-2 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+              Type
+              <select className="vc-select" value={attackFilter || ''} onChange={e => setAttackFilter(e.target.value || null)}>
+                <option value="">Tous</option>
+                {allAttacks.map(a => (
+                  <option key={a.attack_id || a.attack_type} value={a.attack_type}>{ATTACK_META[a.attack_type]?.label || a.attack_type}</option>
                 ))}
+              </select>
+            </label>
+          }>
+          <Table min={720}>
+            <thead><tr><th>Type</th><th>Sévérité</th><th className="vc-num">Total</th><th className="vc-num">Détectées</th><th>Taux de détection</th><th className="vc-num">Score moyen</th></tr></thead>
+            <tbody>
+              {filteredAttacks.map(atk => {
+                const meta = ATTACK_META[atk.attack_type] || { label: atk.attack_type, severity: '—' };
+                const id = atk.attack_id || atk.attack_type;
+                const isOpen = expandedAttack === id;
+                const rate = atk.detection_rate || 0;
+                return (
+                  <tr key={id} onClick={() => toggle(id)} className="cursor-pointer"
+                    style={isOpen ? { background: 'color-mix(in srgb, var(--accent-primary) 10%, var(--bg-panel))' } : undefined}>
+                    <td>
+                      <button type="button" aria-pressed={isOpen} className="font-semibold text-left"
+                        onClick={e => { e.stopPropagation(); toggle(id); }}>{meta.label}</button>
+                    </td>
+                    <td className="text-[13px]">{meta.severity}</td>
+                    <td className="vc-num">{nf(atk.n_total)}</td>
+                    <td className="vc-num">{nf(atk.n_detected)}</td>
+                    <td>
+                      <div className="flex items-center gap-2 min-w-[180px]">
+                        <div className="w-20 shrink-0"><Meter value={rate} color={rateColor(rate)} /></div>
+                        <State kind={rateKind(rate)}>{`${nf(rate, 1)}\u202f%`}</State>
+                      </div>
+                    </td>
+                    <td className="vc-num">{nf(atk.avg_score || 0, 4)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </Section>
+      )}
+
+      {flagged.length > 0 && (
+        <Section title="Mesures signalées comme attaques" subtitle={`Extrait de la chronologie enregistrée : ${nf(shown.length)} affichées sur ${nf(flagged.length)} signalées.`}
+          source={`${SOURCE} → timeline`} flush>
+          <div className="max-h-[28rem] overflow-y-auto">
+            <Table min={760}>
+              <thead><tr><th className="vc-num">#</th><th>Date</th><th className="vc-num">Météo (°C)</th><th className="vc-num">Frigo (°C)</th>
+                <th className="vc-num">Thermostat (°C)</th><th className="vc-num">Score</th><th>Réalité</th></tr></thead>
+              <tbody>
+                {shown.map((p, i) => {
+                  const real = p.label === 1;
+                  return (
+                    <tr key={i}>
+                      <td className="vc-num" style={{ color: 'var(--text-secondary)' }}>{i + 1}</td>
+                      <td className="whitespace-nowrap">{new Date(p.datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="vc-num">{nf(p.weather_temp, 1)}</td>
+                      <td className="vc-num">{nf(p.fridge_temp, 1)}</td>
+                      <td className="vc-num">{nf(p.thermostat_temp, 1)}</td>
+                      <td className="vc-num">{nf(p.anomaly_score, 4)}</td>
+                      <td>{real ? <State kind="ok">vrai positif (attaque réelle)</State> : <State kind="alerte">faux positif (mesure normale)</State>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
+        </Section>
+      )}
+
+      {(monthly.length > 0 || seasonal.length > 0) && (
+        <div className="grid lg:grid-cols-2 gap-6">
+          {monthly.length > 0 && (
+            <Section title="Performance mensuelle" subtitle="Précision et rappel du modèle, mois par mois." source={`${SOURCE} → monthly_breakdown`}>
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthly} margin={{ top: 4, right: 8, left: -6, bottom: 0 }}>
+                    <CartesianGrid stroke={pal.grid} vertical={false} />
+                    <XAxis dataKey="month_name" tick={{ fill: pal.axis, fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} unit=" %" tick={{ fill: pal.axis, fontSize: 12 }} />
+                    <Tooltip {...tooltipStyle} formatter={(v, n) => [`${nf(Number(v), 1)}\u202f%`, n]} />
+                    <Legend iconType="square" wrapperStyle={{ fontSize: 12.5 }} />
+                    <Bar dataKey="precision" name="Précision" fill={pal.series[0]} maxBarSize={18} isAnimationActive={false} />
+                    <Bar dataKey="recall" name="Rappel" fill={pal.series[2]} maxBarSize={18} isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            </div>
+            </Section>
+          )}
+          {seasonal.length > 0 && (
+            <Section title="Analyse saisonnière" subtitle="Précision, rappel et part des attaques détectées, par saison." source={`${SOURCE} → seasonal_breakdown`}>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={seasonal} cx="50%" cy="50%" outerRadius="70%">
+                    <PolarGrid stroke={pal.grid} />
+                    <PolarAngleAxis dataKey="season" tick={{ fill: pal.axis, fontSize: 12 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: pal.axis, fontSize: 11 }} />
+                    <Tooltip {...tooltipStyle} formatter={(v, n) => [`${nf(Number(v), 1)}\u202f%`, n]} />
+                    <Legend iconType="plainline" wrapperStyle={{ fontSize: 12.5 }} />
+                    <Radar name="Précision" dataKey="precision" stroke={pal.series[0]} fill={pal.series[0]} fillOpacity={0.12} strokeWidth={2} isAnimationActive={false} />
+                    <Radar name="Rappel" dataKey="recall" stroke={pal.series[1]} fill="none" strokeWidth={2} strokeDasharray="5 4" isAnimationActive={false} />
+                    <Radar name="Détection" dataKey="detection" stroke={pal.series[3]} fill="none" strokeWidth={2} isAnimationActive={false} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+              <Note>Une saison sans aucune attaque détectée (précision et rappel nuls) apparaît au centre du radar.</Note>
+            </Section>
           )}
         </div>
-      </div>
-
-      {/* ═══ ATTACK TABLE ═══ */}
-      {filteredAttacks.length > 0 && (
-        <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
-          style={{ borderColor: 'rgba(239,68,68,0.12)' }}>
-          <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #EF4444, #F97316, transparent)' }} />
-          <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-            <AlertTriangle className="w-4 h-4" style={{ color: '#EF4444' }} />
-            <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-              Détection par Attaque
-            </h3>
-            <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: '#EF4444' }}>
-              {filteredAttacks.length} types
-            </span>
-            <select value={attackFilter || ''} onChange={e => setAttackFilter(e.target.value || null)}
-              className="text-[10px] px-2 py-1.5 rounded-lg cursor-pointer outline-none glass glass-border"
-              style={{ color: 'var(--color-text-primary)' }}>
-              <option value="">Tous</option>
-              {filteredAttacks.map(a => (
-                <option key={a.attack_type} value={a.attack_type}>
-                  {ATTACK_META[a.attack_type]?.label || a.attack_type}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-                  {['Type', 'Sévérité', 'Total', 'Détectées', 'Taux', 'Score Moy.'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 font-bold text-[9px] uppercase tracking-wider"
-                      style={{ color: 'var(--color-text-secondary)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAttacks.map(atk => {
-                  const meta = ATTACK_META[atk.attack_type] || { label: atk.attack_type, color: '#666', severity: '—' };
-                  const isOpen = expandedAttack === atk.attack_id || expandedAttack === atk.attack_type;
-                  return (
-                    <tr key={atk.attack_id || atk.attack_type}
-                      onClick={() => setExpandedAttack(isOpen ? null : (atk.attack_id || atk.attack_type))}
-                      className="cursor-pointer transition-all"
-                      style={{
-                        borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 5%, transparent)',
-                        background: isOpen ? `${meta.color}08` : undefined,
-                      }}>
-                      <td className="px-4 py-3">
-                        <span className="font-bold" style={{ color: 'var(--color-text-primary)' }}>{meta.label}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold"
-                          style={{ background: `${meta.color}18`, color: meta.color }}>
-                          {meta.severity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-mono" style={{ color: 'var(--color-text-secondary)' }}>{atk.n_total?.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-mono font-bold" style={{ color: '#22C55E' }}>{atk.n_detected?.toLocaleString()}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-                            <div className="h-full rounded-full" style={{
-                              width: `${atk.detection_rate || 0}%`,
-                              background: (atk.detection_rate || 0) >= 90 ? '#22C55E' : (atk.detection_rate || 0) >= 70 ? '#FBBF24' : '#EF4444',
-                            }} />
-                          </div>
-                          <span className="text-[10px] font-bold font-mono" style={{
-                            color: (atk.detection_rate || 0) >= 90 ? '#22C55E' : (atk.detection_rate || 0) >= 70 ? '#FBBF24' : '#EF4444',
-                          }}>{(atk.detection_rate || 0).toFixed(1)}%</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>{(atk.avg_score || 0).toFixed(4)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ DETECTED ATTACKS LIST ═══ */}
-      {result.timeline && result.timeline.filter(p => p.prediction === 1).length > 0 && (
-        <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
-          style={{ borderColor: 'rgba(239,68,68,0.15)' }}>
-          <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #EF4444, #DC2626, transparent)' }} />
-          <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-            <Zap className="w-4 h-4" style={{ color: '#EF4444' }} />
-            <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-              Attaques Détectées (individuelles)
-            </h3>
-            <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: '#EF4444' }}>
-              {result.timeline.filter(p => p.prediction === 1).length} détectées
-            </span>
-          </div>
-          <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-                  {['#', 'Date', 'Weather °C', 'Fridge °C', 'Thermo °C', 'Score', 'Réel', 'Statut'].map(h => (
-                    <th key={h} className="text-left px-3 py-2.5 font-bold text-[9px] uppercase tracking-wider sticky top-0"
-                      style={{ color: 'var(--color-text-secondary)', background: 'var(--color-bg-panel)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {result.timeline.filter(p => p.prediction === 1).slice(0, 40).map((p, i) => {
-                  const isRealAttack = p.label === 1;
-                  return (
-                    <tr key={i} className="transition-all" style={{
-                      borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 5%, transparent)',
-                      background: isRealAttack ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.04)',
-                    }}>
-                      <td className="px-3 py-2 text-[10px] font-mono" style={{ color: 'var(--color-text-secondary)' }}>{i + 1}</td>
-                      <td className="px-3 py-2 font-mono text-[10px]" style={{ color: 'var(--color-text-primary)' }}>
-                        {new Date(p.datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="px-3 py-2 font-mono" style={{ color: '#FF6B6B' }}>{p.weather_temp.toFixed(1)}</td>
-                      <td className="px-3 py-2 font-mono" style={{ color: '#4ECDC4' }}>{p.fridge_temp.toFixed(1)}</td>
-                      <td className="px-3 py-2 font-mono" style={{ color: '#45B7D1' }}>{p.thermostat_temp.toFixed(1)}</td>
-                      <td className="px-3 py-2">
-                        <span className="font-mono font-bold text-[10px]" style={{
-                          color: p.anomaly_score > 0.5 ? '#EF4444' : p.anomaly_score > 0.2 ? '#F97316' : '#22C55E',
-                        }}>{p.anomaly_score.toFixed(4)}</span>
-                      </td>
-                      <td className="px-3 py-2">
-                        {isRealAttack ? (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
-                            style={{ background: 'rgba(34,197,94,0.15)', color: '#22C55E' }}>Attaque</span>
-                        ) : (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold"
-                            style={{ background: 'rgba(239,68,68,0.15)', color: '#EF4444' }}>FP</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="text-[9px] font-mono" style={{
-                          color: isRealAttack ? '#22C55E' : '#EF4444',
-                        }}>{isRealAttack ? 'vrai positif' : 'faux positif'}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-2 text-[9px] flex items-center gap-3" style={{ color: 'var(--color-text-secondary)', borderTop: '1px solid color-mix(in srgb, var(--text-primary) 5%, transparent)' }}>
-            <span><span className="inline-block w-2 h-2 rounded-sm" style={{ background: 'rgba(34,197,94,0.5)' }} /> VP = Attaque réelle détectée</span>
-            <span><span className="inline-block w-2 h-2 rounded-sm" style={{ background: 'rgba(239,68,68,0.5)' }} /> FP = Fausse alerte (normal classé attaque)</span>
-            <span className="ml-auto">{result.timeline.filter(p => p.prediction === 1).slice(0, 40).length} affichées / {result.timeline.filter(p => p.prediction === 1).length} totales</span>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ CHARTS GRID ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Monthly chart */}
-        {result.monthly_breakdown && result.monthly_breakdown.length > 0 && (
-          <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow grid-bg"
-            style={{ borderColor: 'rgba(8,145,178,0.12)' }}>
-            <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #0891B2, #22C55E, transparent)' }} />
-            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-              <Calendar className="w-4 h-4" style={{ color: 'var(--color-accent-cyan)' }} />
-              <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>Performance Mensuelle</h3>
-            </div>
-            <div className="p-4">
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={result.monthly_breakdown.map(d => ({ ...d, precision: (d.precision || 0) * 100, recall: (d.recall || 0) * 100 }))}>
-                  <CartesianGrid stroke="color-mix(in srgb, var(--text-primary) 5%, transparent)" />
-                  <XAxis dataKey="month_name" tick={{ fill: 'var(--color-text-secondary)', fontSize: 10 }} />
-                  <YAxis domain={[0, 100]} tick={{ fill: 'var(--color-text-secondary)', fontSize: 9 }} />
-                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.92)', backdropFilter: 'blur(16px)', border: '1px solid rgba(8,145,178,0.2)', borderRadius: 12, fontSize: 11 }}
-                    formatter={(val: unknown) => [`${(Number(val) * 100).toFixed(1)}%`, '']} />
-                  <Bar dataKey="precision" name="Précision" fill="#22C55E" fillOpacity={0.7} radius={[4, 4, 0, 0]} maxBarSize={20} />
-                  <Bar dataKey="recall" name="Rappel" fill="#0891B2" fillOpacity={0.5} radius={[4, 4, 0, 0]} maxBarSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-              <div className="flex items-center gap-4 mt-2 justify-center text-[10px]">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded" style={{ background: '#22C55E' }} /> Précision</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded" style={{ background: '#0891B2' }} /> Rappel</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Seasonal chart */}
-        {result.seasonal_breakdown && result.seasonal_breakdown.length > 0 && (
-          <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow grid-bg"
-            style={{ borderColor: 'rgba(168,139,250,0.12)' }}>
-            <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #8B5CF6, #0891B2, transparent)' }} />
-            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-              <TrendingUp className="w-4 h-4" style={{ color: '#8B5CF6' }} />
-              <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>Analyse Saisonnière</h3>
-            </div>
-            <div className="p-4">
-              <ResponsiveContainer width="100%" height={280}>
-                <RadarChart data={result.seasonal_breakdown.map(d => ({
-                  season: SEASON_LABELS[d.season]?.label || d.season,
-                  precision: (d.precision || 0) * 100,
-                  recall: (d.recall || 0) * 100,
-                  detection: d.attacks > 0 ? (d.detected / d.attacks) * 100 : 0,
-                }))} cx="50%" cy="50%" outerRadius="70%">
-                  <PolarGrid stroke="rgba(168,139,250,0.2)" />
-                  <PolarAngleAxis dataKey="season" tick={{ fill: 'var(--color-text-secondary)', fontSize: 10 }} />
-                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: 'var(--color-text-secondary)', fontSize: 8 }} />
-                  <Tooltip contentStyle={{ background: 'rgba(17,24,39,0.92)', border: '1px solid rgba(168,139,250,0.3)', borderRadius: 12, fontSize: 11 }} />
-                  <Radar name="Précision" dataKey="precision" stroke="#22C55E" fill="#22C55E" fillOpacity={0.2} strokeWidth={2} />
-                  <Radar name="Rappel" dataKey="recall" stroke="#0891B2" fill="#0891B2" fillOpacity={0.15} strokeWidth={2} />
-                  <Radar name="Détection" dataKey="detection" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.1} strokeWidth={2} />
-                </RadarChart>
-              </ResponsiveContainer>
-              <div className="flex items-center gap-4 mt-2 justify-center text-[10px]">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-1 rounded" style={{ background: '#22C55E' }} /> Précision</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-1 rounded" style={{ background: '#0891B2' }} /> Rappel</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-1 rounded" style={{ background: '#8B5CF6' }} /> Détection</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-      </>
       )}
     </div>
   );

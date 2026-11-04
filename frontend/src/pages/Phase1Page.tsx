@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { CloudSun, Snowflake, Thermometer, Cpu, Repeat, Link2, Monitor, Radio, Play, Square } from 'lucide-react';
+import { Cpu, Repeat, Link2, Monitor, Play, Square } from 'lucide-react';
+import { Empty, PageHeader, Readouts, Section, Stat, State, Table, nf } from '../components/etude/kit';
 import type { LivePoint } from '../types';
 
 function fmtCaptureTime(ts: string) {
@@ -16,11 +16,11 @@ function fmtCaptureTime(ts: string) {
 
 function PacketChip({ p }: { p: { ts: string; type: string } }) {
   return (
-    <div className="shrink-0 flex flex-col items-center gap-1" title={`${fmtCaptureTime(p.ts)} · ${p.type}`}>
-      <span className="w-3.5 h-3.5 rounded-full" style={{ background: 'var(--accent-primary)', boxShadow: '0 0 0 3px var(--accent-glow)' }} />
-      <span className="text-[9px] font-mono font-semibold" style={{ color: 'var(--text-secondary)' }}>{p.type}</span>
-      <span className="text-[8px] font-mono" style={{ color: 'var(--text-muted)' }}>{fmtCaptureTime(p.ts).slice(0, 8)}</span>
-    </div>
+    <li className="shrink-0 flex flex-col items-center gap-1" title={`${fmtCaptureTime(p.ts)} · ${p.type}`}>
+      <span className="w-3 h-3" style={{ background: 'var(--accent-primary)' }} aria-hidden />
+      <span className="text-[12px] font-mono" style={{ color: 'var(--text-secondary)' }}>{p.type}</span>
+      <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>{fmtCaptureTime(p.ts).slice(0, 8)}</span>
+    </li>
   );
 }
 
@@ -123,13 +123,13 @@ export default function FactoryView() {
 
   function fmt2(n: unknown) {
     if (n === null || n === undefined || isNaN(Number(n))) return '—';
-    return Number(n).toFixed(2);
+    return nf(Number(n), 2);
   }
 
   const sensors = [
-    { label: 'Météo', id: 'weather-01', val: currentPoint?.weather_temperature, icon: CloudSun },
-    { label: 'Chambre froide', id: 'fridge-01', val: currentPoint?.fridge_temperature, icon: Snowflake },
-    { label: 'Thermostat', id: 'thermostat-01', val: currentPoint?.thermostat_temperature, icon: Thermometer },
+    { label: 'Météo', id: 'weather-01', val: currentPoint?.weather_temperature },
+    { label: 'Chambre froide', id: 'fridge-01', val: currentPoint?.fridge_temperature },
+    { label: 'Thermostat', id: 'thermostat-01', val: currentPoint?.thermostat_temperature },
   ];
   const pipeline = [
     { label: 'Capteurs IoT', icon: Cpu, sub: 'weather-01 · fridge-01 · thermostat-01', ok: true },
@@ -139,143 +139,76 @@ export default function FactoryView() {
   ];
 
   return (
-    <motion.div className="space-y-5" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      {/* En-tête */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight flex items-center gap-3" style={{ color: 'var(--text-primary)' }}>
-            Ingestion temps réel
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md inline-flex items-center gap-1.5"
-              style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: isConnected ? 'var(--accent-success)' : 'var(--text-muted)' }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: isConnected ? 'var(--accent-success)' : 'var(--text-muted)' }} />
-              {isConnected ? 'Flux actif' : 'Hors ligne'}
-            </span>
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-            Flux des trois capteurs (météo, frigo, thermostat) rejoué depuis le jeu annuel et reçu par WebSocket.
-          </p>
-        </div>
-        <button onClick={toggleSimulation}
-          className="h-9 px-4 rounded-md text-sm font-semibold inline-flex items-center gap-2 border"
-          style={simulationActive
-            ? { background: 'var(--bg-card)', borderColor: 'var(--accent-danger)', color: 'var(--accent-danger)' }
-            : { background: 'var(--accent-primary)', borderColor: 'transparent', color: 'var(--accent-primary-fg)' }}>
+    <div className="space-y-6">
+      <PageHeader title="Ingestion temps réel"
+        subtitle="Archive de l’année simulée 2019 (phase 2) : flux des trois capteurs (météo, frigo, thermostat) rejoué depuis le jeu annuel et reçu par WebSocket. Ce n’est pas l’étude de référence sur traces réelles.">
+        <State kind={isConnected ? 'ok' : 'neutre'}>{isConnected ? 'Flux actif' : 'Hors ligne'}</State>
+        <button type="button" onClick={toggleSimulation} className={simulationActive ? 'vc-btn vc-btn-danger' : 'vc-btn vc-btn-primary'}>
           {simulationActive ? <><Square className="w-4 h-4" /> Arrêter la simulation</> : <><Play className="w-4 h-4" /> Démarrer la simulation</>}
         </button>
-      </div>
+      </PageHeader>
 
-      {streamError && (
-        <div className="vc-card px-4 py-2.5 text-sm" style={{ color: 'var(--accent-danger)', borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}>{streamError}</div>
-      )}
+      {streamError && <div role="alert"><State kind="manque">{streamError}</State></div>}
 
-      {/* Saison + capteurs */}
-      <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
-        <div className="vc-card p-4">
-          <div className="vc-kicker">Saison en cours</div>
-          <div className="mt-2 text-2xl font-semibold capitalize" style={{ color: 'var(--text-primary)' }}>{displaySeason || '—'}</div>
-          <div className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Mois {currentPoint?.month || '—'}</div>
-          <div className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Simulation annuelle · quatre saisons rejouées</div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {sensors.map(({ label, id, val, icon: Icon }) => (
-            <div key={id} className="vc-card p-4">
-              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                <Icon className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} /> {label}
-              </div>
-              <div className="mt-2 text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
-                {val == null ? '—' : <>{fmt2(val)}<span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}> °C</span></>}
-              </div>
-              <div className="text-[11px] font-mono mt-1" style={{ color: 'var(--text-muted)' }}>{id}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Compteurs de la session */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { val: String(received), lbl: 'Mesures reçues', sub: 'depuis le démarrage' },
-          { val: rate != null ? `${fmt2(rate)}/s` : '—', lbl: 'Débit', sub: 'mesures reçues par seconde' },
-          { val: String(sensors.length), lbl: 'Capteurs', sub: 'météo · frigo · thermostat' },
-          { val: currentPoint?.dataset_datetime ? currentPoint.dataset_datetime.slice(0, 16) : '—', lbl: 'Horodatage du jeu', sub: 'dernière mesure rejouée' },
-        ].map((s) => (
-          <div key={s.lbl} className="vc-card p-4">
-            <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{s.lbl}</div>
-            <div className="mt-2 text-xl font-semibold tabular-nums truncate" style={{ color: 'var(--text-primary)' }}>{s.val}</div>
-            <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{s.sub}</div>
-          </div>
+      <Readouts cols={4}>
+        <Stat label="Saison en cours" value={<span className="capitalize">{displaySeason || '—'}</span>} sub={`Mois ${currentPoint?.month || '—'} · quatre saisons rejouées`} />
+        {sensors.map(({ label, id, val }) => (
+          <Stat key={id} label={label} tone="var(--accent-primary)" value={val == null ? '—' : fmt2(val)} unit={val == null ? undefined : '°C'} sub={<code>{id}</code>} />
         ))}
-      </div>
+      </Readouts>
 
-      {/* Chaîne d'acquisition */}
-      <div className="vc-card p-4">
-        <div className="vc-kicker mb-3">Chaîne d’acquisition</div>
-        <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {pipeline.map(({ label, icon: Icon, sub, ok }, i) => (
-            <li key={label} className="flex items-center gap-3 rounded-lg p-3" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
-              <span className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
-                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: ok ? 'var(--accent-primary)' : 'var(--accent-danger)' }}>
-                <Icon className="w-4 h-4" />
-              </span>
-              <div className="min-w-0">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{i + 1}. {label}</div>
-                <div className="text-[11px] truncate" style={{ color: ok ? 'var(--text-muted)' : 'var(--accent-danger)' }}>{sub}</div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <Readouts cols={4}>
+        <Stat label="Mesures reçues" value={nf(received)} sub="depuis le démarrage" />
+        <Stat label="Débit" value={rate != null ? fmt2(rate) : '—'} unit={rate != null ? '/s' : undefined} sub="mesures reçues par seconde" />
+        <Stat label="Capteurs" value={nf(sensors.length)} sub="météo · frigo · thermostat" />
+        <Stat label="Horodatage du jeu" value={<span className="text-[22px]">{currentPoint?.dataset_datetime ? currentPoint.dataset_datetime.slice(0, 16).replace('T', ' ') : '—'}</span>} sub="dernière mesure rejouée" />
+      </Readouts>
 
-      {/* Flux de paquets */}
-      <div className="vc-card p-4">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="vc-kicker">Flux de paquets · 50 derniers</div>
-          {packets.length > 0 && <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{packets.length} paquets</span>}
-        </div>
-        {packets.length === 0 ? (
-          <div className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
-            <Radio className="w-5 h-5 mx-auto mb-2" />
-            Aucun paquet reçu. Démarrez la simulation pour voir le flux.
-          </div>
-        ) : (
-          <div className="relative rounded-lg overflow-x-auto" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
-            <div className="flex gap-3 items-center px-4 py-4 min-h-[84px]">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Section title="Chaîne d’acquisition" subtitle="Du capteur simulé au tableau de bord.">
+          <ol className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {pipeline.map(({ label, icon: Icon, sub, ok }, i) => (
+              <li key={label} className="flex items-center gap-3 p-3 rounded-[3px] min-w-0" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+                <Icon className="w-4 h-4 shrink-0" style={{ color: ok ? 'var(--accent-primary)' : 'var(--accent-danger)' }} aria-hidden />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{i + 1}. {label}</div>
+                  <div className="text-[12.5px] truncate" style={{ color: ok ? 'var(--text-muted)' : 'var(--accent-danger)' }}>{sub}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Section>
+
+        <Section title="Flux de paquets" subtitle={packets.length > 0 ? `${nf(packets.length)} derniers paquets (50 au plus)` : '50 derniers paquets'} source="WebSocket /ws/stream">
+          {packets.length === 0 ? <Empty>Aucun paquet reçu. Démarrez la simulation pour voir le flux.</Empty> : (
+            <ol className="flex gap-3 items-center p-3 overflow-x-auto rounded-[3px]" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)' }} aria-label="Paquets reçus">
               {packets.map((p) => <PacketChip key={p.id} p={p} />)}
-            </div>
-          </div>
-        )}
+            </ol>
+          )}
+        </Section>
       </div>
 
-      {/* Dernières mesures */}
-      <div className="vc-card overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>Dernières mesures reçues</div>
-          <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{recent.length}</span>
-        </div>
-        {recent.length === 0 ? (
-          <div className="p-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Aucune mesure pour l’instant. Démarrez la simulation.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="vc-table w-full text-sm min-w-[620px]">
-              <thead>
-                <tr>{['Reçue à', 'Horodatage du jeu', 'Météo', 'Frigo', 'Thermostat', 'Saison'].map(h => <th key={h}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {recent.map((r, i) => (
-                  <tr key={i}>
-                    <td className="font-mono">{fmtCaptureTime(r.timestamp || '')}</td>
-                    <td className="font-mono" style={{ color: 'var(--text-secondary)' }}>{(r.dataset_datetime || '—').slice(0, 16)}</td>
-                    <td className="vc-num">{fmt2(r.weather_temperature)} °C</td>
-                    <td className="vc-num">{fmt2(r.fridge_temperature)} °C</td>
-                    <td className="vc-num">{fmt2(r.thermostat_temperature)} °C</td>
-                    <td className="capitalize">{r.season || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <Section title="Dernières mesures reçues" subtitle={`${nf(recent.length)} mesures affichées (12 au plus)`} source="WebSocket /ws/stream" flush>
+        {recent.length === 0 ? <div className="p-4 sm:p-5"><Empty>Aucune mesure pour l’instant. Démarrez la simulation.</Empty></div> : (
+          <Table min={620}>
+            <thead>
+              <tr><th>Reçue à</th><th>Horodatage du jeu</th><th className="vc-num">Météo</th><th className="vc-num">Frigo</th><th className="vc-num">Thermostat</th><th>Saison</th></tr>
+            </thead>
+            <tbody>
+              {recent.map((r, i) => (
+                <tr key={i}>
+                  <td className="font-mono">{fmtCaptureTime(r.timestamp || '')}</td>
+                  <td className="font-mono" style={{ color: 'var(--text-secondary)' }}>{(r.dataset_datetime || '—').slice(0, 16)}</td>
+                  <td className="vc-num">{fmt2(r.weather_temperature)}&nbsp;°C</td>
+                  <td className="vc-num">{fmt2(r.fridge_temperature)}&nbsp;°C</td>
+                  <td className="vc-num">{fmt2(r.thermostat_temperature)}&nbsp;°C</td>
+                  <td className="capitalize">{r.season || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
         )}
-      </div>
-    </motion.div>
+      </Section>
+    </div>
   );
 }

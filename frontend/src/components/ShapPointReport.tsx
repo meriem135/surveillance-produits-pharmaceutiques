@@ -1,7 +1,18 @@
-import { useState } from 'react';
-import { Activity, Download, Loader2, Zap } from 'lucide-react';
+/**
+ * Rapport détaillé d'un point du jeu de données de l'année simulée (archive phase 2) :
+ * explication SHAP du point (GET /api/shap/point) et recommandation opérateur
+ * (POST /api/v1/pharma/point-report, CVE comprises). Utilisé dans la fenêtre de la page SHAP
+ * et en pleine page (/dashboard/shap/report?timestamp=…).
+ */
+import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { Download, ExternalLink, Loader2, X } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { authHeaders } from '../lib/auth';
+import { Meter, Readouts, Stat, State, Table, nf, pct, type StateKind } from './etude/kit';
 
-interface ShapCause {
+// ─── Types partagés avec les pages SHAP ──────────────────────────────────────
+export interface ShapCause {
   feature: string;
   label?: string;
   shap_value: number;
@@ -9,7 +20,7 @@ interface ShapCause {
   interpretation?: string;
   group?: string;
 }
-interface ShapPointResponse {
+export interface ShapPointResponse {
   available: boolean;
   error?: string;
   timestamp: string;
@@ -31,7 +42,30 @@ interface ShapPointResponse {
   model_kind: string;
   shap_method: string;
 }
-interface PharmaReportResponse {
+interface CveItem {
+  cve_id: string;
+  description: string;
+  cvss_score: number | null;
+  cvss_severity: string;
+  epss_score: number | null;
+  published: string;
+  risk_score: number;
+  references: string[];
+}
+interface CveReport {
+  available: boolean;
+  sensor: string;
+  risk_score: number;
+  total_cves: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+  source: string;
+  top_cves: CveItem[];
+  error?: string;
+}
+export interface PharmaReportResponse {
   report: string;
   guardian: string;
   sensor: string;
@@ -61,93 +95,70 @@ interface PharmaReportResponse {
   cve?: CveReport;
   error?: string;
 }
-interface CveItem {
-  cve_id: string;
-  description: string;
-  cvss_score: number | null;
-  cvss_severity: string;
-  epss_score: number | null;
-  published: string;
-  risk_score: number;
-  references: string[];
+
+/** Charge l'explication SHAP d'un point puis la recommandation opérateur associée
+ *  (mêmes appels que l'ancienne page : GET /api/shap/point puis POST /api/v1/pharma/point-report). */
+export async function loadPointReport(timestamp: string) {
+  const p = await fetch(`/api/shap/point?timestamp=${encodeURIComponent(timestamp)}`);
+  if (!p.ok) {
+    const d = await p.json().catch(() => null);
+    throw new Error(d?.error || `HTTP ${p.status}`);
+  }
+  const point: ShapPointResponse = await p.json();
+  if (!point.available) throw new Error(point.error || 'SHAP indisponible');
+  const sov = point.sensor_values || {};
+  const r = await fetch('/api/v1/pharma/point-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({
+      sensor: point.dominant_sensor || 'thermostat',
+      attack_id: null,
+      risk_score: point.risk_score_per_100,
+      is_anomaly: point.is_anomaly,
+      label: point.label,
+      season: point.season,
+      sensor_values: { weather: sov.weather, fridge: sov.fridge, thermostat: sov.thermostat },
+      top_causes: point.top_causes.slice(0, 5),
+    }),
+  });
+  const pharma: PharmaReportResponse = await r.json();
+  if (pharma.report !== 'ok') throw new Error(pharma.error || 'Rapport indisponible');
+  return { point, pharma };
 }
-interface CveReport {
-  available: boolean;
-  sensor: string;
-  risk_score: number;
-  total_cves: number;
-  critical_count: number;
-  high_count: number;
-  medium_count: number;
-  low_count: number;
-  source: string;
-  top_cves: CveItem[];
-  error?: string;
+
+// ─── Libellés ────────────────────────────────────────────────────────────────
+export const GROUP_LABELS: Record<string, string> = {
+  weather: 'Météo', fridge: 'Frigo', thermostat: 'Thermostat', time: 'Temporel', cross: 'Inter-capteurs', other: 'Autre',
+};
+export const SEASON_LABELS: Record<string, string> = { winter: 'Hiver', spring: 'Printemps', summer: 'Été', autumn: 'Automne' };
+export const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+export const reportHref = (timestamp: string) => `/dashboard/shap/report?timestamp=${encodeURIComponent(timestamp)}`;
+
+const CVE_SEV: Record<string, { label: string; kind: StateKind }> = {
+  CRITICAL: { label: 'critique', kind: 'manque' }, HIGH: { label: 'élevée', kind: 'manque' },
+  MEDIUM: { label: 'moyenne', kind: 'alerte' }, LOW: { label: 'basse', kind: 'neutre' }, NONE: { label: 'aucune', kind: 'neutre' },
+};
+const severityKind = (s: string): StateKind => (s === 'critique' || s === 'élevée' ? 'manque' : s === 'moyenne' ? 'alerte' : 'neutre');
+const signed = (v: number) => `${v >= 0 ? '+' : '−'}${nf(Math.abs(v), 4)}`;
+const tsFr = (ts: string) =>
+  new Date(ts.replace(' ', 'T')).toLocaleString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <h3 className="text-[16px] font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+      {children}
+    </div>
+  );
 }
 
-const GROUP_COLORS: Record<string, string> = {
-  weather: '#0891B2',
-  fridge: '#0D9488',
-  thermostat: '#7C3AED',
-  time: '#E11D48',
-  cross: '#D97706',
-  other: '#64748B',
-};
-const GROUP_LABELS: Record<string, string> = {
-  weather: 'Météo',
-  fridge: 'Frigo',
-  thermostat: 'Thermostat',
-  time: 'Temporel',
-  cross: 'Inter-Capteurs',
-};
-const SEASON_LABELS: Record<string, string> = {
-  winter: 'Hiver',
-  spring: 'Printemps',
-  summer: 'Été',
-  autumn: 'Automne',
-};
-const MONTHS = [
-  'Jan',
-  'Fev',
-  'Mar',
-  'Avr',
-  'Mai',
-  'Jun',
-  'Jul',
-  'Aou',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-const CVE_SEV_STYLE: Record<string, string> = {
-  CRITICAL: '#E11D48',
-  HIGH: '#D97706',
-  MEDIUM: '#0891B2',
-  LOW: '#0D9488',
-  NONE: '#0D9488',
-};
-
-export default function ShapPointReport({
-  point,
-  pharma,
-  onClose,
-}: {
+export default function ShapPointReport({ point, pharma, onClose, showFullPageLink = false }: {
   point: ShapPointResponse;
   pharma: PharmaReportResponse;
   onClose?: () => void;
+  showFullPageLink?: boolean;
 }) {
   const [pdfLoading, setPdfLoading] = useState(false);
-  const accent = GROUP_COLORS[point.dominant_sensor] || '#D97706';
-  const severityColor =
-    pharma.severity === 'critique'
-      ? '#E11D48'
-      : pharma.severity === 'élevée'
-        ? '#D97706'
-        : pharma.severity === 'moyenne'
-          ? '#0891B2'
-          : '#0D9488';
   const sv = point.sensor_values || {};
   const causes = point.top_causes.slice(0, 5);
   const normals = point.top_normal.slice(0, 4);
@@ -166,57 +177,60 @@ export default function ShapPointReport({
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 20;
       const contentWidth = pageWidth - margin * 2;
+      type RGB = [number, number, number];
+      const INK: RGB = [26, 32, 38];
+      const BLUE: RGB = [31, 95, 166];
+      const RED: RGB = [179, 38, 30];
+      const AMBER: RGB = [227, 154, 28];
       let y = 15;
-
       const ensureSpace = (needed: number) => {
-        if (y + needed > pageHeight - 20) {
-          doc.addPage();
-          y = 15;
-        }
+        if (y + needed > pageHeight - 20) { doc.addPage(); y = 15; }
       };
-      const sectionHeader = (
-        text: string,
-        color: [number, number, number],
-      ) => {
+      const sectionHeader = (text: string, color: RGB = INK) => {
         ensureSpace(18);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
-        doc.setTextColor(color[0], color[1], color[2]);
+        doc.setTextColor(...color);
         doc.text(text, margin, y);
         y += 6;
-        doc.setDrawColor(color[0], color[1], color[2]);
+        doc.setDrawColor(...color);
         doc.setLineWidth(0.3);
         doc.line(margin, y, pageWidth - margin, y);
         y += 5;
       };
-      const bodyText = (text: string, color?: [number, number, number]) => {
+      const bodyText = (text: string, color: RGB = [55, 65, 81]) => {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9.5);
-        doc.setTextColor(
-          color ? color[0] : 55,
-          color ? color[1] : 65,
-          color ? color[2] : 81,
-        );
-        const lines = doc.splitTextToSize(text, contentWidth) as string[];
-        for (const line of lines) {
+        doc.setTextColor(...color);
+        for (const line of doc.splitTextToSize(text, contentWidth) as string[]) {
           ensureSpace(5);
           doc.text(line, margin, y);
           y += 4.5;
         }
       };
+      const smallItalic = (text: string) => {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        for (const l of doc.splitTextToSize(text, contentWidth) as string[]) {
+          ensureSpace(5);
+          doc.text(l, margin, y);
+          y += 4.2;
+        }
+        y += 2;
+      };
       const bullet = (text: string) => {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9.5);
         doc.setTextColor(55, 65, 81);
-        const lines = doc.splitTextToSize(text, contentWidth - 8) as string[];
-        lines.forEach((line, i) => {
+        (doc.splitTextToSize(text, contentWidth - 8) as string[]).forEach((line, i) => {
           ensureSpace(5);
           doc.text(i === 0 ? `•  ${line}` : line, i === 0 ? margin : margin + 8, y);
           y += 4.5;
         });
       };
       let tableY = 0;
-      const drawTable = (head: string[], body: Array<string[]>) => {
+      const drawTable = (head: string[], body: string[][]) => {
         ensureSpace(30);
         autoTable(doc, {
           startY: y,
@@ -224,15 +238,13 @@ export default function ShapPointReport({
           head: [head],
           body,
           theme: 'grid',
-          headStyles: { fillColor: [13, 23, 42], textColor: [255, 255, 255], fontSize: 9 },
+          headStyles: { fillColor: INK, textColor: [255, 255, 255], fontSize: 9 },
           styles: { fontSize: 9, cellPadding: 2, textColor: [40, 50, 70] },
-          didDrawPage: (data) => {
-            if (data.cursor?.y) tableY = data.cursor.y;
-          },
+          didDrawPage: (data) => { if (data.cursor?.y) tableY = data.cursor.y; },
         });
         y = tableY + 10;
       };
-      const drawBar = (label: string, value: number, color: [number, number, number]) => {
+      const drawBar = (label: string, value: number, color: RGB) => {
         ensureSpace(12);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
@@ -240,572 +252,232 @@ export default function ShapPointReport({
         doc.text(`${label}  ${value}/100`, margin, y);
         y += 2.5;
         doc.setFillColor(230, 236, 242);
-        doc.roundedRect(margin, y, contentWidth, 3, 1, 1, 'F');
-        doc.setFillColor(color[0], color[1], color[2]);
-        doc.roundedRect(margin, y, Math.min(contentWidth, (value / 100) * contentWidth), 3, 1, 1, 'F');
+        doc.rect(margin, y, contentWidth, 3, 'F');
+        doc.setFillColor(...color);
+        doc.rect(margin, y, Math.min(contentWidth, (value / 100) * contentWidth), 3, 'F');
         y += 6.5;
       };
 
-      // ── En-tête ──
-      doc.setFillColor(11, 17, 32);
-      doc.rect(0, 0, pageWidth, 30, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(15);
-      doc.setTextColor(13, 148, 136);
-      doc.text('Recommandation Opérateur — Point du Dataset', margin, 18);
+      doc.setTextColor(...INK);
+      doc.text('Recommandation opérateur : point du jeu de données', margin, 18);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.setTextColor(170, 190, 215);
-      doc.text('VigiloChain Security Platform · Interprétabilité SHAP · OneClassSVM', margin, 25);
-      y = 42;
-
-      // ── Infos du point ──
-      drawTable(
-        ['Information', 'Valeur'],
-        [
-          ['Date du point', point.timestamp.replace('T', ' ')],
-          ["Score d'anomalie", point.anomaly_score.toFixed(4)],
-          ['Risque / 100', String(point.risk_score_per_100)],
-          ['Label', point.label === 1 ? 'Attaque (label=1)' : 'Normal (label=0)'],
-          ['Modèle', point.prediction === 1 ? 'Anomalie détectée' : 'Non détectée'],
-          ['Sévérité', pharma.severity],
-          ['Saison', SEASON_LABELS[point.season] || point.season],
-          ['Capteur dominant', GROUP_LABELS[point.dominant_sensor] || point.dominant_sensor],
-          ['SHAP', `${point.shap_method} · ${point.model_kind}`],
-        ],
-      );
-
-      // ── Mesures capteurs ──
-      sectionHeader('Mesures capteurs', [0, 229, 255]);
-      drawTable(
-        ['Capteur', 'Valeur (°C)'],
-        [
-          ['Weather (météo)', sv.weather !== undefined ? sv.weather.toFixed(2) : 'N/A'],
-          ['Fridge (frigo)', sv.fridge !== undefined ? sv.fridge.toFixed(2) : 'N/A'],
-          ['Thermostat', sv.thermostat !== undefined ? sv.thermostat.toFixed(2) : 'N/A'],
-        ],
-      );
-
-      // ── Domaine opérateur ──
-      sectionHeader(pharma.domain_label.toUpperCase(), [13, 148, 136]);
-      bodyText(`${pharma.sensor_role} — ${pharma.product_impact}`);
-      bodyText(
-        `Décision : ${pharma.disposition.label} — ${pharma.disposition.description}`,
-        [225, 29, 72],
-      );
-
-      // ── Pourquoi & SHAP ──
-      sectionHeader('Pourquoi ce point est signalé — explication SHAP', [225, 29, 72]);
-      bodyText(pharma.why);
-      drawTable(
-        ['Cause (SHAP)', 'Valeur SHAP', 'Valeur feature'],
-        causes.map((c) => [
-          c.interpretation || c.feature,
-          fmtSigned(c.shap_value),
-          c.feature_value.toFixed(3),
-        ]),
-      );
-      if (normals.length > 0) {
-        sectionHeader('Contre-arguments (vers « normal », positives)', [13, 148, 136]);
-        normals.forEach((c) =>
-          bullet(`${c.interpretation || c.feature} (${fmtSigned(c.shap_value)})`),
-        );
-      }
-
-      // ── Impact ──
-      sectionHeader('Impact potentiel (index 0-100)', [255, 184, 48]);
-      drawBar('Production', impact.production_impact, [225, 29, 72]);
-      drawBar('Stock / Chaîne du froid', impact.stock_impact, [0, 229, 255]);
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(8.5);
       doc.setTextColor(100, 116, 139);
-      const effLines = doc.splitTextToSize(impact.effect, contentWidth) as string[];
-      effLines.forEach((l) => {
-        ensureSpace(5);
-        doc.text(l, margin, y);
-        y += 4.2;
-      });
-      y += 2;
+      doc.text('VigiloChain · archive de l’année simulée 2019 (phase 2) · interprétabilité SHAP', margin, 25);
+      doc.setDrawColor(...BLUE);
+      doc.setLineWidth(0.8);
+      doc.line(margin, 29, pageWidth - margin, 29);
+      y = 38;
 
-      // ── Recommandations ──
-      sectionHeader('Recommandations opérateur', [0, 229, 255]);
-      pharma.actions.forEach((a) => bullet(a));
-
-      // ── Vulnérabilités CVE ──
-      if (cve) {
-        sectionHeader('Vulnérabilités CVE', [225, 29, 72]);
-        if (cve.available && cve.total_cves > 0) {
-          doc.setFont('helvetica', 'italic');
-          doc.setFontSize(8.5);
-          doc.setTextColor(100, 116, 139);
-          const cveNote = `Score de vulnérabilité : ${Math.round(cve.risk_score)}/100 · ${cve.total_cves} CVE (${cve.critical_count} critiques, ${cve.high_count} élevées, ${cve.medium_count} moyennes, ${cve.low_count} basses). ${cve.source}`;
-          const cveLines = doc.splitTextToSize(cveNote, contentWidth) as string[];
-          cveLines.forEach((l) => {
-            ensureSpace(5);
-            doc.text(l, margin, y);
-            y += 4.2;
-          });
-          y += 2;
-          drawTable(
-            ['CVE', 'Sévérité', 'CVSS', 'Risque/100'],
-            cve.top_cves.slice(0, 8).map((c) => [
-              c.cve_id,
-              c.cvss_severity || 'UNKNOWN',
-              c.cvss_score != null ? String(c.cvss_score) : '—',
-              String(Math.round(c.risk_score)),
-            ]),
-          );
-        } else if (cve.available) {
-          bodyText('Aucune CVE matchée pour ce capteur.');
-        } else {
-          bodyText(cve.error || 'Données CVE indisponibles.');
-        }
+      drawTable(['Information', 'Valeur'], [
+        ['Date du point', point.timestamp.replace('T', ' ')],
+        ["Score d'anomalie", point.anomaly_score.toFixed(4)],
+        ['Risque / 100', String(point.risk_score_per_100)],
+        ['Label', point.label === 1 ? 'Attaque (label=1)' : 'Normal (label=0)'],
+        ['Modèle', point.prediction === 1 ? 'Anomalie détectée' : 'Non détectée'],
+        ['Sévérité', pharma.severity],
+        ['Saison', SEASON_LABELS[point.season] || point.season],
+        ['Capteur dominant', GROUP_LABELS[point.dominant_sensor] || point.dominant_sensor],
+        ['SHAP', `${point.shap_method} · ${point.model_kind}`],
+      ]);
+      sectionHeader('Mesures capteurs');
+      drawTable(['Capteur', 'Valeur (°C)'], [
+        ['Météo', sv.weather !== undefined ? sv.weather.toFixed(2) : 'N/A'],
+        ['Frigo', sv.fridge !== undefined ? sv.fridge.toFixed(2) : 'N/A'],
+        ['Thermostat', sv.thermostat !== undefined ? sv.thermostat.toFixed(2) : 'N/A'],
+      ]);
+      sectionHeader(pharma.domain_label, BLUE);
+      bodyText(`${pharma.sensor_role} : ${pharma.product_impact}`);
+      bodyText(`Décision : ${pharma.disposition.label}. ${pharma.disposition.description}`, RED);
+      sectionHeader('Pourquoi ce point est signalé : explication SHAP', RED);
+      bodyText(pharma.why);
+      drawTable(['Cause (SHAP)', 'Valeur SHAP', 'Valeur feature'],
+        causes.map(c => [c.interpretation || c.feature, fmtSigned(c.shap_value), c.feature_value.toFixed(3)]));
+      if (normals.length > 0) {
+        sectionHeader('Contre-arguments (vers « normal »)', BLUE);
+        normals.forEach(c => bullet(`${c.interpretation || c.feature} (${fmtSigned(c.shap_value)})`));
       }
-
-      // ── Pied de page ──
+      sectionHeader('Impact potentiel (indice 0-100)', AMBER);
+      drawBar('Production', impact.production_impact, RED);
+      drawBar('Stock / chaîne du froid', impact.stock_impact, BLUE);
+      smallItalic(impact.effect);
+      sectionHeader('Recommandations opérateur', BLUE);
+      pharma.actions.forEach(a => bullet(a));
+      if (cve) {
+        sectionHeader('Vulnérabilités CVE', RED);
+        if (cve.available && cve.total_cves > 0) {
+          smallItalic(`Score de vulnérabilité : ${Math.round(cve.risk_score)}/100 · ${cve.total_cves} CVE (${cve.critical_count} critiques, ${cve.high_count} élevées, ${cve.medium_count} moyennes, ${cve.low_count} basses). ${cve.source}`);
+          drawTable(['CVE', 'Sévérité', 'CVSS', 'Risque/100'], cve.top_cves.slice(0, 8).map(c => [
+            c.cve_id, c.cvss_severity || 'UNKNOWN', c.cvss_score != null ? String(c.cvss_score) : '—', String(Math.round(c.risk_score)),
+          ]));
+        } else bodyText(cve.available ? 'Aucune CVE trouvée pour ce capteur.' : cve.error || 'Données CVE indisponibles.');
+      }
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(150, 160, 175);
-        doc.text(
-          `Généré le ${new Date().toLocaleDateString('fr-FR')} · VigiloChain Security Platform`,
-          margin,
-          pageHeight - 10,
-        );
-        doc.text(`Page ${i} / ${pageCount}`, pageWidth - margin, pageHeight - 10, {
-          align: 'right',
-        });
+        doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} · VigiloChain`, margin, pageHeight - 10);
+        doc.text(`Page ${i} / ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
       }
-
       doc.save(`rapport_shap_${point.timestamp.replace(/[^0-9a-zA-Z_-]/g, '_')}.pdf`);
-    } catch {
-      console.error('Export PDF échoué');
+    } catch (err) {
+      toast({ title: 'Erreur PDF', description: `Échec : ${err instanceof Error ? err.message : ''}`, variant: 'destructive' });
     } finally {
       setPdfLoading(false);
     }
   };
 
   return (
-    <div
-      className="rounded-2xl glass glass-border overflow-hidden"
-      style={{ borderColor: `${accent}35` }}
-    >
-      <div
-        className="h-[2px]"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
-          boxShadow: `0 0 12px ${accent}`,
-        }}
-      />
-      {/* ── En-tête ── */}
-      <div
-        className="px-6 py-4 flex items-center gap-3"
-        style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}
-      >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: `${accent}18` }}
-        >
-          <Zap className="w-4 h-4" style={{ color: accent }} />
+    <article className="vc-panel overflow-hidden min-w-0">
+      <header className="vc-panel-head flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 pt-3.5 pb-3">
+        <div className="min-w-0">
+          <h2 className="text-[20px] leading-tight" style={{ color: 'var(--text-primary)' }}>Point du {tsFr(point.timestamp)}</h2>
+          <p className="text-[13.5px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+            {SEASON_LABELS[point.season] || point.season}{point.month ? `, ${MONTHS[point.month - 1]}` : ''} · SHAP : {point.shap_method} · modèle {point.model_kind}
+          </p>
         </div>
-        <div className="flex-1">
-          <h3
-            className="font-display font-bold text-sm"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            Recommandation Opérateur — Point du Dataset
-          </h3>
-          <div
-            className="text-[9px] font-mono flex items-center gap-2"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            {point.timestamp.replace('T', ' ')} · score{' '}
-            {point.anomaly_score.toFixed(4)} ·{' '}
-            {SEASON_LABELS[point.season] || point.season}{' '}
-            {point.month ? `· ${MONTHS[point.month - 1]}` : ''}
-          </div>
-        </div>
-        <span
-          className="px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider"
-          style={{
-            background: `${severityColor}15`,
-            border: `1px solid ${severityColor}40`,
-            color: severityColor,
-          }}
-        >
-          {pharma.severity}
-        </span>
-        <button
-          onClick={exportPdf}
-          disabled={pdfLoading}
-          className="inline-flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
-          style={{
-            background: 'rgba(13,148,136,0.10)',
-            border: '1px solid rgba(13,148,136,0.25)',
-            color: '#0D9488',
-          }}
-        >
-          {pdfLoading ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Download className="w-3 h-3" />
+        <div className="flex flex-wrap items-center gap-2">
+          {showFullPageLink && (
+            <Link to={reportHref(point.requested_timestamp || point.timestamp)} className="vc-btn">
+              <ExternalLink className="w-3.5 h-3.5" aria-hidden /> Pleine page
+            </Link>
           )}
-          {pdfLoading ? 'Génération…' : 'Exporter en PDF'}
-        </button>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-lg cursor-pointer px-2"
-            style={{ color: 'var(--color-text-secondary)' }}
-            title="Fermer"
-          >
-            ×
+          <button type="button" onClick={exportPdf} disabled={pdfLoading} className="vc-btn">
+            {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <Download className="w-3.5 h-3.5" aria-hidden />}
+            {pdfLoading ? 'Génération…' : 'Exporter en PDF'}
           </button>
-        )}
-      </div>
-      <div className="p-6 space-y-5">
-        {/* ── Contexte du point ── */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className="px-2 py-1 rounded-lg text-[8px] font-black"
-            style={{
-              background:
-                point.label === 1
-                  ? 'rgba(225,29,72,0.15)'
-                  : 'rgba(13,148,136,0.10)',
-              color: point.label === 1 ? '#E11D48' : '#0D9488',
-            }}
-          >
-            {point.label === 1 ? 'ATTaque (label=1)' : 'Normal (label=0)'}
-          </span>
-          <span
-            className="px-2 py-1 rounded-lg text-[8px] font-black"
-            style={{
-              background:
-                point.prediction === 1
-                  ? 'rgba(124,58,237,0.18)'
-                  : 'color-mix(in srgb, var(--text-primary) 6%, transparent)',
-              color:
-                point.prediction === 1 ? '#7C3AED' : 'var(--color-text-muted)',
-            }}
-          >
-            Modèle : {point.prediction === 1 ? 'Anomalie détectée' : 'Non détecté'}
-          </span>
-          <span
-            className="px-2 py-1 rounded-lg text-[8px] font-black"
-            style={{ background: `${accent}12`, color: accent }}
-          >
-            Capteur dominant :{' '}
-            {GROUP_LABELS[point.dominant_sensor] || point.dominant_sensor}
-          </span>
-          <span
-            className="text-[8px] font-mono ml-auto"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            SHAP : {point.shap_method} · {point.model_kind}
-          </span>
-        </div>
-        {/* ── Mesures capteurs ── */}
-        <div className="grid grid-cols-3 gap-2">
-          {['weather', 'fridge', 'thermostat'].map((k) => (
-            <div
-              key={k}
-              className="rounded-xl p-3 text-center"
-              style={{
-                background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)',
-                border: `1px solid ${GROUP_COLORS[k]}25`,
-              }}
-            >
-              <div
-                className="text-[8px] uppercase tracking-wider"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                {k}
-              </div>
-              <div
-                className="text-lg font-mono font-bold mt-1"
-                style={{ color: GROUP_COLORS[k] }}
-              >
-                {sv[k] !== undefined ? `${sv[k].toFixed(2)}°C` : 'N/A'}
-              </div>
-            </div>
-          ))}
-        </div>
-        {/* ── Domaine opérateur ── */}
-        <div
-          className="rounded-xl p-4"
-          style={{ background: `${accent}08`, border: `1px solid ${accent}28` }}
-        >
-          <div
-            className="text-[9px] font-black uppercase tracking-wider mb-1"
-            style={{ color: accent }}
-          >
-            {pharma.domain_label}
-          </div>
-          <div
-            className="text-[10px] leading-relaxed"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            {pharma.sensor_role} — {pharma.product_impact}
-          </div>
-          <div
-            className="mt-2 rounded-lg px-3 py-2 text-[9px]"
-            style={{
-              background: 'color-mix(in srgb, var(--text-primary) 4%, transparent)',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            <b style={{ color: severityColor }}>
-              Décision : {pharma.disposition.label}
-            </b>{' '}
-            — {pharma.disposition.description}
-          </div>
-        </div>
-        {/* ── Pourquoi & SHAP (fusionnés) ── */}
-        <div>
-          <div
-            className="text-[9px] font-bold uppercase tracking-wider mb-2"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            Pourquoi ce point est signalé — explication SHAP
-          </div>
-          <div
-            className="text-[10px] leading-relaxed rounded-lg px-3 py-2 mb-2"
-            style={{
-              background: 'rgba(225,29,72,0.03)',
-              border: '1px solid rgba(225,29,72,0.10)',
-              color: 'var(--color-text-primary)',
-            }}
-          >
-            {pharma.why}
-          </div>
-          <div className="space-y-2">
-            {causes.map((c, i) => (
-              <div
-                key={i}
-                className="rounded-xl p-3"
-                style={{
-                  background: 'rgba(225,29,72,0.04)',
-                  border: '1px solid rgba(225,29,72,0.12)',
-                }}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span
-                    className="text-[10px] font-semibold"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {c.interpretation || c.feature}
-                  </span>
-                  <span
-                    className="text-[9px] font-mono font-bold"
-                    style={{ color: '#E11D48' }}
-                  >
-                    {fmtSigned(c.shap_value)}
-                  </span>
-                </div>
-                <div
-                  className="text-[8px] font-mono"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                >
-                  {c.feature} · valeur : {c.feature_value.toFixed(3)}
-                </div>
-              </div>
-            ))}
-          </div>
-          {normals.length > 0 && (
-            <div className="pt-2">
-              <div
-                className="text-[8px] font-bold uppercase tracking-wider mb-1"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                Contre-arguments (vers « normal », positives)
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {normals.map((c, i) => (
-                  <span
-                    key={i}
-                    className="text-[8px] px-2 py-1 rounded-full"
-                    style={{
-                      background: 'rgba(13,148,136,0.08)',
-                      border: '1px solid rgba(13,148,136,0.15)',
-                      color: '#0D9488',
-                    }}
-                  >
-                    {c.interpretation || c.feature} ({fmtSigned(c.shap_value)})
-                  </span>
-                ))}
-              </div>
-            </div>
+          {onClose && (
+            <button type="button" onClick={onClose} className="vc-btn" aria-label="Fermer le rapport">
+              <X className="w-4 h-4" aria-hidden />
+            </button>
           )}
         </div>
-        {/* ── Impact production / stock ── */}
-        <div>
-          <div
-            className="text-[9px] font-bold uppercase tracking-wider mb-2"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            Impact potentiel (index 0-100)
-          </div>
-          <div className="space-y-2">
-            <div>
-              <div className="flex items-center justify-between text-[9px] mb-1">
-                <span className="font-bold" style={{ color: '#D97706' }}>
-                  Production
-                </span>
-                <span
-                  className="font-mono"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                >
-                  {impact.production_impact}/100
-                </span>
-              </div>
-              <div
-                className="h-2 rounded-full overflow-hidden"
-                style={{ background: 'rgba(255,184,48,0.10)' }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${impact.production_impact}%`,
-                    background: 'linear-gradient(90deg, #D97706, #E11D48)',
-                  }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-[9px] mb-1">
-                <span className="font-bold" style={{ color: '#0891B2' }}>
-                  Stock / Chaîne du froid
-                </span>
-                <span
-                  className="font-mono"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                >
-                  {impact.stock_impact}/100
-                </span>
-              </div>
-              <div
-                className="h-2 rounded-full overflow-hidden"
-                style={{ background: 'rgba(8,145,178,0.10)' }}
-              >
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${impact.stock_impact}%`,
-                    background: 'linear-gradient(90deg, #0891B2, #0D9488)',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          <div
-            className="text-[9px] mt-2 italic"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            {impact.effect}
-          </div>
+      </header>
+
+      <div className="p-4 sm:p-5 space-y-6">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {point.label === 1 ? <State kind="manque">Attaque réelle (label = 1)</State> : <State kind="neutre">Normal (label = 0)</State>}
+          {point.prediction === 1 ? <State kind="ok">Signalé par le modèle</State> : <State kind="neutre">Non signalé par le modèle</State>}
+          <State kind={severityKind(pharma.severity)}>Sévérité {pharma.severity}</State>
+          <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+            Capteur dominant : <strong style={{ color: 'var(--text-primary)' }}>{GROUP_LABELS[point.dominant_sensor] || point.dominant_sensor}</strong>
+          </span>
         </div>
-        {/* ── Recommandations ── */}
-        <div>
-          <div
-            className="text-[9px] font-bold uppercase tracking-wider mb-2"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            Recommandations opérateur
-          </div>
-          <div className="space-y-1.5">
-            {pharma.actions.map((a, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2 rounded-lg px-3 py-2 text-[9px]"
-                style={{
-                  background: 'color-mix(in srgb, var(--text-primary) 3%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--text-primary) 6%, transparent)',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                <Activity
-                  className="w-3 h-3 shrink-0 mt-0.5"
-                  style={{ color: accent }}
-                />
-                {a}
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* ── Vulnérabilités CVE ── */}
-        {cve && (
-          <div>
-            <div
-              className="text-[9px] font-bold uppercase tracking-wider mb-2"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              Vulnérabilités CVE
-              {cve.available ? ` · score ${Math.round(cve.risk_score)}/100` : ''}
-            </div>
-            {cve.available && cve.total_cves > 0 ? (
-              <div className="space-y-1.5">
-                {cve.top_cves.slice(0, 6).map((c) => (
-                  <div
-                    key={c.cve_id}
-                    className="rounded-lg px-3 py-2 text-[9px]"
-                    style={{
-                      background: 'color-mix(in srgb, var(--text-primary) 3%, transparent)',
-                      border: '1px solid color-mix(in srgb, var(--text-primary) 6%, transparent)',
-                      color: 'var(--color-text-primary)',
-                    }}
-                  >
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className="font-mono font-bold"
-                        style={{ color: CVE_SEV_STYLE[c.cvss_severity] || '#0D9488' }}
-                      >
-                        {c.cve_id}
-                      </span>
-                      <span
-                        className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-                        style={{
-                          background: `color-mix(in srgb, ${CVE_SEV_STYLE[c.cvss_severity] || '#0D9488'} 14%, transparent)`,
-                          color: CVE_SEV_STYLE[c.cvss_severity] || '#0D9488',
-                        }}
-                      >
-                        {c.cvss_severity || 'UNKNOWN'}
-                      </span>
-                      <span className="font-mono" style={{ color: 'var(--color-text-secondary)' }}>
-                        CVSS {c.cvss_score ?? '—'}
-                      </span>
-                      <span className="font-mono" style={{ color: 'var(--color-text-secondary)' }}>
-                        EPSS {c.epss_score != null ? `${(c.epss_score * 100).toFixed(1)}%` : '—'}
-                      </span>
-                      <span
-                        className="ml-auto font-bold"
-                        style={{ color: CVE_SEV_STYLE[c.cvss_severity] || '#0D9488' }}
-                      >
-                        {Math.round(c.risk_score)}/100
-                      </span>
-                    </div>
-                    <p className="mt-1 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-                      {c.description}
-                    </p>
+
+        <Readouts cols={5}>
+          <Stat label="Score d'anomalie" value={nf(point.anomaly_score, 3)} />
+          <Stat label="Risque" value={nf(point.risk_score_per_100, 1)} unit="/100" />
+          {(['weather', 'fridge', 'thermostat'] as const).map(k => (
+            <Stat key={k} label={GROUP_LABELS[k]} value={sv[k] !== undefined ? nf(sv[k], 2) : '—'} unit={sv[k] !== undefined ? '°C' : undefined} />
+          ))}
+        </Readouts>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Block title={pharma.domain_label}>
+            <p className="text-[14px] leading-relaxed max-w-[80ch]" style={{ color: 'var(--text-primary)' }}>
+              {pharma.sensor_role} : {pharma.product_impact}
+            </p>
+            <p className="mt-3 text-[14px] leading-relaxed p-3 rounded-[3px] max-w-[80ch]" style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Décision : {pharma.disposition.label}.</strong> {pharma.disposition.description}
+            </p>
+          </Block>
+          <Block title="Impact potentiel (indice de 0 à 100)">
+            <div className="space-y-3">
+              {[
+                { l: 'Production', v: impact.production_impact, c: 'var(--accent-danger)' },
+                { l: 'Stock / chaîne du froid', v: impact.stock_impact, c: 'var(--accent-primary)' },
+              ].map(m => (
+                <div key={m.l}>
+                  <div className="flex justify-between text-[13px] mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    <span>{m.l}</span><span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{nf(m.v)}/100</span>
                   </div>
-                ))}
-                <div className="text-[8px] italic" style={{ color: 'var(--color-text-secondary)' }}>
-                  {cve.total_cves} CVE au total · {cve.critical_count} critiques · {cve.high_count} élevées
-                  {' · '}{cve.medium_count} moyennes · {cve.low_count} basses — {cve.source}
+                  <Meter value={m.v} color={m.c} />
                 </div>
-              </div>
+              ))}
+            </div>
+            <p className="text-[13px] mt-3 max-w-[80ch]" style={{ color: 'var(--text-muted)' }}>{impact.effect}</p>
+          </Block>
+        </div>
+
+        <Block title="Pourquoi ce point est signalé">
+          <p className="text-[14px] leading-relaxed max-w-[90ch] mb-3" style={{ color: 'var(--text-primary)' }}>{pharma.why}</p>
+          <Table min={520}>
+            <thead><tr><th>Cause</th><th>Variable</th><th className="vc-num">Valeur</th><th className="vc-num">Contribution SHAP</th></tr></thead>
+            <tbody>
+              {causes.map(c => (
+                <tr key={c.feature}>
+                  <td>{c.interpretation || c.label || c.feature}</td>
+                  <td><code className="text-[12.5px]">{c.feature}</code></td>
+                  <td className="vc-num">{nf(c.feature_value, 3)}</td>
+                  <td className="vc-num" style={{ color: c.shap_value < 0 ? 'var(--accent-danger)' : undefined }}>{signed(c.shap_value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+          {normals.length > 0 && (
+            <p className="text-[13px] mt-3 max-w-[90ch]" style={{ color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Contre-arguments (tirent vers « normal ») : </strong>
+              {normals.map(c => `${c.interpretation || c.feature} (${signed(c.shap_value)})`).join(' ; ')}.
+            </p>
+          )}
+          <p className="text-[12.5px] mt-2 max-w-[90ch]" style={{ color: 'var(--text-muted)' }}>
+            Pour ce modèle (OneClassSVM), une contribution négative pousse le point vers l’anomalie.
+          </p>
+        </Block>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Block title="Recommandations opérateur">
+            <ol className="list-decimal pl-5 space-y-1.5 text-[14px] leading-relaxed max-w-[80ch]" style={{ color: 'var(--text-primary)' }}>
+              {pharma.actions.map(a => <li key={a}>{a}</li>)}
+            </ol>
+          </Block>
+          {pharma.regulatory?.length > 0 && (
+            <Block title="Référentiels">
+              <ul className="list-disc pl-5 space-y-1 text-[13.5px]" style={{ color: 'var(--text-secondary)' }}>
+                {[...new Set(pharma.regulatory)].map(r => <li key={r}>{r}</li>)}
+              </ul>
+            </Block>
+          )}
+        </div>
+
+        {cve && (
+          <Block title={`Vulnérabilités CVE du capteur${cve.available ? ` : score ${nf(cve.risk_score, 0)}/100` : ''}`}>
+            {cve.available && cve.total_cves > 0 ? (
+              <>
+                <p className="text-[13px] mb-2 max-w-[90ch]" style={{ color: 'var(--text-secondary)' }}>
+                  {cve.total_cves} CVE au total : {cve.critical_count} critiques, {cve.high_count} élevées, {cve.medium_count} moyennes, {cve.low_count} basses. Source : {cve.source}.
+                </p>
+                <Table min={760}>
+                  <thead><tr><th>CVE</th><th>Sévérité</th><th className="vc-num">CVSS</th><th className="vc-num">EPSS</th><th className="vc-num">Risque</th><th>Description</th></tr></thead>
+                  <tbody>
+                    {cve.top_cves.slice(0, 6).map(c => {
+                      const s = CVE_SEV[c.cvss_severity] ?? { label: c.cvss_severity || 'inconnue', kind: 'neutre' as StateKind };
+                      return (
+                        <tr key={c.cve_id}>
+                          <td className="whitespace-nowrap"><code className="text-[12.5px]">{c.cve_id}</code></td>
+                          <td><State kind={s.kind}>{s.label}</State></td>
+                          <td className="vc-num">{c.cvss_score != null ? nf(c.cvss_score, 1) : '—'}</td>
+                          <td className="vc-num">{c.epss_score != null ? pct(c.epss_score) : '—'}</td>
+                          <td className="vc-num">{nf(c.risk_score, 0)}/100</td>
+                          <td className="text-[13px] min-w-[260px]" style={{ color: 'var(--text-secondary)' }}>{c.description}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </>
             ) : (
-              <div className="text-[9px]" style={{ color: 'var(--color-text-secondary)' }}>
-                {cve.available
-                  ? 'Aucune CVE matchée pour ce capteur.'
-                  : cve.error || 'Données CVE indisponibles.'}
-              </div>
+              <p className="text-[13.5px]" style={{ color: 'var(--text-secondary)' }}>
+                {cve.available ? 'Aucune CVE trouvée pour ce capteur.' : cve.error || 'Données CVE indisponibles.'}
+              </p>
             )}
-          </div>
+          </Block>
         )}
       </div>
-    </div>
+    </article>
   );
 }

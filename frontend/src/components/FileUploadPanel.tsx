@@ -1,12 +1,7 @@
-import { CloudSun, Lock, Snowflake, Thermometer } from 'lucide-react';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-} from 'recharts';
-import {
-  Upload, Brain, Loader2, AlertTriangle,
-  Download, CheckCircle2, X, Clock, Timer, Grid3x3,
-} from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import { AlertTriangle, Brain, CheckCircle2, CloudSun, Download, Loader2, Lock, Snowflake, Thermometer, X } from 'lucide-react';
+import { Empty, Meter, Readouts, Section, Stat, State, Table, nf, pct, tooltipStyle, usePalette } from './etude/kit';
 import { useAuth } from '../contexts/AuthContext';
 import { authHeaders } from '../lib/auth';
 
@@ -28,6 +23,7 @@ interface TrainingProgress {
 export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComplete?: (result?: any) => void } = {}) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const pal = usePalette();
 
   const [weatherFile, setWeatherFile] = useState<FileInfo | null>(null);
   const [fridgeFile, setFridgeFile] = useState<FileInfo | null>(null);
@@ -171,7 +167,7 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
     return () => { if (wsRef.current) wsRef.current.close(); };
   }, []);
 
-  const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${nf(bytes / 1024, 1)}\u00a0Ko` : `${nf(bytes / (1024 * 1024), 1)}\u00a0Mo`;
 
   const downloadModel = async () => {
     try {
@@ -188,359 +184,208 @@ export default function FileUploadPanel({ onTrainingComplete }: { onTrainingComp
 
   if (!isAdmin) {
     return (
-      <div className="rounded-2xl glass glass-border p-5 flex items-center gap-3"
-        style={{ borderColor: 'rgba(148,163,184,0.15)' }}>
-        <Lock className="w-6 h-6" aria-hidden />
-        <div>
-          <div className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            Entraînement réservé aux administrateurs
-          </div>
-          <div className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-            Les resultats du dernier modele entraine restent visibles ci-dessous.
-          </div>
-        </div>
-      </div>
+      <Empty>
+        <span className="inline-flex items-center gap-2 font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <Lock className="w-4 h-4" aria-hidden /> Entraînement réservé aux administrateurs
+        </span>
+        <span className="block mt-1">Les résultats du dernier modèle entraîné restent visibles ci-dessous.</span>
+      </Empty>
     );
   }
 
+  const STEPS = [
+    { key: 'upload', label: 'Envoi', pct: 15 },
+    { key: 'fusion', label: 'Fusion', pct: 22 },
+    { key: 'features', label: 'Variables', pct: 33 },
+    { key: 'grid', label: 'Grille', pct: 60 },
+    { key: 'training', label: 'Entraînement', pct: 70 },
+    { key: 'evaluation', label: 'Évaluation', pct: 82 },
+    { key: 'shap', label: 'SHAP', pct: 88 },
+    { key: 'analysis', label: 'Analyse', pct: 92 },
+    { key: 'save', label: 'Sauvegarde', pct: 98 },
+  ];
+  const slots = [
+    { label: 'Station météo', icon: CloudSun, file: weatherFile, setter: setWeatherFile, blobSetter: setWeatherBlob },
+    { label: 'Chambre froide', icon: Snowflake, file: fridgeFile, setter: setFridgeFile, blobSetter: setFridgeBlob },
+    { label: 'Thermostat', icon: Thermometer, file: thermostatFile, setter: setThermostatFile, blobSetter: setThermostatBlob },
+  ];
+  const live = training && progress && progress.step !== 'done' && progress.step !== 'error' ? progress : null;
+  const m = trainResult?.model_metrics;
+  const info = trainResult?.training_info;
+
   return (
-    <div className="space-y-4">
-      {/* UPLOAD + TRAIN */}
-      <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
-        style={{
-          borderColor: dragOver ? 'rgba(8,145,178,0.5)' : training ? 'rgba(34,197,94,0.5)' : 'rgba(8,145,178,0.12)',
-          position: 'relative',
-        }}>
-        {training && (
-          <div className="absolute inset-0 pointer-events-none z-20"
-            style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.03), rgba(16,185,129,0.06), rgba(34,197,94,0.03))', animation: 'pulse-glow 2s ease-in-out infinite' }} />
-        )}
-        <div className="absolute top-0 left-0 right-0 h-[2px]"
-          style={{
-            background: training ? 'linear-gradient(90deg, transparent, #22C55E, #10B981, #22C55E, transparent)' : 'linear-gradient(90deg, transparent, #0891B2, #8B5CF6, transparent)',
-            backgroundSize: training ? '200% 100%' : undefined,
-            animation: training ? 'shimmer 2s linear infinite' : undefined,
-          }} />
-        <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-          <Upload className="w-4 h-4" style={{ color: training ? '#22C55E' : 'var(--color-accent-cyan)' }} />
-          <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-            {training ? 'Entraînement en cours…' : 'Importer et entraîner'}
-          </h3>
-          {training && (
-            <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full" style={{ background: 'rgba(34,197,94,0.15)', color: '#22C55E', animation: 'pulse-text 1.5s ease-in-out infinite' }}>
-              <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />
-              Training...
-            </span>
-          )}
-          {!training && (
-            <span className="ml-auto text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: 'var(--color-accent-cyan)' }}>
-              One-Class SVM multivarié
-            </span>
-          )}
-        </div>
-
-        <div className="p-5">
-          <p className="text-[11px] mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-            Importez les CSV des capteurs (météo, chambre froide, thermostat) ou entraînez sur les données déjà présentes sur le serveur.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            {[
-              { label: 'Station météo', icon: <CloudSun className="w-6 h-6 mx-auto" />, file: weatherFile, setter: setWeatherFile, blobSetter: setWeatherBlob, color: '#FF6B6B' },
-              { label: 'Chambre Froide', icon: <Snowflake className="w-6 h-6 mx-auto" />, file: fridgeFile, setter: setFridgeFile, blobSetter: setFridgeBlob, color: '#4ECDC4' },
-              { label: 'Thermostat', icon: <Thermometer className="w-6 h-6 mx-auto" />, file: thermostatFile, setter: setThermostatFile, blobSetter: setThermostatBlob, color: '#45B7D1' },
-            ].map(slot => (
-              <div key={slot.label}
+    <div className="space-y-6">
+      <Section title={training ? 'Entraînement en cours…' : 'Importer et entraîner'}
+        subtitle="Importez les CSV des capteurs (météo, chambre froide, thermostat) ou entraînez sur les données déjà présentes sur le serveur."
+        action={training ? <State kind="alerte">En cours</State> : <State kind="neutre">One-Class SVM multivarié</State>}>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {slots.map(slot => {
+            const Icon = slot.icon;
+            return (
+              <label key={slot.label}
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={e => handleDrop(e, slot.setter, slot.blobSetter)}
-                className="relative rounded-xl p-4 text-center cursor-pointer transition-all group"
+                className="relative block rounded-[3px] p-4 text-center cursor-pointer min-w-0"
                 style={{
-                  background: slot.file ? `${slot.color}10` : 'color-mix(in srgb, var(--text-primary) 3%, transparent)',
-                  border: `2px dashed ${slot.file ? slot.color : 'rgba(255,255,255,0.1)'}`,
+                  background: slot.file ? 'color-mix(in srgb, var(--accent-primary) 8%, var(--bg-panel))' : 'var(--bg-subtle)',
+                  border: `1px dashed ${slot.file || dragOver ? 'var(--accent-primary)' : 'var(--border-strong)'}`,
                 }}>
                 {slot.file ? (
                   <>
-                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2" style={{ color: slot.color }} />
-                    <div className="text-xs font-bold" style={{ color: 'var(--color-text-primary)' }}>{slot.file.name}</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{formatSize(slot.file.size)}</div>
-                    <button onClick={e => { e.stopPropagation(); clearFile(slot.setter, slot.blobSetter); }}
-                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer transition-all hover:scale-110"
-                      style={{ background: 'rgba(239,68,68,0.2)' }}>
-                      <X className="w-3 h-3" style={{ color: '#EF4444' }} />
-                    </button>
+                    <CheckCircle2 className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--accent-primary)' }} aria-hidden />
+                    <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{slot.file.name}</div>
+                    <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>{slot.label} · {formatSize(slot.file.size)}</div>
                   </>
                 ) : (
                   <>
-                    <div className="text-2xl mb-2">{slot.icon}</div>
-                    <div className="text-[10px] font-bold mb-1" style={{ color: 'var(--color-text-secondary)' }}>{slot.label}</div>
-                    <div className="text-[9px]" style={{ color: 'var(--color-text-secondary)', opacity: 0.6 }}>Glissez ou cliquez</div>
+                    <Icon className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--text-muted)' }} aria-hidden />
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{slot.label}</div>
+                    <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Glissez un CSV ou cliquez</div>
                   </>
                 )}
-                <input type="file" accept=".csv"
+                <input type="file" accept=".csv" aria-label={`Fichier CSV : ${slot.label}`}
                   onChange={handleFile(slot.setter, slot.blobSetter)}
                   className="absolute inset-0 opacity-0 cursor-pointer" />
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3 flex-wrap">
-            <button onClick={() => runTraining(!canRun)} disabled={training}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-all"
-              style={{
-                background: !training ? 'linear-gradient(135deg, rgba(34,197,94,0.2), rgba(16,185,129,0.2))' : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
-                color: !training ? '#22C55E' : 'var(--color-text-secondary)',
-                border: `1px solid ${!training ? 'rgba(34,197,94,0.3)' : 'color-mix(in srgb, var(--text-primary) 8%, transparent)'}`,
-                opacity: training ? 0.5 : 1,
-              }}>
-              {training ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
-              {training ? 'Entraînement en cours…' : canRun ? 'Entraîner (fichiers importés)' : 'Entraîner (données serveur)'}
-            </button>
-            {error && (
-              <div className="flex items-center gap-1.5 text-[10px]" style={{ color: '#EF4444' }}>
-                <AlertTriangle className="w-3 h-3" /> {error}
-              </div>
-            )}
-          </div>
+                {slot.file && (
+                  <button type="button" aria-label={`Retirer le fichier ${slot.label}`}
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); clearFile(slot.setter, slot.blobSetter); }}
+                    className="vc-btn absolute top-2 right-2 z-10" style={{ padding: 4 }}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </label>
+            );
+          })}
         </div>
 
-        {/* LIVE TRAINING PROGRESS (WebSocket) */}
-        {training && progress && progress.step !== 'done' && progress.step !== 'error' && (
-          <div className="px-5 pb-5">
-            <div className="rounded-xl p-4" style={{ background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)' }}>
+        <div className="flex items-center gap-3 flex-wrap mt-4">
+          <button type="button" onClick={() => runTraining(!canRun)} disabled={training} className="vc-btn vc-btn-primary">
+            {training ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
+            {training ? 'Entraînement en cours…' : canRun ? 'Entraîner (fichiers importés)' : 'Entraîner (données serveur)'}
+          </button>
+          {error && (
+            <span role="alert" className="inline-flex items-center gap-1.5 text-sm" style={{ color: 'var(--accent-danger)' }}>
+              <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+            </span>
+          )}
+        </div>
 
-              {/* Header + Chrono */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4" style={{ color: '#22C55E', animation: 'pulse-text 1.5s ease-in-out infinite' }} />
-                  <span className="text-xs font-bold" style={{ color: '#22C55E' }}>{progress.message}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  {/* Chrono elapsed */}
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" style={{ color: 'var(--color-accent-cyan)' }} />
-                    <span className="text-[11px] font-mono font-bold tabular-nums" style={{ color: 'var(--color-accent-cyan)' }}>
-                      {formatTime(trainingElapsed)}
-                    </span>
-                  </div>
-                  {/* ETA */}
-                  {progress.progress > 0 && progress.progress < 100 && (
-                    <div className="flex items-center gap-1.5">
-                      <Timer className="w-3 h-3" style={{ color: '#F59E0B' }} />
-                      <span className="text-[11px] font-mono tabular-nums" style={{ color: '#F59E0B' }}>
-                        ETA {formatTime(Math.max(0, Math.ceil(trainingElapsed * (100 - progress.progress) / progress.progress)))}
-                      </span>
-                    </div>
-                  )}
-                  {/* Percentage */}
-                  <span className="text-[11px] font-mono font-bold tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
-                    {progress.progress}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Barre de progression */}
-              <div className="h-2.5 rounded-full overflow-hidden mb-3" style={{ background: 'color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-                <div className="h-full rounded-full transition-all duration-500 ease-out relative"
-                  style={{
-                    width: `${progress.progress}%`,
-                    background: 'linear-gradient(90deg, #22C55E, #10B981, #34D399)',
-                    boxShadow: '0 0 12px rgba(34,197,94,0.5)',
-                  }}>
-                  <div className="absolute inset-0 rounded-full" style={{
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
-                    animation: 'shimmer 1.5s linear infinite',
-                    backgroundSize: '200% 100%',
-                  }} />
-                </div>
-              </div>
-
-              {/* Step indicators */}
-              <div className="flex items-center justify-between mb-3 px-1">
-                {[
-                  { key: 'upload', label: 'Upload', pct: 15 },
-                  { key: 'fusion', label: 'Fusion', pct: 22 },
-                  { key: 'features', label: 'Features', pct: 33 },
-                  { key: 'grid', label: 'Grille', pct: 60 },
-                  { key: 'training', label: 'Train', pct: 70 },
-                  { key: 'evaluation', label: 'Eval', pct: 82 },
-                  { key: 'shap', label: 'SHAP', pct: 88 },
-                  { key: 'analysis', label: 'Analyse', pct: 92 },
-                  { key: 'save', label: 'Sauvegarde', pct: 98 },
-                ].map(step => {
-                  const active = progress.progress >= step.pct;
-                  const current = progress.step === step.key;
-                  return (
-                    <div key={step.key} className="flex flex-col items-center" style={{ flex: 1 }}>
-                      <div className="w-2 h-2 rounded-full transition-all duration-500"
-                        style={{
-                          background: current ? '#22C55E' : active ? '#10B981' : 'rgba(255,255,255,0.1)',
-                          boxShadow: current ? '0 0 8px rgba(34,197,94,0.8)' : active ? '0 0 4px rgba(16,185,129,0.4)' : undefined,
-                          transform: current ? 'scale(1.5)' : undefined,
-                        }} />
-                      <span className="text-[7px] mt-1 text-center leading-tight"
-                        style={{
-                          color: current ? '#22C55E' : active ? '#10B981' : 'var(--color-text-secondary)',
-                          opacity: active ? 1 : 0.35,
-                          fontWeight: current ? 700 : 400,
-                        }}>
-                        {step.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Grid live */}
-              {progress.step === 'grid' && progress.trial && (
-                <div className="flex items-center gap-3 flex-wrap p-2 rounded-lg" style={{ background: 'rgba(168,139,250,0.06)' }}>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#8B5CF6' }}>
-                    <Grid3x3 className="w-2.5 h-2.5 inline mr-1" />
-                    Config {progress.trial}/{progress.total_trials}
-                  </span>
-                  {progress.best_score != null && (
-                    <span className="text-[9px] font-mono" style={{ color: '#F59E0B' }}>
-                      Best AUC: {(progress.best_score * 100).toFixed(2)}%
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Metriques live */}
-              {progress.metrics && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-                  {[
-                    { label: 'F1', val: progress.metrics.f1, color: '#22C55E' },
-                    { label: 'Recall', val: progress.metrics.recall, color: '#3B82F6' },
-                    { label: 'Precision', val: progress.metrics.precision, color: '#8B5CF6' },
-                    { label: 'ROC-AUC', val: progress.metrics.roc_auc, color: '#F59E0B' },
-                  ].map(m => (
-                    <div key={m.label} className="rounded-lg p-2 text-center" style={{ background: `${m.color}10`, border: `1px solid ${m.color}30` }}>
-                      <div className="text-[8px]" style={{ color: 'var(--color-text-secondary)' }}>{m.label}</div>
-                      <div className="text-xs font-bold font-mono" style={{ color: m.color }}>{((m.val || 0) * 100).toFixed(1)}%</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        {live && (
+          <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--border)' }} aria-live="polite">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{live.message}</span>
+              <span className="text-[13px] vc-num" style={{ color: 'var(--text-secondary)' }}>
+                Écoulé {formatTime(trainingElapsed)}
+                {live.progress > 0 && live.progress < 100 && <> · reste environ {formatTime(Math.max(0, Math.ceil(trainingElapsed * (100 - live.progress) / live.progress)))}</>}
+                {' · '}{nf(live.progress)}{' %'}
+              </span>
             </div>
+            <Meter value={live.progress} />
+            <ol className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-x-2 gap-y-1 mt-3 text-[12.5px]">
+              {STEPS.map(step => {
+                const reached = live.progress >= step.pct;
+                const current = live.step === step.key;
+                return (
+                  <li key={step.key} aria-current={current ? 'step' : undefined} className="flex items-center gap-1.5 min-w-0"
+                    style={{ color: current ? 'var(--text-primary)' : reached ? 'var(--text-secondary)' : 'var(--text-muted)', fontWeight: current ? 600 : 400 }}>
+                    <span className="w-2 h-2 shrink-0" style={{ background: reached ? 'var(--accent-primary)' : 'transparent', border: '1px solid var(--accent-primary)' }} aria-hidden />
+                    <span className="truncate">{step.label}</span>
+                  </li>
+                );
+              })}
+            </ol>
+            {live.step === 'grid' && live.trial && (
+              <p className="text-[13px] mt-3" style={{ color: 'var(--text-secondary)' }}>
+                Configuration {live.trial}/{live.total_trials}
+                {live.best_score != null && <> · meilleure ROC-AUC {pct(live.best_score, 2)}</>}
+              </p>
+            )}
+            {live.metrics && (
+              <Readouts cols={4} className="mt-3">
+                <Stat label="F1" value={pct(live.metrics.f1 || 0)} />
+                <Stat label="Rappel" value={pct(live.metrics.recall || 0)} />
+                <Stat label="Précision" value={pct(live.metrics.precision || 0)} />
+                <Stat label="ROC-AUC" value={pct(live.metrics.roc_auc || 0)} />
+              </Readouts>
+            )}
           </div>
         )}
-      </div>
+      </Section>
 
-      {/* TRAINING RESULT */}
       {trainResult && (
-        <div className="rounded-2xl overflow-hidden glass glass-border animate-border-glow"
-          style={{ borderColor: 'rgba(34,197,94,0.3)' }}>
-          <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: 'linear-gradient(90deg, transparent, #22C55E, #10B981, transparent)' }} />
-          <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
-            <Brain className="w-4 h-4" style={{ color: '#22C55E' }} />
-            <h3 className="font-display font-bold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-              Entraînement terminé
-            </h3>
-            <span className="ml-auto flex items-center gap-2">
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full glass" style={{ color: '#22C55E' }}>
-                {trainResult.training_info?.duration_seconds}s
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#8B5CF6' }}>
-                One-Class SVM
-              </span>
-            </span>
-          </div>
-          <div className="p-5">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {[
-                { label: 'F1 Score', value: trainResult.model_metrics?.f1, color: '#22C55E' },
-                { label: 'Recall', value: trainResult.model_metrics?.recall, color: '#3B82F6' },
-                { label: 'Precision', value: trainResult.model_metrics?.precision, color: '#8B5CF6' },
-                { label: 'ROC-AUC', value: trainResult.model_metrics?.roc_auc, color: '#F59E0B' },
-              ].map(m => (
-                <div key={m.label} className="rounded-xl p-3 text-center" style={{ background: `${m.color}10`, border: `1px solid ${m.color}30` }}>
-                  <div className="text-[10px] font-bold mb-1" style={{ color: 'var(--color-text-secondary)' }}>{m.label}</div>
-                  <div className="text-lg font-bold" style={{ color: m.color }}>{((m.value || 0) * 100).toFixed(1)}%</div>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-              <div>Samples: <span style={{ color: 'var(--color-text-primary)' }}>{trainResult.training_info?.n_total_samples?.toLocaleString()}</span></div>
-              <div>Normaux: <span style={{ color: 'var(--color-text-primary)' }}>{trainResult.training_info?.n_normal_samples?.toLocaleString()}</span></div>
-              <div>Attaques: <span style={{ color: '#EF4444' }}>{trainResult.training_info?.n_attack_samples?.toLocaleString()}</span></div>
-              <div>CV ROC-AUC: <span style={{ color: '#F59E0B' }}>{trainResult.model_metrics?.cv_roc_auc}</span></div>
-            </div>
+        <Section title="Entraînement terminé"
+          subtitle={`One-Class SVM${info?.duration_seconds != null ? `, ${nf(Number(info.duration_seconds), 1)} s` : ''}`}
+          action={trainResult.best_params ? (
+            <button type="button" onClick={downloadModel} className="vc-btn"><Download className="w-4 h-4" /> Télécharger le modèle (.pkl)</button>
+          ) : undefined}>
+          <Readouts cols={4}>
+            <Stat label="F1" tone="var(--accent-primary)" value={pct(m?.f1 || 0)} />
+            <Stat label="Rappel" value={pct(m?.recall || 0)} />
+            <Stat label="Précision" value={pct(m?.precision || 0)} />
+            <Stat label="ROC-AUC" value={pct(m?.roc_auc || 0)} sub={m?.cv_roc_auc != null ? `Validation croisée : ${String(m.cv_roc_auc).replace('.', ',')}` : undefined} />
+          </Readouts>
+          <dl className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-[13.5px]">
+            {[
+              ['Échantillons', nf(info?.n_total_samples)],
+              ['Normaux', nf(info?.n_normal_samples)],
+              ['Attaques', nf(info?.n_attack_samples)],
+              ['Version du registre', trainResult.registry_version || '—'],
+            ].map(([k, v]) => (
+              <div key={k}><dt style={{ color: 'var(--text-secondary)' }}>{k}</dt><dd className="vc-num text-left" style={{ color: 'var(--text-primary)', textAlign: 'left' }}>{v}</dd></div>
+            ))}
+          </dl>
 
+          <div className="grid gap-6 mt-6 lg:grid-cols-2 3xl:grid-cols-3">
             {trainResult.grid_search && (
-              <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(168,139,250,0.06)', border: '1px solid rgba(168,139,250,0.15)' }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Grid3x3 className="w-3.5 h-3.5" style={{ color: '#8B5CF6' }} />
-                  <span className="text-xs font-bold" style={{ color: '#8B5CF6' }}>Grille manuelle hyperparamètres</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,139,250,0.15)', color: '#8B5CF6' }}>
-                    {trainResult.grid_search.n_trials} configs
-                  </span>
-                </div>
-                <div className="text-[9px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                  {trainResult.grid_search.search_type || '3 nu × 4 gamma'}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                  {Object.entries(trainResult.grid_search.best_params || {}).map(([k, v]) => (
-                    <div key={k}>{k}: <span style={{ color: '#8B5CF6', fontFamily: 'monospace' }}>{String(v)}</span></div>
-                  ))}
-                </div>
+              <div className="min-w-0">
+                <h3 className="vc-kicker mb-1">Grille d’hyperparamètres ({nf(trainResult.grid_search.n_trials)} configurations)</h3>
+                <p className="text-[13px] mb-2" style={{ color: 'var(--text-muted)' }}>{trainResult.grid_search.search_type || '3 nu × 4 gamma'}</p>
+                <p className="text-[13px] mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  {Object.entries(trainResult.grid_search.best_params || {}).map(([k, v]) => <span key={k} className="mr-3">{k}&nbsp;: <code>{String(v)}</code></span>)}
+                </p>
                 {trainResult.grid_search.history?.length > 0 && (
-                  <div className="h-24">
+                  <ResponsiveContainer width="100%" height={160}>
                     <BarChart data={trainResult.grid_search.history.slice(0, 15).map((t: any) => ({ trial: `C${t.config}`, value: t.value }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-primary) 6%, transparent)" />
-                      <XAxis dataKey="trial" tick={{ fontSize: 8, fill: 'var(--color-text-secondary)' }} />
-                      <YAxis tick={{ fontSize: 8, fill: 'var(--color-text-secondary)' }} domain={['dataMin - 0.01', 'dataMax + 0.01']} />
-                      <Bar dataKey="value" fill="#8B5CF6" radius={[2, 2, 0, 0]} />
+                      <CartesianGrid stroke={pal.grid} vertical={false} />
+                      <XAxis dataKey="trial" tick={{ fontSize: 11, fill: pal.axis }} />
+                      <YAxis tick={{ fontSize: 11, fill: pal.axis }} domain={['dataMin - 0.01', 'dataMax + 0.01']} tickFormatter={(v: number) => nf(v, 2)} width={44} />
+                      <Tooltip {...tooltipStyle} formatter={(v: unknown) => [nf(Number(v), 4), 'Score']} />
+                      <Bar dataKey="value" fill={pal.series[0]} maxBarSize={18} />
                     </BarChart>
-                  </div>
+                  </ResponsiveContainer>
                 )}
               </div>
             )}
 
             {trainResult.shap?.available && (
-              <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Brain className="w-3.5 h-3.5" style={{ color: '#F59E0B' }} />
-                  <span className="text-xs font-bold" style={{ color: '#F59E0B' }}>SHAP Explainability</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B' }}>
-                    {trainResult.shap.n_samples_explained} echantillons
-                  </span>
-                </div>
-                <div className="space-y-1 mb-3">
-                  {trainResult.shap.global_importance?.slice(0, 10).map((f: any) => {
-                    const maxVal = trainResult.shap.global_importance[0]?.shap_importance || 1;
-                    const pct = (f.shap_importance / maxVal) * 100;
-                    return (
-                      <div key={f.feature} className="flex items-center gap-2 text-[10px]">
-                        <span className="w-32 truncate" style={{ color: 'var(--color-text-secondary)' }}>{f.feature}</span>
-                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--text-primary) 6%, transparent)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #F59E0B, #F97316)' }} />
-                        </div>
-                        <span className="w-12 text-right" style={{ color: '#F59E0B', fontFamily: 'monospace' }}>{f.shap_importance.toFixed(4)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {trainResult.best_params && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex-1 p-2 rounded-lg text-[10px]" style={{ background: 'color-mix(in srgb, var(--text-primary) 3%, transparent)', color: 'var(--color-text-secondary)' }}>
-                  <span className="font-bold" style={{ color: 'var(--color-text-primary)' }}>Hyperparams: </span>
-                  {JSON.stringify(trainResult.best_params)}
-                  <span className="ml-3">Registry: <span style={{ color: '#8B5CF6' }}>{trainResult.registry_version || 'N/A'}</span></span>
-                </div>
-                <button onClick={downloadModel}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold cursor-pointer transition-all hover:scale-105 no-underline"
-                  style={{ background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.25)' }}>
-                  <Download className="w-3.5 h-3.5" />
-                  Telecharger .pkl
-                </button>
+              <div className="min-w-0">
+                <h3 className="vc-kicker mb-2">Importance SHAP ({nf(trainResult.shap.n_samples_explained)} échantillons expliqués)</h3>
+                <Table min={320}>
+                  <thead><tr><th>Variable</th><th style={{ width: '45%' }}>Importance relative</th><th className="vc-num">SHAP</th></tr></thead>
+                  <tbody>
+                    {trainResult.shap.global_importance?.slice(0, 10).map((f: any) => {
+                      const maxVal = trainResult.shap.global_importance[0]?.shap_importance || 1;
+                      return (
+                        <tr key={f.feature}>
+                          <td className="truncate max-w-[200px]"><code>{f.feature}</code></td>
+                          <td><Meter value={(f.shap_importance / maxVal) * 100} /></td>
+                          <td className="vc-num">{nf(f.shap_importance, 4)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
               </div>
             )}
           </div>
-        </div>
+
+          {trainResult.best_params && (
+            <p className="text-[13px] mt-4 break-words" style={{ color: 'var(--text-secondary)' }}>
+              Hyperparamètres retenus&nbsp;: <code>{JSON.stringify(trainResult.best_params)}</code>
+            </p>
+          )}
+        </Section>
       )}
     </div>
   );

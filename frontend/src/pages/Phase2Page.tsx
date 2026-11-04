@@ -1,22 +1,15 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { authHeaders } from '../lib/auth';
-import {
-  X,
-  Eye, RefreshCw,
-} from 'lucide-react';
+import { EyeOff, RefreshCw, RotateCcw } from 'lucide-react';
 
 import { PhaseShell } from '../components/PhaseShell';
 import { PHASE_CONFIG } from '../components/PhasePipeline';
 import FileUploadPanel from '../components/FileUploadPanel';
 import ErrorAnalysisPanel from '../components/ErrorAnalysisPanel';
 import { toast } from '@/components/ui/use-toast';
+import { Readouts, Stat, nf, pct } from '../components/etude/kit';
 
-const staggerItem = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
-};
 /* ═══════════════════════════════════════════
    TYPES
    ═══════════════════════════════════════════ */
@@ -118,7 +111,7 @@ export default function Phase2Page() {
       if (metrics) {
         toast({
           title: 'Entraînement terminé',
-          description: `F1: ${(metrics.f1 * 100).toFixed(1)}% · Recall: ${(metrics.recall * 100).toFixed(1)}% · ROC-AUC: ${(metrics.roc_auc * 100).toFixed(1)}%`,
+          description: `F1 ${pct(metrics.f1)} · rappel ${pct(metrics.recall)} · ROC-AUC ${pct(metrics.roc_auc)}`,
         });
       } else {
         toast({ title: 'Entraînement terminé', description: 'Les visualisations sont prêtes.' });
@@ -141,7 +134,7 @@ export default function Phase2Page() {
     });
   }, []);
 
-  // Auto-refresh polling every 30s while viz are visible
+  // Rechargement automatique every 30s while viz are visible
   useEffect(() => {
     if (!showTrainingViz) return;
     const interval = setInterval(refreshVizData, 30000);
@@ -262,71 +255,38 @@ export default function Phase2Page() {
       phase={PHASE_CONFIG[1]}
       hidePipeline
       trained={trained}
+      subtitle="Archive de l’année simulée 2019 (phase 2) : entraînement du One-Class SVM non supervisé sur le jeu annuel. Ce n’est pas l’étude de référence sur traces réelles."
     >
-      <div ref={containerRef} className="relative z-10 space-y-4 pb-8 px-1">
+      <div ref={containerRef} className="space-y-6">
+        {bestModel && (
+          <Readouts cols={4}>
+            <Stat label="F1 du meilleur modèle" tone="var(--accent-primary)" value={pct(bestModel.f1)} sub={bestModelId === 'OCSVM_Multivarie' ? 'One-Class SVM multivarié' : bestModelId.replace(/_/g, ' ')} />
+            <Stat label="Rappel" value={pct(bestModel.recall)} sub={`${nf(bestModel.tp)} attaques signalées, ${nf(bestModel.fn)} manquées`} alarm={bestModel.fn > 0 && bestModel.recall < 0.5} />
+            <Stat label="Précision" value={pct(bestModel.precision)} sub={`${nf(bestModel.fp)} fausses alertes`} />
+            <Stat label="ROC-AUC" value={pct(bestModel.roc_auc)} sub={bestModel.ap != null ? `Précision moyenne ${pct(bestModel.ap)}` : undefined} />
+          </Readouts>
+        )}
 
-        {/* ═══ UPLOAD & TRAINING ═══ */}
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(13,148,136,0.15)' }}>
-          <FileUploadPanel key={uploadKey} onTrainingComplete={handleTrainingComplete} />
-        </div>
+        <FileUploadPanel key={uploadKey} onTrainingComplete={handleTrainingComplete} />
 
-        {/* ═══ TRAINING VISUALIZATIONS ═══ */}
         {showTrainingViz && (
-          <motion.div
-            id="training-viz-section"
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: { opacity: 0 },
-              visible: { opacity: 1, transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
-            }}
-            className="space-y-4"
-          >
-            <motion.div variants={staggerItem} className="flex items-center gap-2 px-1">
-              <Eye className="w-4 h-4" style={{ color: 'var(--color-accent-cyan)' }} />
-              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-accent-cyan)' }}>
-                Visualisations Data Science
-              </span>
-              <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(8,145,178,0.3), transparent)' }} />
-              <button onClick={refreshVizData}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-bold cursor-pointer transition-all hover:scale-105"
-                style={{
-                  background: 'rgba(8,145,178,0.08)',
-                  color: 'var(--color-accent-cyan)',
-                  border: '1px solid rgba(8,145,178,0.2)',
-                }}>
-                <RefreshCw className="w-3 h-3" />
-                Recharger
-              </button>
-              <button onClick={() => { setShowTrainingViz(false); localStorage.removeItem('phase2_training_viz'); }}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold cursor-pointer transition-all hover:scale-105"
-                style={{
-                  background: 'rgba(239,68,68,0.08)',
-                  color: '#EF4444',
-                  border: '1px solid rgba(239,68,68,0.2)',
-                }}>
-                <X className="w-3 h-3" />
-                Masquer
-              </button>
-              <button onClick={() => { sessionStorage.removeItem('phase2_train_result'); setTrainResult(null); setShowTrainingViz(false); localStorage.removeItem('phase2_training_viz'); setUploadKey(k => k + 1); }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-bold cursor-pointer transition-all hover:scale-105"
-                style={{
-                  background: 'rgba(34,197,94,0.08)',
-                  color: '#22C55E',
-                  border: '1px solid rgba(34,197,94,0.2)',
-                }}>
-                <RefreshCw className="w-3 h-3" />
-                Nouvel entraînement
-              </button>
-            </motion.div>
-
-            {/* 1. Error Analysis */}
+          <div id="training-viz-section" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-[20px]" style={{ color: 'var(--text-primary)' }}>Visualisations de l’entraînement</h2>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={refreshVizData} className="vc-btn"><RefreshCw className="w-3.5 h-3.5" /> Recharger</button>
+                <button type="button" onClick={() => { setShowTrainingViz(false); localStorage.removeItem('phase2_training_viz'); }} className="vc-btn">
+                  <EyeOff className="w-3.5 h-3.5" /> Masquer
+                </button>
+                <button type="button" onClick={() => { sessionStorage.removeItem('phase2_train_result'); setTrainResult(null); setShowTrainingViz(false); localStorage.removeItem('phase2_training_viz'); setUploadKey(k => k + 1); }} className="vc-btn">
+                  <RotateCcw className="w-3.5 h-3.5" /> Nouvel entraînement
+                </button>
+              </div>
+            </div>
             {rawTimelinePoints.length > 0 && attackMetrics.length > 0 && (
-              <motion.div variants={staggerItem}>
-                <ErrorAnalysisPanel points={timelinePoints} attackMetrics={attackMetrics} />
-              </motion.div>
+              <ErrorAnalysisPanel points={timelinePoints} attackMetrics={attackMetrics} />
             )}
-          </motion.div>
+          </div>
         )}
       </div>
     </PhaseShell>
