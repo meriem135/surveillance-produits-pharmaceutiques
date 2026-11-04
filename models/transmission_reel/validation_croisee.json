@@ -1,85 +1,67 @@
 {
   "repetition": 0,
-  "lignes": 28903,
-  "attaques": 10178,
+  "lignes": 20592,
+  "attaques": 10070,
   "blocs": 44,
   "folds": 5,
-  "seuil": "predict (probabilité ≥ 0,5), modèles pondérés",
+  "seuil": "probabilité ≥ 0,5, modèles pondérés",
   "methodes": {
     "naif": {
       "description": "StratifiedKFold(shuffle=True) : lignes mélangées — à NE PAS faire",
       "blocs_partages": 220,
       "modeles": {
-        "RandomForest": {
+        "ExtraTrees": {
           "recall": {
-            "mean": 0.9831,
-            "std": 0.003
+            "mean": 0.9961,
+            "std": 0.0013
           },
           "precision": {
-            "mean": 0.9943,
-            "std": 0.0018
+            "mean": 0.998,
+            "std": 0.0003
           },
           "f1": {
-            "mean": 0.9887,
-            "std": 0.0014
+            "mean": 0.9971,
+            "std": 0.0007
           },
           "average_precision": {
-            "mean": 0.9995,
-            "std": 0.0001
+            "mean": 1.0,
+            "std": 0.0
           }
         },
-        "XGBoost": {
+        "RandomForest": {
           "recall": {
-            "mean": 0.9909,
-            "std": 0.0016
+            "mean": 0.9886,
+            "std": 0.0028
           },
           "precision": {
-            "mean": 0.9973,
-            "std": 0.0011
+            "mean": 0.9968,
+            "std": 0.001
           },
           "f1": {
-            "mean": 0.9941,
-            "std": 0.0011
+            "mean": 0.9927,
+            "std": 0.0012
           },
           "average_precision": {
-            "mean": 0.9997,
-            "std": 0.0002
+            "mean": 0.9998,
+            "std": 0.0
           }
         },
         "Logistique": {
           "recall": {
-            "mean": 0.6914,
-            "std": 0.0118
+            "mean": 0.7689,
+            "std": 0.0151
           },
           "precision": {
-            "mean": 0.6303,
-            "std": 0.006
+            "mean": 0.8295,
+            "std": 0.0044
           },
           "f1": {
-            "mean": 0.6594,
-            "std": 0.0048
+            "mean": 0.798,
+            "std": 0.0075
           },
           "average_precision": {
-            "mean": 0.7728,
-            "std": 0.0048
-          }
-        },
-        "MLP": {
-          "recall": {
-            "mean": 0.9854,
-            "std": 0.0035
-          },
-          "precision": {
-            "mean": 0.9849,
-            "std": 0.0021
-          },
-          "f1": {
-            "mean": 0.9851,
-            "std": 0.0027
-          },
-          "average_precision": {
-            "mean": 0.9983,
-            "std": 0.0004
+            "mean": 0.897,
+            "std": 0.0043
           }
         }
       }
@@ -88,80 +70,62 @@
       "description": "StratifiedGroupKFold, groupe = bloc d'une heure",
       "blocs_partages": 0,
       "modeles": {
-        "RandomForest": {
+        "ExtraTrees": {
           "recall": {
-            "mean": 0.6215,
-            "std": 0.1014
+            "mean": 0.712,
+            "std": 0.0683
           },
           "precision": {
-            "mean": 0.863,
-            "std": 0.0642
+            "mean": 0.9269,
+            "std": 0.0475
           },
           "f1": {
-            "mean": 0.716,
-            "std": 0.0741
+            "mean": 0.8033,
+            "std": 0.0507
           },
           "average_precision": {
-            "mean": 0.8182,
-            "std": 0.0208
+            "mean": 0.8998,
+            "std": 0.0343
           }
         },
-        "XGBoost": {
+        "RandomForest": {
           "recall": {
-            "mean": 0.5388,
-            "std": 0.1101
+            "mean": 0.7538,
+            "std": 0.0703
           },
           "precision": {
-            "mean": 0.7507,
-            "std": 0.0626
+            "mean": 0.8874,
+            "std": 0.0658
           },
           "f1": {
-            "mean": 0.6237,
-            "std": 0.0948
+            "mean": 0.8111,
+            "std": 0.0393
           },
           "average_precision": {
-            "mean": 0.7565,
-            "std": 0.0648
+            "mean": 0.8991,
+            "std": 0.0364
           }
         },
         "Logistique": {
           "recall": {
-            "mean": 0.6128,
-            "std": 0.078
+            "mean": 0.6796,
+            "std": 0.098
           },
           "precision": {
-            "mean": 0.5838,
-            "std": 0.0679
+            "mean": 0.7719,
+            "std": 0.0775
           },
           "f1": {
-            "mean": 0.5964,
-            "std": 0.0652
+            "mean": 0.7186,
+            "std": 0.0705
           },
           "average_precision": {
-            "mean": 0.7052,
-            "std": 0.0727
-          }
-        },
-        "MLP": {
-          "recall": {
-            "mean": 0.5423,
-            "std": 0.0468
-          },
-          "precision": {
-            "mean": 0.6231,
-            "std": 0.1054
-          },
-          "f1": {
-            "mean": 0.5781,
-            "std": 0.0721
-          },
-          "average_precision": {
-            "mean": 0.675,
-            "std": 0.0729
+            "mean": 0.844,
+            "std": 0.0545
           }
         }
       }
     }
   },
-  "generated_at": "2026-10-22T00:19:12"
+  "generated_at": "2026-11-04T12:12:08"
 }

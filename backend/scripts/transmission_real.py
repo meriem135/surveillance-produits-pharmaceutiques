@@ -70,7 +70,15 @@ STEPS_HOUR = 720
 STEPS_DAY = 24 * STEPS_HOUR
 STEP_MINUTES = 5 / 60
 MAX_GAP = 12                    # trous ≤ 1 min comblés par la dernière valeur
-GUARD = 60                      # 5 min après chaque épisode exclues de l'évaluation
+# Zone de garde. La plus longue fenêtre glissante des features fait W_MAX = 15 min (180 pas)
+# et la règle de persistance des alertes regarde encore jusqu'à 3 min (36 pas) en arrière :
+# une ligne dont la fenêtre contient des mesures d'un autre rôle (train / val / test) ou
+# d'un épisode terminé ne doit être ni apprise ni évaluée. GUARD = 20 min (240 pas) ≥
+# 15 + 3 min, appliquée (1) après chaque épisode et (2) au début de chaque bloc dont le
+# rôle diffère du bloc précédent (boundary_guard). Avant : 5 min seulement, plus courte
+# que la fenêtre de 15 min (fuite signalée à la relecture).
+W_MAX = 180                     # plus longue fenêtre glissante des features (15 min)
+GUARD = 240                     # 20 min exclues après chaque épisode et en début de bloc changeant de rôle
 EP_MIN, EP_MAX = 180, 300       # durée d'un épisode : 15 à 25 min (≈ 33 % d'un bloc)
 N_RUNS = 20                     # répétitions : les 20 rotations du cycle de blocs (voir BLOCK_CYCLE)
 FEATURES = phase2.FEATURE_COLS
@@ -189,6 +197,24 @@ def block_split(n: int, run: int = 0) -> np.ndarray:
     return np.array([role_of_block(i // STEPS_HOUR, run) for i in range(n)], dtype=object)
 
 
+def boundary_guard(n: int, run: int = 0, guard: int = GUARD) -> np.ndarray:
+    """Vrai pour les `guard` premières lignes de chaque bloc dont le rôle diffère de celui
+    du bloc précédent : leurs fenêtres glissantes (≤ W_MAX) et la persistance des alertes
+    regarderaient dans un bloc d'un autre rôle. Ces lignes ne sont ni apprises ni évaluées."""
+    out = np.zeros(n, dtype=bool)
+    for b in range(1, (n - 1) // STEPS_HOUR + 1):
+        if role_of_block(b, run) != role_of_block(b - 1, run):
+            out[b * STEPS_HOUR:b * STEPS_HOUR + guard] = True
+    return out
+
+
+def excluded_rows(garde: np.ndarray, run: int = 0) -> np.ndarray:
+    """Lignes hors apprentissage et hors évaluation : zone de garde après les épisodes
+    (colonne `garde` du jeu de données) et en début de bloc changeant de rôle."""
+    garde = np.asarray(garde, dtype=bool)
+    return garde | boundary_guard(len(garde), run)
+
+
 def build_schedule(n: int, rng: np.random.Generator, run: int = 0,
                    roles: tuple[str, ...] = ("val", "test")) -> list[dict]:
     """Planning des épisodes : un épisode dans CHAQUE bloc d'entraînement (~33 %
@@ -208,7 +234,9 @@ def build_schedule(n: int, rng: np.random.Generator, run: int = 0,
             seen[role] += 1
             if not keep:
                 continue
-        s = block * STEPS_HOUR + int(rng.integers(12, STEPS_HOUR - EP_MAX - 12))
+        # Un bloc qui change de rôle commence par la zone de garde : l'épisode démarre après.
+        lo = GUARD if block and role_of_block(block - 1, run) != role else 12
+        s = block * STEPS_HOUR + int(rng.integers(lo, STEPS_HOUR - EP_MAX - 12))
         e = s + int(rng.integers(EP_MIN, EP_MAX + 1))
         name, sensor, kind, param = ATTACKS[counters[role] % len(ATTACKS)]
         counters[role] += 1
@@ -460,8 +488,8 @@ def one_run(base: pd.DataFrame, run: int, quiet: bool) -> tuple[dict, list[dict]
     df = inject(base, episodes, rng, run)
     y = df["label"].to_numpy().astype(int)
     split = block_split(len(df), run)     # découpage recalculé ici (non stocké dans le CSV)
-    garde = df["garde"].to_numpy().astype(bool)
-    train_idx = np.where((split == "train") & (y == 0))[0]
+    garde = excluded_rows(df["garde"].to_numpy().astype(bool), run)
+    train_idx = np.where((split == "train") & (y == 0) & ~garde)[0]
     val_idx = np.where((split == "val") & ~garde)[0]
     test_idx = np.where((split == "test") & ~garde)[0]
     val_norm_idx = val_idx[y[val_idx] == 0]

@@ -7,7 +7,9 @@ et météo (l'extérieur) — sont suivis en deux temps :
 - **Phase 1 — Ingestion temps réel** : les mesures des trois capteurs (MQTT ou rejeu du flux
   saisonnier) sont diffusées en direct au dashboard par WebSocket.
 - **Phase 2 — Machine Learning** : 4 détecteurs non supervisés entraînés sur le seul
-  comportement normal, expliqués par SHAP, traduits en impact pharma (GMP / Annexe 11).
+  comportement normal, expliqués par SHAP (étude antérieure, année simulée).
+- **Attaques de transmission** (étude principale) : modèles supervisés sur les traces réelles avec
+  attaques MITM / injection, réglage d'alerte orienté précision, temps réel et rapport opérateur.
 
 Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 
@@ -17,7 +19,7 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 ├── backend/                 API FastAPI + ML + services
 │   ├── app/
 │   │   ├── main.py          point d'entrée (lifespan : BDD, seed, MQTT, Modbus)
-│   │   ├── api/v1/          routes REST (auth, phase2, transmission, shap, pharma, analyst…)
+│   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview, phase2, shap, analyst…)
 │   │   ├── core/            configuration (.env) et chemins canoniques (paths.py)
 │   │   ├── db/              session (PostgreSQL → repli SQLite), seed
 │   │   ├── domains/         auth, devices, intelligence (OCSVM, risque), transmission, analyst (RAG + LLM)
@@ -25,13 +27,17 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
 │   │   ├── train_models.py  entraîne et compare les 4 modèles → models/
-│   │   ├── transmission_real.py    attaques de transmission sur les traces réelles (protocole, 20 répétitions)
-│   │   ├── transmission_models.py  4 modèles supervisés, seuils, validation croisée, SHAP → models/transmission_reel/
+│   │   ├── transmission_real.py    traces réelles, injection des attaques, découpage et zone de garde
+│   │   ├── transmission_models.py  6 modèles supervisés, réglage d'alerte unique, diagnostic, SHAP → models/transmission_reel/
+│   │   ├── transmission_alertes.py persistance des alertes, métriques alerte / épisode, choix du seuil
+│   │   ├── transmission_recherche.py grille d'hyperparamètres (validation croisée groupée par bloc)
+│   │   ├── charger_base.py          charge l'étude dans PostgreSQL (tables transmission_*)
 │   │   └── transmission_study.py   même étude sur une année simulée (banc d'essai, hypothèses déclarées)
 │   └── tests/               pytest
 ├── frontend/                dashboard React 19 + Vite + TypeScript + Tailwind
 ├── notebook/Raw/            traces brutes TON_IoT (Normal + 9 types d'attaque)
-├── notebook/transmission/   4 notebooks : prétraitement, injection des attaques, 4 modèles supervisés, SHAP
+├── notebook/transmission/   4 notebooks : prétraitement, injection des attaques, 6 modèles supervisés, SHAP
+├── docs/resultats_finaux.md résultats finaux (tableaux pour le rapport)
 ├── data/                    généré (dataset_fusionne.csv, flux de démo, SQLite)
 ├── models/                  modèles entraînés + résultats JSON (versionnés)
 └── Soutenance/              notes de soutenance
@@ -77,7 +83,7 @@ Le port n'écoute que sur `127.0.0.1` : en production, un proxy (Caddy, nginx) l
 laisser passer les WebSockets. Les volumes `data`, `models` et `pgdata` gardent le jeu de données,
 les modèles réentraînés et la base entre deux reconstructions.
 
-## Les 4 modèles (jeu de test, seuil choisi sur la validation)
+## Archives — phase 2 : 4 détecteurs non supervisés (année simulée, jeu de test)
 
 | Modèle | Principe | ROC-AUC | F1 | Faux positifs |
 |---|---|---|---|---|
@@ -88,78 +94,94 @@ les modèles réentraînés et la base entre deux reconstructions.
 
 Détail par type d'attaque : `models/resultats_comparaison_final.json`.
 
-## Attaques de transmission (traces réelles)
+## Attaques de transmission (traces réelles) — version 3
 
-Volet « injection et MITM entre le capteur et le broker » sur les seules traces réelles
-TON_IoT (62 h fusionnées à 5 s), sans année simulée. Quatre modèles **supervisés** :
-Random Forest, XGBoost, Régression Logistique, MLP.
+Volet « injection et MITM entre le capteur et le broker » sur les seules traces réelles TON_IoT
+(62 h fusionnées à 5 s). Six modèles **supervisés** : Extra Trees, Random Forest, XGBoost,
+HistGradientBoosting, Régression Logistique, MLP. Synthèse complète, tableaux prêts pour le rapport :
+**[`docs/resultats_finaux.md`](docs/resultats_finaux.md)**.
 
-**Protocole** (`backend/scripts/transmission_real.py`, `transmission_models.py`) :
+**Protocole** (`backend/scripts/transmission_real.py`, `transmission_models.py`, `transmission_alertes.py`) :
 
 - Découpage 70/15/15 **non aléatoire** par blocs d'une heure entrelacés (cycle de 20 blocs :
-  14 train / 3 val / 3 test), recalculé à l'entraînement par `block_split` (pas de colonne
-  `split` dans le CSV). Chaque épisode d'attaque (15 à 25 min) tient dans un bloc : aucune
-  attaque n'est coupée entre deux rôles.
-- **Prévalence** : un épisode dans chaque bloc d'entraînement (~36 % d'attaques mesurées : les
-  modèles supervisés ont besoin d'exemples), dans 2 blocs sur 5 en validation et en test
-  (13,4 % et 13,5 % mesurés). La précision et le F1 dépendent de la prévalence : à 33 %
-  d'attaques partout, le seuil « max F1 » glisse vers « tout signaler » et la précision est
-  flatteuse (version précédente : précision 0,94 au test).
-- **9 scénarios**, dont les biais −0,5 et −1 °C, gardés comme limite connue et mesurés scénario
-  par scénario (rappel, épisodes détectés, délai).
-- **20 répétitions** = les 20 rotations du cycle (le cycle avance d'un bloc par répétition) :
-  chaque heure sert 3 fois de test et 3 fois de validation ; résultats cumulés.
-- **Deux seuils**, choisis sur la validation de chaque répétition : « max F1 » et **« rappel
-  cible »** (0,90 par défaut, aussi 0,80 et 0,95) = le seuil le plus haut qui atteint ce
-  rappel sur la validation. Mode « rappel d'abord » : rater une attaque coûte plus qu'une
-  fausse alerte.
-- **Choix du modèle sur la validation uniquement** (F2 de validation au rappel cible) ; le
-  test ne fait que confirmer (`comparer_supervises.py` affiche les deux).
-- **Validation croisée de confirmation** : `StratifiedGroupKFold` avec le **bloc d'une heure**
-  comme groupe (une attaque et les lignes normales qui partagent ses fenêtres glissantes
-  restent du même côté), comparée au `StratifiedKFold` naïf, gardé comme contre-exemple.
-- **Déséquilibre des classes** : `class_weight`, `scale_pos_weight`, `sample_weight` ; **pas de
-  SMOTE** : sur une série temporelle, des points interpolés entre deux lignes d'attaque
-  fabriqueraient des fenêtres glissantes qui n'existent pas, et le sur-échantillonnage ne
-  change pas la prévalence réelle, qui seule fixe la précision. Le levier est le seuil.
-- Ordre des métriques partout : rappel, fausses alertes/heure, délai, précision, F1/F2.
+  14 train / 3 val / 3 test), recalculé à l'entraînement ; chaque épisode (15 à 25 min) tient dans un bloc.
+- **Zone de garde de 20 min** (≥ plus longue fenêtre des features, 15 min, + 3 min de persistance) après
+  chaque épisode **et** au début de chaque bloc qui change de rôle : aucune ligne apprise ou évaluée n'a de
+  fenêtre qui traverse une frontière train / val / test (vérifié par
+  `tests/test_transmission_protocol.py`). L'EWMA (mémoire non bornée) est retirée des features.
+- **20 répétitions** = les 20 rotations du cycle (chaque heure sert 3 fois de test) ; résultats cumulés.
+- **Un seul réglage d'alerte par modèle**, choisi sur la validation cumulée : un seuil et une règle de
+  **persistance** (alerte si *k* des *n* dernières mesures dépassent le seuil), qui maximisent le rappel sous
+  **précision ≥ 0,90** et **≤ 0,5 fausse alerte par heure**. Classement sur la validation (contrainte tenue,
+  rappel, fausses alertes, délai) ; le test ne fait que confirmer.
+- Hyperparamètres : petite grille en validation croisée **groupée par bloc** sur le seul train
+  (`transmission_recherche.py`). Validation croisée naïve gardée comme contre-exemple.
+- Déséquilibre : poids de classe, pas de SMOTE.
 
-**Résultats** (20 répétitions, test cumulé, `models/transmission_reel/comparaison_modeles.json`) :
-le Random Forest est retenu sur la validation (F2 0,562 au rappel cible 0,90 ; XGBoost 0,558).
+**Résultat** (test cumulé, 20 répétitions) : l'**Extra Trees** est retenu sur la validation ; réglage score ≥ 0,70
+et 3 mesures sur 6 (30 s).
 
-| Random Forest, test | rappel | FA/h | délai médian | précision | F1 | F2 |
-| --- | --- | --- | --- | --- | --- | --- |
-| seuil rappel cible 0,90 | 0,873 | 18,6 | 0,1 min | 0,227 | 0,361 | 0,557 |
-| seuil max F1 | 0,656 | 3,2 | 2,2 min | 0,771 | 0,709 | 0,676 |
+| Extra Trees, test | épisodes détectés | fausses alertes/h | précision | rappel | délai médian |
+| --- | --- | --- | --- | --- | --- |
+| version 3 (réglage unique) | 70/73 | 0,43 | 0,939 | 0,652 | 3,9 min |
+| *avant : Random Forest, seuil max F1* | 71/73 | 3,22 | 0,771 | 0,656 | 2,2 min |
+| *avant : Random Forest, rappel cible 0,90* | 73/73 | 18,55 | 0,227 | 0,873 | 0,1 min |
 
-Viser 90 % de rappel coûte cher : environ 46 % des lignes normales sont alors signalées.
-Au seuil max F1, les petits biais ne sont signalés que sur 22,9 % (−0,5 °C) et 44,2 % (−1 °C)
-de leurs lignes, pour 3 % des lignes normales : **non détectables de façon fiable en 15–25 min
-à ce niveau de bruit** (σ ≈ 3,4 °C par mesure). L'étude complémentaire
-`transmission_biais_long.py` (blocs de 4 h, épisodes de 1 à 3 h, seuil ≤ 1 fausse alerte/h sur
-la validation) montre qu'ils deviennent détectables en une heure environ : biais −0,5 °C
-détecté avant 60 min dans 14 épisodes sur 15 (délai médian 20 min), −1 °C dans 15 sur 15
-(délai médian 9,5 min), sur 30 épisodes de test seulement.
-
-Validation croisée (répétition 0, rappel / précision moyens, seuil 0,5) : Random Forest
-0,622 / 0,863 groupée par bloc, contre 0,983 / 0,994 en naïf (fuite).
-
-- `notebook/transmission/01…04` : exploration et prétraitement, injection des 9 scénarios,
-  4 modèles (validation croisée naïve et groupée, deux seuils, courbe précision-rappel), SHAP.
-- Page **Transmission** du dashboard : entraînement des 4 modèles en direct (WebSocket
-  `/api/v1/transmission/train-ws`), sélecteur de rappel cible, résultats validation et test,
-  courbe précision-rappel, détection par scénario, validation croisée, biais longs, SHAP et
-  rapport pour l'opérateur (`GET /api/v1/transmission/report`, consigne par alerte via `POST`).
+Diagnostic : les modèles arborescents sont parfaits sur leur train (AP 1,0) et cohérents entre validation et
+test (AP 0,82 / 0,85) ; la courbe d'apprentissage monte encore avec la taille du train : limite de données, pas
+sous-apprentissage. Détails, par scénario, SHAP, limites : `docs/resultats_finaux.md`.
 
 ```bash
 cd backend
-nice -n 10 .venv/bin/python scripts/transmission_models.py      # ~1 h 55 sur 3 cœurs (dont SHAP ~70 min, SKIP_SHAP=1)
-nice -n 10 .venv/bin/python scripts/transmission_real.py        # détecteurs non supervisés, ~31 min
-nice -n 10 .venv/bin/python scripts/transmission_biais_long.py  # ~9 min
-.venv/bin/python scripts/comparer_supervises.py                  # classement sur la validation
+nice -n 10 .venv/bin/python scripts/transmission_recherche.py   # grille d'hyperparamètres (~25 min)
+nice -n 10 .venv/bin/python scripts/transmission_models.py      # 20 répétitions, ~2 h 10 sur 3 cœurs
+nice -n 10 .venv/bin/python scripts/transmission_biais_long.py  # étude complémentaire des biais longs, ~10 min
+.venv/bin/python scripts/comparer_supervises.py                  # tableaux validation / test / train
+.venv/bin/python scripts/charger_base.py                         # charge l'étude dans PostgreSQL
 ```
 
-Les trois scripts sont indépendants (seul `transmission_models.py` écrit le jeu de données).
+`transmission_real.py` (détecteurs non supervisés et statistiques, version précédente) reste disponible
+mais n'est plus dans le comparatif.
+
+## Site : pages et rôles
+
+Toutes les pages de l'étude lisent **PostgreSQL** (`/api/v1/etude/*`), jamais un fichier JSON.
+
+| Section | Page | Contenu | Rôles |
+| --- | --- | --- | --- |
+| Surveillance | Vue d'ensemble | indicateurs clés lus en base | admin, opérateur |
+| | Temps réel | les mesures passent une à une dans le modèle sauvegardé (WebSocket `/api/v1/etude/live`) | admin, opérateur |
+| | Détection vs réalité | alertes du modèle face aux épisodes réels, par rôle ; ajustement train / val / test | admin, opérateur |
+| | Rapport d'alerte | consignes pour l'opérateur par type d'attaque | admin, opérateur |
+| Modèle | Résultats | métriques train / val / test, classement, persistance, courbe d'apprentissage, validation croisée | admin, opérateur |
+| | Explicabilité SHAP | importances globales et par scénario | admin, opérateur |
+| | Jeu de données | KPI du jeu réel avec attaques | admin, opérateur |
+| Administration | Entraînement | lance un entraînement (6 modèles, répétition 0), progression en direct | admin |
+| | Paramètres | précision minimale, fausses alertes tolérées, vitesse du temps réel | admin |
+| | Comptes, Journal d'audit | gestion des utilisateurs, traçabilité | admin |
+| Archives | Ingestion MQTT, ML non supervisé, SHAP et résultats phase 2, jeu annuel simulé | étude antérieure sur l'année simulée | admin, opérateur |
+
+Rôles : l'inscription publique ne crée que des **opérateurs** ; seul l'**administrateur** gère les comptes,
+lance les entraînements et modifie les paramètres (403 sinon, testé dans `tests/test_etude_roles.py`).
+
+## Base de données (tables de l'étude)
+
+| Table | Contenu | Rempli par |
+| --- | --- | --- |
+| `transmission_runs` | une étude (`source` = `reference` ou `web`) : protocole, classement, résultat complet | `charger_base.py`, entraînement web |
+| `transmission_model_results` | un modèle par étude (métriques du test, hyperparamètres) | idem |
+| `transmission_metrics` | métriques par modèle × rôle (train / val / test) × niveau (mesure / alarme) | idem |
+| `transmission_shap` | importances SHAP globales et par scénario | idem |
+| `transmission_learning_curve` | courbe d'apprentissage du meilleur modèle | `charger_base.py` |
+| `transmission_dataset` | le jeu de données (répétition 0) : 44 443 mesures, rôle, zone de garde | idem (+ dernier entraînement web) |
+| `transmission_episodes` | les épisodes injectés (20 répétitions), détectés ou non | idem |
+| `transmission_predictions` | score, signal et alarme du meilleur modèle pour chaque mesure | idem |
+| `transmission_alerts` | les alertes levées (vraies ou fausses), avec début, fin, scénario | idem |
+| `app_settings` | paramètres modifiables par l'administrateur | page Paramètres |
+
+`scripts/charger_base.py` lit les sorties réelles du pipeline (`comparaison_modeles.json`,
+`scores_repetition0.npz`, jeu de données, épisodes, SHAP) et remplace l'étude de référence ; il est lancé
+automatiquement au démarrage de l'API quand la version en base diffère.
 
 ## Tests
 

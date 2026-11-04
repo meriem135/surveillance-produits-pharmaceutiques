@@ -4,7 +4,7 @@ from app.domains.transmission import service
 
 def test_feature_labels_are_readable_french():
     assert service.feature_label("fridge_std_1min") == "écart-type sur 1 min du frigo"
-    assert service.feature_label("thermostat_ewma_10min") == "moyenne lissée sur 10 min du thermostat (salle)"
+    assert service.feature_label("fridge_q90_15min") == "quantile 90 % sur 15 min du frigo"
     assert service.feature_label("fridge_repeat_2min") == "séquence de 2 min du frigo déjà transmise"
     assert service.feature_label("fridge_thermostat_diff").startswith("écart frigo")
 
@@ -15,27 +15,40 @@ def test_family_maps_every_scenario_to_a_recommendation():
         assert service._family(name) in service.RECOMMANDATIONS
 
 
+def _model(nom, recall_val, ok=True, per_episode=None):
+    return {"nom": nom, "type": "supervisé", "precision": 0.93, "recall": 0.6, "f1": 0.73, "val_recall": recall_val,
+            "val_precision": 0.92, "val_fausses_alarmes_par_heure": 0.4, "val_delai_median_min": 4.0,
+            "fausses_alarmes_evenements_par_heure": 0.35, "delai_median_min": 4.2, "episodes": 55,
+            "episodes_detectes": 54,
+            "point_fonctionnement": {"seuil": 0.7, "k": 6, "n": 12, "contrainte_tenue": ok},
+            "per_attack": {"MITM_gel": {"n": 100, "detected": 92, "rate": 92.0},
+                           "Injection_biais_0.5": {"n": 100, "detected": 8, "rate": 8.0}},
+            "per_episode": per_episode or {"MITM_gel": {"n": 6, "detected": 6, "delai_median_min": 1.0},
+                                           "Injection_biais_0.5": {"n": 6, "detected": 2, "delai_median_min": 12.0}}}
+
+
 def test_operator_report_from_results():
-    models = {
-        "RandomForest": {"nom": "Random Forest", "type": "supervisé", "precision": 0.75, "recall": 0.59, "f1": 0.66,
-                         "val_f1": 0.66, "fausses_alarmes_evenements_par_heure": 3.3, "delai_median_min": 1.9,
-                         "episodes": 55, "episodes_detectes": 48,
-                         "per_attack": {"MITM_gel": {"n": 100, "detected": 92, "rate": 92.0},
-                                        "Injection_biais_0.5": {"n": 100, "detected": 8, "rate": 8.0}},
-                         "per_episode": {"MITM_gel": {"n": 6, "detected": 6}}},
-        "XGBoost": {"nom": "XGBoost", "type": "supervisé", "precision": 0.67, "recall": 0.51, "f1": 0.58, "val_f1": 0.59,
-                    "fausses_alarmes_evenements_par_heure": 4.5, "episodes": 55, "episodes_detectes": 46},
-    }
+    models = {"RandomForest": _model("Random Forest", 0.62), "XGBoost": _model("XGBoost", 0.55)}
     shap_data = {"par_scenario": {"MITM_gel": [{"feature": "fridge_std_1min", "importance": 0.2}]}}
     report = service.operator_report(models, shap_data, "test")
     assert report["modele"]["nom"] == "Random Forest"
+    assert report["modele"]["point_fonctionnement"] == "seuil 0.70, 6 sur 12 mesures"
     gel = next(s for s in report["scenarios"] if s["scenario"] == "MITM_gel")
-    assert gel["niveau"] == "bien détecté"
+    assert gel["niveau"] == "bien détecté" and gel["episodes"] == "6/6"
     assert gel["ce_que_le_modele_regarde"] == ["écart-type sur 1 min du frigo"]
     biais = next(s for s in report["scenarios"] if s["scenario"] == "Injection_biais_0.5")
     assert "vérification humaine" in biais["niveau"]
     assert "## Consignes par type d'attaque" in report["markdown"]
+    assert "persistance" in report["modele"]["seuil"]
     assert len(report["scenarios"]) == len(service.scenarios()) == 9
+
+
+def test_operator_report_picks_the_model_on_validation_with_the_constraint_first():
+    models = {"RandomForest": _model("Random Forest", 0.60), "MLP": _model("MLP", 0.80, ok=False),
+              "HistGB": _model("HistGradientBoosting", 0.65), "RF_v1": _model("ancien", 0.99)}
+    report = service.operator_report(models, None, "test")
+    assert report["modele"]["cle"] == "HistGB"          # MLP ne tient pas la contrainte, RF_v1 n'est qu'une référence
+    assert "SMOTE" in report["markdown"]
 
 
 def test_alert_recommendation():
@@ -50,28 +63,10 @@ def test_public_kpis_come_from_the_reference_results():
     kpis = service.public_kpis()
     assert kpis is not None, "models/transmission_reel/comparaison_modeles.json est versionné"
     best = kpis["meilleur"]
-    assert best["id"] in ("RandomForest", "XGBoost", "Logistique", "MLP") and 0 < best["recall"] <= 1
-    assert kpis["cible_rappel"] == 0.9 and 0.12 <= kpis["part_attaques_test"] <= 0.16
+    assert best["id"] in ("RandomForest", "ExtraTrees", "XGBoost", "HistGB", "Logistique", "MLP")
+    assert 0 < best["recall"] <= 1 and best["seuil"] is not None and best["k"] >= 1
+    assert 0.10 <= kpis["part_attaques_test"] <= 0.20
     assert kpis["traces"]["mesures"] > 40_000 and kpis["traces"]["pas"] == "5s"
     assert kpis["scenarios"] == len(service.scenarios()) == len(kpis["detection_par_scenario"])
     taux = [s["taux"] for s in kpis["detection_par_scenario"]]
     assert taux == sorted(taux, reverse=True)
-
-
-def test_operator_report_uses_the_recall_first_point_chosen_on_validation():
-    def pt(rv, pv, f2v, rt, pt_):
-        mk = lambda r, p, f2: {"recall": r, "precision": p, "f1": 0.5, "f2": f2, "delai_median_min": 1.0,
-                               "fausses_alarmes_evenements_par_heure": 2.0, "episodes": 10, "episodes_detectes": 9,
-                               "per_attack": {"MITM_gel": {"n": 10, "detected": 9, "rate": 90.0}},
-                               "per_episode": {"MITM_gel": {"n": 2, "detected": 2, "delai_median_min": 0.5}}}
-        return {"val": mk(rv, pv, f2v), "test": mk(rt, pt_, 0.1)}
-    models = {
-        "RandomForest": {"nom": "Random Forest", "val_f1": 0.9,
-                         "points_fonctionnement": {"max_f1": pt(0.7, 0.9, 0.7, 0.7, 0.9), "rappel_0.90": pt(0.9, 0.3, 0.6, 0.88, 0.3)}},
-        "MLP": {"nom": "MLP", "val_f1": 0.5,
-                "points_fonctionnement": {"max_f1": pt(0.6, 0.6, 0.6, 0.6, 0.6), "rappel_0.90": pt(0.9, 0.4, 0.7, 0.85, 0.2)}},
-    }
-    report = service.operator_report(models, None, "test", 0.90)
-    assert report["modele"]["cle"] == "MLP"                    # meilleur F2 de VALIDATION au rappel cible
-    assert report["modele"]["recall"] == 0.85 and report["modele"]["point_fonctionnement"] == "rappel cible 0.90"
-    assert "SMOTE" in report["markdown"]

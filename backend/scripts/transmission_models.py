@@ -1,70 +1,55 @@
 """
-Quatre modèles supervisés sur les traces réelles avec attaques de transmission
-=============================================================================
+Modèles supervisés sur les traces réelles avec attaques de transmission (version 3)
+==================================================================================
 Plan de l'étudiante : (1) prétraitement des traces réelles, (2) injection d'attaques
-MITM / injection, (3) quatre modèles supervisés, choix du meilleur, (4) SHAP.
+MITM / injection, (3) modèles supervisés, choix du meilleur, (4) SHAP.
 
-Modèles (tous supervisés) et raison du choix
-  - Random Forest      apprend sur des attaques étiquetées ; robuste, explicable
-                       par SHAP (TreeExplainer)
-  - XGBoost            boosting, en général le plus précis sur des features
-                       tabulaires ; explicable par SHAP
-  - Régression Logistique  baseline linéaire interprétable, sert de point de
-                       comparaison aux modèles non linéaires
-  - MLP                réseau de neurones (64, 32) avec early stopping, apporte une
-                       famille non-arbre au comparatif
+Corrections après la relecture du professeur (novembre 2026) :
+  1. Zone de garde ≥ plus longue fenêtre : 20 min (tr.GUARD) après chaque épisode ET en
+     début de chaque bloc qui change de rôle (tr.boundary_guard) ; aucune ligne apprise ou
+     évaluée n'a de fenêtre glissante (≤ 15 min) qui traverse la frontière train/val/test.
+     L'EWMA (mémoire non bornée) est retirée des features.
+  2. UN SEUL point de fonctionnement, choisi sur la VALIDATION : seuil + règle de
+     persistance « k lignes sur n » (transmission_alertes), rappel maximal sous
+     précision ≥ 0,90 et ≤ 0,5 fausse alerte par heure. Fini les deux seuils et le F2.
+  3. Classement des modèles sur la validation : modèles qui tiennent la contrainte d'abord,
+     puis rappel à la contrainte, puis fausses alertes/h, puis délai.
+  4. Diagnostic train / validation / test de chaque modèle et courbe d'apprentissage du
+     meilleur (sous- ou sur-apprentissage).
+  5. Modèles et features : Random Forest, Extra Trees, XGBoost, HistGradientBoosting
+     (famille LightGBM, disponible dans scikit-learn), Régression Logistique, MLP ;
+     hyperparamètres réglés par une petite grille en validation croisée GROUPÉE par bloc sur
+     le seul train (transmission_recherche.py) ; features de forme de la distribution
+     glissante (min, max, quantiles), variation absolue moyenne, résidus entre capteurs.
+     Ligne « avant / après » : Random Forest avec les anciennes features (RF_v1), même
+     protocole corrigé.
 
-  Les modèles NON supervisés (Isolation Forest, One-Class SVM) et la référence
-  statistique ont été RETIRÉS du comparatif : l'étude ne compare que des modèles
-  supervisés.
+Prévalence (lignes évaluées, hors zone de garde). Un épisode dans CHAQUE bloc d'entraînement
+(≈ 50 % d'attaques : les modèles supervisés ont besoin d'exemples), dans 2 blocs sur 5 en
+validation et en test (≈ 17 %, mesuré et écrit dans le JSON).
+Déséquilibre : class_weight / scale_pos_weight / sample_weight, pas de SMOTE (des points
+interpolés fabriqueraient des fenêtres glissantes qui n'existent pas).
 
-Prévalence. Les modèles supervisés ont besoin d'attaques dans l'entraînement : un
-épisode est injecté dans CHAQUE bloc d'entraînement (~33 % d'attaques). La validation
-et le test gardent une prévalence RÉALISTE : un épisode dans 2 blocs sur 5 (≈ 13–15 %
-des lignes, mesuré et écrit dans le JSON). La précision et le F1 dépendent de la
-prévalence ; à 33 % d'attaques en validation, le seuil « max F1 » glisserait vers
-« tout signaler ».
-
-Déséquilibre des classes : class_weight (Random Forest, Régression Logistique),
-scale_pos_weight (XGBoost), sample_weight (MLP). Pas de SMOTE : sur des séries
-temporelles, des points synthétiques interpolés entre deux lignes d'attaque
-fabriqueraient des fenêtres glissantes qui n'existent pas, et le sur-échantillonnage
-ne change pas la prévalence du test, qui seule fixe la précision réelle. Le levier
-du rappel est le SEUIL, choisi sur la validation.
-
-Prétraitement (features) : par capteur, valeur, variation, moyenne et écart-type
-glissants sur 1, 5 et 15 min, moyenne lissée (EWMA 10 min), indicateur « séquence
-de 2 min déjà transmise » (rejeu exact) ; écarts entre capteurs ; état du frigo et
-du thermostat. Pas d'heure ni de saison : 62 h de données seulement.
-
-Protocole (même découpage que transmission_real.py) : train/val/test NON aléatoire
-70/15/15 par blocs d'une heure entrelacés (recalculé à l'entraînement via
-`transmission_real.block_split`, plus stocké dans le CSV), 20 répétitions = les 20
-rotations du cycle de blocs (chaque heure sert 3 fois de test), résultats cumulés.
-Deux points de fonctionnement, seuils choisis sur la VALIDATION de chaque répétition
-et appliqués tels quels à son test :
-  - « max F1 »       : le seuil qui maximise le F1 de validation ;
-  - « rappel cible » : le seuil le plus haut qui atteint le rappel cible sur la
-                       validation (TARGET_RECALL, 0,90 par défaut ; aussi 0,80 et 0,95).
-Choix du modèle sur la VALIDATION uniquement (le test ne fait que confirmer) : en
-mode « rappel d'abord », F2 de validation au point « rappel cible ».
-Validation croisée de confirmation (répétition 0, lignes d'entraînement) :
-StratifiedGroupKFold avec le BLOC d'une heure comme groupe, comparée à un
-StratifiedKFold naïf (à ne pas faire : fuite par les fenêtres glissantes).
-
-Ordre des métriques partout : rappel, fausses alertes/heure, délai de détection,
-précision, F1/F2.
+Protocole : 70/15/15 NON aléatoire par blocs d'une heure entrelacés, 20 répétitions = les
+20 rotations du cycle (chaque heure sert 3 fois de test), résultats cumulés. Le seuil et
+la règle de persistance de chaque modèle sont choisis sur la validation CUMULÉE des 20
+répétitions (un seul réglage par modèle) ; le test ne fait que confirmer.
 
 Sorties : data/processed/dataset_transmission_reel.csv + episodes_transmission_reel.json
-          (répétition 0, attaques dans tous les rôles ; seul script qui les écrit),
-          models/transmission_reel/comparaison_modeles.json, validation_croisee.json,
-          shap_transmission_reel.json, meilleur_modele.pkl (répétition 0)
+          (répétition 0), models/transmission_reel/comparaison_modeles.json,
+          validation_croisee.json, shap_transmission_reel.json, meilleur_modele.pkl +
+          meilleur_modele.json (features, seuil, k, n), scores_repetition0.npz
 Usage :  cd backend && nice -n 10 .venv/bin/python scripts/transmission_models.py
-         (N_JOBS=3 cœurs par défaut ; SKIP_SHAP=1, SKIP_CV=1 pour aller plus vite ;
-          N_RUNS=… pour un essai rapide ; TARGET_RECALL=0.90)
+         (N_JOBS=3 ; SKIP_SHAP=1, SKIP_CV=1, SKIP_LC=1, SKIP_V1=1 pour aller plus vite ;
+          N_RUNS=… pour un essai ; MODELS=RandomForest,HistGB pour un sous-ensemble)
 """
 
 from __future__ import annotations
+
+import os as _os
+
+# Le serveur héberge d'autres sites : 3 cœurs au plus, y compris pour OpenMP (HistGradientBoosting, XGBoost).
+_os.environ.setdefault("OMP_NUM_THREADS", _os.environ.get("N_JOBS", "3"))
 
 import contextlib
 import io
@@ -75,9 +60,6 @@ import time
 import traceback
 from pathlib import Path
 
-# Garde-fou encodage : sur Windows, une sortie redirigee peut etre en cp1252 et faire
-# planter le script sur un caractere comme la fleche '->'. On force UTF-8 (avec
-# remplacement) pour que le script ne plante JAMAIS pour une histoire d'accent.
 for _flux in (sys.stdout, sys.stderr):
     try:
         _flux.reconfigure(encoding="utf-8", errors="replace")
@@ -87,10 +69,11 @@ for _flux in (sys.stdout, sys.stderr):
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, precision_recall_curve, roc_auc_score
 from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 HERE = Path(__file__).resolve().parent
@@ -98,9 +81,9 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 
 import build_dataset as bd  # noqa: E402
+import transmission_alertes as ta  # noqa: E402
 import transmission_real as tr  # noqa: E402
 import transmission_study as ts  # noqa: E402
-from app.api.v1 import phase2  # noqa: E402
 from app.core import paths  # noqa: E402
 
 try:
@@ -115,24 +98,39 @@ OUT_DIR = tr.OUT_DIR
 DATASET_PATH = tr.DATASET_PATH
 EPISODES_PATH = paths.PROCESSED_DIR / "episodes_transmission_reel.json"
 CV_PATH = OUT_DIR / "validation_croisee.json"
+TUNING_PATH = OUT_DIR / "recherche_hyperparametres.json"
+BEST_CONFIG_PATH = OUT_DIR / "meilleur_modele.json"
+SCORES0_PATH = OUT_DIR / "scores_repetition0.npz"
+SHAP_RUNS = int(os.environ.get("SHAP_RUNS", "5"))           # SHAP cumulé sur les 5 premières rotations
+LC_RUNS = (0, 7, 14)                                        # courbe d'apprentissage : 3 rotations
+LC_FRACTIONS = (0.1, 0.25, 0.5, 0.75, 1.0)
 log = ts.log
-
-# Point de fonctionnement « rappel d'abord » : rappel visé sur la validation
-TARGET_RECALL = float(os.environ.get("TARGET_RECALL", "0.90"))
-TARGETS = tuple(sorted({0.80, 0.90, 0.95, round(TARGET_RECALL, 2)}))
 
 SENSORS = ("weather", "fridge", "thermostat")
 WINDOWS = {"1min": 12, "5min": 60, "15min": 180}
-EWMA_ALPHA = 2 / (120 + 1)      # ≈ 10 min
+SHAPE_SENSORS = ("fridge", "thermostat")       # capteurs attaqués : forme de la distribution glissante
+SHAPE_WINDOWS = {"5min": 60, "15min": 180}
+# Toutes les fenêtres tiennent dans tr.W_MAX (15 min), couverte par la zone de garde tr.GUARD.
+assert max(max(WINDOWS.values()), max(SHAPE_WINDOWS.values())) <= tr.W_MAX
 
 
 def op_key(target: float) -> str:
-    """Nom du point de fonctionnement « rappel cible » : rappel_0.90."""
+    """Ancien nom de point de fonctionnement « rappel cible » (gardé pour les anciens JSON)."""
     return f"rappel_{target:.2f}"
 
 
 def engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    """Features de prétraitement (voir en-tête). Toutes ne regardent que le passé."""
+    """Features de prétraitement. Toutes sont CAUSALES (ne regardent que le passé) et leurs
+    fenêtres font au plus tr.W_MAX = 15 min :
+      - par capteur : valeur, variation, moyenne et écart-type glissants sur 1, 5 et 15 min,
+        variation absolue moyenne sur 5 min (une valeur figée ou forgée varie peu),
+        indicateur « séquence de 2 min déjà transmise » (rejeu exact) ;
+      - frigo et thermostat : minimum, maximum, quantiles 10 % et 90 % sur 5 et 15 min (un
+        décalage de −0,5 °C déplace le haut et le bas de la distribution glissante bien avant
+        que la moyenne ne bouge : les traces sont bornées, frigo entre 1 et 14 °C) ;
+      - écarts entre capteurs (résidus) et leur moyenne sur 15 min ; état du frigo et du thermostat.
+    La moyenne lissée EWMA a été RETIRÉE : sa mémoire n'est pas bornée (elle aurait traversé
+    la zone de garde). Pas d'heure ni de saison : 62 h de données seulement."""
     d = df.copy()
     feats: list[str] = []
     for s in SENSORS:
@@ -144,7 +142,45 @@ def engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
             d[f"{s}_mean_{tag}"] = x.rolling(w, min_periods=1).mean()
             d[f"{s}_std_{tag}"] = x.rolling(w, min_periods=2).std(ddof=0).fillna(0.0)
             feats += [f"{s}_mean_{tag}", f"{s}_std_{tag}"]
-        d[f"{s}_ewma_10min"] = x.ewm(alpha=EWMA_ALPHA, adjust=False).mean()
+        if s in SHAPE_SENSORS:
+            for tag, w in SHAPE_WINDOWS.items():
+                r = x.rolling(w, min_periods=1)
+                d[f"{s}_min_{tag}"], d[f"{s}_max_{tag}"] = r.min(), r.max()
+                d[f"{s}_q10_{tag}"], d[f"{s}_q90_{tag}"] = r.quantile(0.10), r.quantile(0.90)
+                feats += [f"{s}_min_{tag}", f"{s}_max_{tag}", f"{s}_q10_{tag}", f"{s}_q90_{tag}"]
+        d[f"{s}_absdiff_5min"] = x.diff().abs().rolling(60, min_periods=1).mean()
+        d[f"{s}_repeat_2min"] = tr.replay_flags(x.to_numpy(float)).astype(float)
+        feats += [f"{s}_absdiff_5min", f"{s}_repeat_2min"]
+    d["fridge_thermostat_diff"] = d["fridge_temp"] - d["thermostat_temp"]
+    d["weather_fridge_diff"] = d["weather_temp"] - d["fridge_temp"]
+    d["weather_thermostat_diff"] = d["weather_temp"] - d["thermostat_temp"]
+    d["fridge_thermostat_diff_mean_15min"] = d["fridge_thermostat_diff"].rolling(180, min_periods=1).mean()
+    d["weather_fridge_diff_mean_15min"] = d["weather_fridge_diff"].rolling(180, min_periods=1).mean()
+    d["fridge_cond_enc"] = LabelEncoder().fit_transform(d["fridge_cond"].astype(str)).astype(float)
+    d["thermo_status"] = pd.to_numeric(d["thermo_status"], errors="coerce").fillna(0).astype(float)
+    feats += ["fridge_thermostat_diff", "weather_fridge_diff", "weather_thermostat_diff",
+              "fridge_thermostat_diff_mean_15min", "weather_fridge_diff_mean_15min",
+              "fridge_cond_enc", "thermo_status"]
+    d[feats] = d[feats].replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    d = tr.drop_phase2_cols(d)
+    return d, feats
+
+
+def engineer_v1(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Features de la version précédente (35 features, avec EWMA), gardées pour la ligne
+    « avant / après » : même modèle, même protocole corrigé, anciennes features."""
+    d = df.copy()
+    feats: list[str] = []
+    for s in SENSORS:
+        col = f"{s}_temp"
+        x = d[col]
+        d[f"{s}_diff_1"] = x.diff().fillna(0.0)
+        feats += [col, f"{s}_diff_1"]
+        for tag, w in WINDOWS.items():
+            d[f"{s}_mean_{tag}"] = x.rolling(w, min_periods=1).mean()
+            d[f"{s}_std_{tag}"] = x.rolling(w, min_periods=2).std(ddof=0).fillna(0.0)
+            feats += [f"{s}_mean_{tag}", f"{s}_std_{tag}"]
+        d[f"{s}_ewma_10min"] = x.ewm(alpha=2 / 121, adjust=False).mean()
         d[f"{s}_repeat_2min"] = tr.replay_flags(x.to_numpy(float)).astype(float)
         feats += [f"{s}_ewma_10min", f"{s}_repeat_2min"]
     d["fridge_thermostat_diff"] = d["fridge_temp"] - d["thermostat_temp"]
@@ -155,33 +191,64 @@ def engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     feats += ["fridge_thermostat_diff", "weather_fridge_diff", "weather_thermostat_diff",
               "fridge_cond_enc", "thermo_status"]
     d[feats] = d[feats].replace([np.inf, -np.inf], np.nan).fillna(0.0)
-
-    # Nettoyage : on retire les colonnes héritées du pré-calcul phase2 (heure, saison,
-    # moyennes/écarts glissants sur 10 pas), inutiles au modèle de transmission.
-    d = tr.drop_phase2_cols(d)
     return d, feats
 
 
-# ── Modèles : chacun renvoie (score par ligne, hyperparamètres, objet entraîné) ──
+# ── Modèles ──────────────────────────────────────────────────────────────────
 # Déséquilibre : poids de classe (class_weight / scale_pos_weight / sample_weight), pas de SMOTE.
 
+MODELS = [("RandomForest", "Random Forest"),
+          ("ExtraTrees", "Extra Trees"),
+          ("XGBoost", "XGBoost"),
+          ("HistGB", "HistGradientBoosting"),
+          ("Logistique", "Régression Logistique"),
+          ("MLP", "MLP — réseau de neurones")]
+BASELINE = ("RF_v1", "Random Forest, anciennes features (avant)")
+TREE_MODELS = ("RandomForest", "ExtraTrees", "XGBoost", "HistGB", "RF_v1")
+NEEDS_SCALING = ("Logistique", "MLP")
+MODEL_NAMES = dict(MODELS + [BASELINE])
+
+
+def _tuned(key: str) -> dict:
+    """Réglage retenu par transmission_recherche.py (validation croisée groupée sur le train)."""
+    try:
+        with open(TUNING_PATH, encoding="utf-8") as f:
+            return dict(json.load(f)["modeles"][key]["retenu"])
+    except (OSError, ValueError, KeyError):
+        return {}
+
+
+def make_model(key: str, ratio: float = 1.0, **params):
+    """Estimateur non entraîné. ratio = normales / attaques du train (XGBoost)."""
+    if key in ("RandomForest", "RF_v1"):
+        p = dict(n_estimators=300, min_samples_leaf=5, max_features="sqrt", class_weight="balanced_subsample",
+                 random_state=SEED, n_jobs=N_JOBS)
+        return RandomForestClassifier(**{**p, **params})
+    if key == "ExtraTrees":
+        p = dict(n_estimators=400, min_samples_leaf=5, max_features="sqrt", class_weight="balanced_subsample",
+                 random_state=SEED, n_jobs=N_JOBS)
+        return ExtraTreesClassifier(**{**p, **params})
+    if key == "XGBoost":
+        if XGBClassifier is None:
+            raise RuntimeError("xgboost absent")
+        p = dict(n_estimators=400, max_depth=6, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
+                 scale_pos_weight=ratio, eval_metric="logloss", random_state=SEED, n_jobs=N_JOBS, verbosity=0)
+        return XGBClassifier(**{**p, **params})
+    if key == "HistGB":
+        p = dict(max_iter=300, learning_rate=0.05, max_leaf_nodes=31, l2_regularization=1.0,
+                 class_weight="balanced", random_state=SEED)
+        return HistGradientBoostingClassifier(**{**p, **params})
+    if key == "Logistique":
+        return LogisticRegression(**{**dict(max_iter=1000, class_weight="balanced", random_state=SEED), **params})
+    if key == "MLP":
+        return MLPClassifier(**{**dict(hidden_layer_sizes=(64, 32), max_iter=300, early_stopping=True,
+                                       random_state=SEED), **params})
+    raise KeyError(key)
+
+
 def make_random_forest() -> RandomForestClassifier:
-    return RandomForestClassifier(n_estimators=300, min_samples_leaf=5, class_weight="balanced_subsample",
-                                  random_state=SEED, n_jobs=N_JOBS)
-
-
-def make_xgboost(ratio: float):
-    return XGBClassifier(n_estimators=400, max_depth=6, learning_rate=0.05, subsample=0.8,
-                         colsample_bytree=0.8, scale_pos_weight=ratio, eval_metric="logloss",
-                         random_state=SEED, n_jobs=N_JOBS, verbosity=0)
-
-
-def make_logistic() -> LogisticRegression:
-    return LogisticRegression(max_iter=1000, class_weight="balanced", random_state=SEED)
-
-
-def make_mlp() -> MLPClassifier:
-    return MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=300, early_stopping=True, random_state=SEED)
+    """Random Forest au réglage retenu (utilisé aussi par transmission_biais_long.py)."""
+    return make_model("RandomForest", **_tuned("RandomForest"))
 
 
 def balanced_weights(y_tr: np.ndarray) -> np.ndarray:
@@ -190,77 +257,40 @@ def balanced_weights(y_tr: np.ndarray) -> np.ndarray:
     return np.where(y_tr == 1, len(y_tr) / (2 * pos), len(y_tr) / (2 * max(1, len(y_tr) - pos)))
 
 
-def random_forest(X, y, train_all):
-    model = make_random_forest().fit(X[train_all], y[train_all])
-    return model.predict_proba(X)[:, 1], {"n_estimators": 300, "min_samples_leaf": 5,
-                                          "class_weight": "balanced_subsample"}, model
+def fit_model(key: str, X: np.ndarray, y: np.ndarray, rows: np.ndarray, params: dict | None = None):
+    """Entraîne un modèle sur les lignes `rows`. Les modèles sensibles à l'échelle (Logistique,
+    MLP) sont des pipelines StandardScaler → modèle : le .pkl s'applique tel quel aux mesures.
+    Renvoie (modèle, hyperparamètres utilisés)."""
+    y_tr = y[rows]
+    pos = max(1, int(y_tr.sum()))
+    ratio = float((len(rows) - pos) / pos)
+    used = {} if key == "RF_v1" else _tuned(key)
+    used.update(params or {})
+    est = make_model(key, ratio, **used)
+    if key in NEEDS_SCALING:
+        model = make_pipeline(StandardScaler(), est)
+        fit_kw = {"mlpclassifier__sample_weight": balanced_weights(y_tr)} if key == "MLP" else {}
+        model.fit(X[rows], y_tr, **fit_kw)
+    else:
+        model = est.fit(X[rows], y_tr)
+    shown = {k: v for k, v in est.get_params().items()
+             if k in ("n_estimators", "min_samples_leaf", "max_features", "class_weight", "max_depth",
+                      "learning_rate", "min_child_weight", "subsample", "colsample_bytree", "max_iter",
+                      "max_leaf_nodes", "l2_regularization", "hidden_layer_sizes", "early_stopping")}
+    if key == "XGBoost":
+        shown["scale_pos_weight"] = round(ratio, 2)
+    if key == "MLP":
+        shown["sample_weight"] = "équilibré"
+    return model, shown
 
 
-def xgboost_model(X, y, train_all):
-    pos = max(1, int(y[train_all].sum()))
-    ratio = float((len(train_all) - pos) / pos)
-    model = make_xgboost(ratio).fit(X[train_all], y[train_all])
-    return model.predict_proba(X)[:, 1], {"n_estimators": 400, "max_depth": 6, "learning_rate": 0.05,
-                                          "scale_pos_weight": round(ratio, 2)}, model
+def scores_of(model, X: np.ndarray) -> np.ndarray:
+    return model.predict_proba(X)[:, 1].astype(np.float32)
 
 
-def logistic_regression(X_s, y, train_all):
-    """Régression Logistique : baseline linéaire interprétable, class_weight équilibre les classes."""
-    model = make_logistic().fit(X_s[train_all], y[train_all])
-    return model.predict_proba(X_s)[:, 1], {"max_iter": 1000, "class_weight": "balanced"}, model
-
-
-def mlp(X_s, y, train_all):
-    """MLP (64, 32) : early stopping contre le surapprentissage ; sample_weight équilibre les classes
-    (MLPClassifier n'a pas de class_weight)."""
-    y_tr = y[train_all]
-    model = make_mlp().fit(X_s[train_all], y_tr, sample_weight=balanced_weights(y_tr))
-    return model.predict_proba(X_s)[:, 1], {"hidden_layer_sizes": (64, 32), "max_iter": 300,
-                                            "early_stopping": True, "sample_weight": "équilibré"}, model
-
-
-MODELS = [("RandomForest", "Random Forest (supervisé)"),
-          ("XGBoost", "XGBoost (supervisé)"),
-          ("Logistique", "Régression Logistique (supervisé)"),
-          ("MLP", "MLP — réseau de neurones (supervisé)")]
-TREE_MODELS = ("RandomForest", "XGBoost")
-
-
-# ── Seuils et points de fonctionnement (toujours choisis sur la VALIDATION) ─────
-
-def threshold_for_recall(y_val: np.ndarray, s_val: np.ndarray, target: float) -> float:
-    """Seuil le plus HAUT qui atteint le rappel `target` sur la validation (alerte si
-    score >= seuil) : il signale au moins ceil(target × P) des P lignes d'attaque, avec
-    le moins de fausses alertes possible. Toujours atteignable s'il y a des attaques."""
-    pos = np.sort(np.asarray(s_val, dtype=float)[np.asarray(y_val) == 1])[::-1]
-    if len(pos) == 0:
-        return float("inf")
-    k = min(len(pos), max(1, int(np.ceil(target * len(pos) - 1e-9))))
-    return float(pos[k - 1])
-
-
-def operating_thresholds(y_val: np.ndarray, s_val: np.ndarray, targets=TARGETS) -> dict[str, float]:
-    out = {"max_f1": float(phase2._best_f1_threshold(y_val, s_val))}
-    for t in targets:
-        out[op_key(t)] = threshold_for_recall(y_val, s_val, t)
-    return out
-
-
-def evaluate_scores(s, df, y, val_idx, test_idx, episodes, targets=TARGETS) -> dict:
-    """Comptes d'une répétition pour chaque point de fonctionnement, sur la validation et le test."""
-    s = np.nan_to_num(np.asarray(s, dtype=float), nan=0.0)
-    out = {"points": {},
-           "roc_auc": float(roc_auc_score(y[test_idx], s[test_idx])),
-           "avg_precision": float(average_precision_score(y[test_idx], s[test_idx])),
-           "val_roc_auc": float(roc_auc_score(y[val_idx], s[val_idx])),
-           "val_avg_precision": float(average_precision_score(y[val_idx], s[val_idx])),
-           "scores_val": s[val_idx], "y_val": y[val_idx], "scores_test": s[test_idx], "y_test": y[test_idx]}
-    for op, thr in operating_thresholds(y[val_idx], s[val_idx], targets).items():
-        pred = s >= thr
-        out["points"][op] = {"seuil": thr,
-                             "val": tr.count_run(pred, df, val_idx, episodes, "val"),
-                             "test": tr.count_run(pred, df, test_idx, episodes, "test")}
-    return out
+def role_prevalence(y: np.ndarray, idx_by_role: dict[str, np.ndarray]) -> dict:
+    return {r: {"lignes": int(len(i)), "attaques": int(y[i].sum()),
+                "part": round(float(y[i].mean()), 4) if len(i) else 0.0} for r, i in idx_by_role.items()}
 
 
 def pr_curve(y: np.ndarray, s: np.ndarray, n: int = 120) -> dict:
@@ -270,107 +300,177 @@ def pr_curve(y: np.ndarray, s: np.ndarray, n: int = 120) -> dict:
     return {"recall": [round(float(v), 4) for v in r[idx]], "precision": [round(float(v), 4) for v in p[idx]]}
 
 
-def _val_fields(v: dict) -> dict:
-    return {"val_recall": v["recall"], "val_fausses_alarmes_par_heure": v["fausses_alarmes_evenements_par_heure"],
-            "val_delai_median_min": v["delai_median_min"], "val_precision": v["precision"], "val_f1": v["f1"],
-            "val_f2": v["f2"], "val_episodes": v["episodes"], "val_episodes_detectes": v["episodes_detectes"],
-            "val_part_attaques": v["part_attaques"]}
+# ── Une répétition ───────────────────────────────────────────────────────────
+
+def prepare_run(base: pd.DataFrame, run: int, with_v1: bool = False) -> dict:
+    """Injection, features, masques des rôles (hors zones de garde) d'une répétition."""
+    rng = np.random.default_rng(SEED + run)
+    episodes = tr.build_schedule(len(base), rng, run, roles=("train", "val", "test"))
+    injected = tr.inject(base, episodes, rng, run)
+    df, feats = engineer(injected)
+    y = df["label"].to_numpy().astype(int)
+    split = tr.block_split(len(df), run)
+    excl = tr.excluded_rows(df["garde"].to_numpy().astype(bool), run)
+    ev = {role: (split == role) & ~excl for role in ("train", "val", "test")}
+    out = {"run": run, "episodes": episodes, "df": df, "feats": feats, "y": y, "split": split, "excl": excl,
+           "ev": ev, "idx": {r: np.where(m)[0] for r, m in ev.items()},
+           "types": df["attack_type"].to_numpy(), "X": df[feats].to_numpy(np.float32)}
+    if with_v1:
+        d1, f1 = engineer_v1(injected)
+        out["X_v1"], out["feats_v1"] = d1[f1].to_numpy(np.float32), f1
+    return out
 
 
-def summarize_model(evals: list[dict], nom: str) -> dict:
-    """Cumule les répétitions d'un modèle. Les champs « à plat » (recall, precision, f1…)
-    sont ceux du TEST au seuil max F1 (compatibilité) ; val_* ceux de la VALIDATION ;
-    points_fonctionnement contient les deux points (max F1, rappel cible) en val et test."""
-    points = {}
-    for op in evals[0]["points"]:
-        v = tr.pool([e["points"][op]["val"] for e in evals])
-        t = tr.pool([e["points"][op]["test"] for e in evals])
-        points[op] = {"libelle": "max F1 (validation)" if op == "max_f1" else f"rappel cible {op[7:]} (validation)",
-                      "seuils": [round(e["points"][op]["seuil"], 4) for e in evals], "val": v, "test": t}
-    res = {"nom": nom, "type": "supervisé", **points["max_f1"]["test"], **_val_fields(points["max_f1"]["val"])}
-    res["roc_auc"] = round(float(np.mean([e["roc_auc"] for e in evals])), 4)
-    res["avg_precision"] = round(float(np.mean([e["avg_precision"] for e in evals])), 4)
-    res["val_roc_auc"] = round(float(np.mean([e["val_roc_auc"] for e in evals])), 4)
-    res["val_avg_precision"] = round(float(np.mean([e["val_avg_precision"] for e in evals])), 4)
-    res["threshold"] = points["max_f1"]["seuils"][0]
-    res["points_fonctionnement"] = points
-    res["courbe_pr"] = {
-        "val": pr_curve(np.concatenate([e["y_val"] for e in evals]), np.concatenate([e["scores_val"] for e in evals])),
-        "test": pr_curve(np.concatenate([e["y_test"] for e in evals]), np.concatenate([e["scores_test"] for e in evals])),
+def one_run(base: pd.DataFrame, run: int, keys: list[str], with_v1: bool) -> dict:
+    r = prepare_run(base, run, with_v1)
+    tri = r["idx"]["train"]
+    r.update(scores={}, models={}, params={}, fit_s={},
+             prevalence=role_prevalence(r["y"], r["idx"]))
+    for key in keys + ([BASELINE[0]] if with_v1 else []):
+        Xm = r["X_v1"] if key == "RF_v1" else r["X"]
+        t0 = time.time()
+        try:
+            model, used = fit_model(key, Xm, r["y"], tri)
+        except Exception:  # noqa: BLE001 — un modèle en échec ne doit pas arrêter l'étude
+            traceback.print_exc(file=sys.__stderr__)
+            log(f"  !! {key} : échec, ignoré (répétition {run})")
+            continue
+        r["scores"][key] = scores_of(model, Xm)
+        r["models"][key], r["params"][key], r["fit_s"][key] = model, used, round(time.time() - t0, 1)
+    return r
+
+
+# ── Point de fonctionnement, métriques par rôle, classement ──────────────────
+
+def operating_point(runs: list[dict], key: str) -> tuple[dict, list[dict]]:
+    """Seuil + persistance (k, n) choisis sur la validation CUMULÉE (un seul réglage par modèle)."""
+    scored = [{"s": r["scores"][key], "y": r["y"], "evaluated_val": r["ev"]["val"]} for r in runs if key in r["scores"]]
+    rows = ta.grid(scored, "val")
+    op = ta.choose(rows)
+    return op, rows
+
+
+def role_metrics(runs: list[dict], key: str, op: dict) -> dict:
+    """Métriques cumulées train / val / test, au niveau « alarme » (persistance k sur n) et
+    « ligne » (même seuil, sans persistance), plus AUC / AP moyennes."""
+    out = {"alarme": {}, "ligne": {}, "auc": {}, "ap": {}}
+    raw_op = {**op, "k": 1, "n": 1}
+    for role in ("train", "val", "test"):
+        ca, cl, aucs, aps = [], [], [], []
+        for r in runs:
+            if key not in r["scores"]:
+                continue
+            s, ev = r["scores"][key], r["ev"][role]
+            ca.append(ta.count(ta.apply(s, op), r["y"], ev, r["episodes"], role, r["types"], tr.ATTACK_NAMES))
+            cl.append(ta.count(ta.apply(s, raw_op), r["y"], ev, r["episodes"], role, r["types"], tr.ATTACK_NAMES))
+            yy = r["y"][ev]
+            if 0 < yy.sum() < len(yy):
+                aucs.append(roc_auc_score(yy, s[ev]))
+                aps.append(average_precision_score(yy, s[ev]))
+        out["alarme"][role] = ta.pool(ca)
+        out["ligne"][role] = ta.pool(cl)
+        out["auc"][role] = round(float(np.mean(aucs)), 4) if aucs else None
+        out["ap"][role] = round(float(np.mean(aps)), 4) if aps else None
+    return out
+
+
+def summarize_model(runs: list[dict], key: str) -> dict:
+    op, rows = operating_point(runs, key)
+    m = role_metrics(runs, key, op)
+    t, v = m["alarme"]["test"], m["alarme"]["val"]
+    pool_role = lambda role: (np.concatenate([r["y"][r["ev"][role]] for r in runs if key in r["scores"]]),
+                              np.concatenate([r["scores"][key][r["ev"][role]] for r in runs if key in r["scores"]]))
+    yv, sv = pool_role("val")
+    yt, st = pool_role("test")
+    res = {
+        "nom": MODEL_NAMES.get(key, key), "type": "supervisé",
+        # champs « à plat » = TEST, niveau alarme, au point de fonctionnement unique
+        **{k: t[k] for k in ("recall", "precision", "f1", "fpr", "tp", "fp", "fn", "tn", "part_attaques",
+                             "fausses_alarmes_evenements_par_heure", "alertes", "fausses_alertes",
+                             "precision_alertes", "episodes", "episodes_detectes", "delai_median_min",
+                             "delai_p90_min", "per_attack", "per_episode")},
+        **{f"val_{k}": v[k] for k in ("recall", "precision", "f1", "episodes", "episodes_detectes",
+                                      "delai_median_min", "part_attaques")},
+        "val_fausses_alarmes_par_heure": v["fausses_alarmes_evenements_par_heure"],
+        "roc_auc": m["auc"]["test"], "avg_precision": m["ap"]["test"],
+        "val_roc_auc": m["auc"]["val"], "val_avg_precision": m["ap"]["val"],
+        "train_roc_auc": m["auc"]["train"], "train_avg_precision": m["ap"]["train"],
+        "threshold": op["seuil"],
+        "point_fonctionnement": {"seuil": op["seuil"], "k": op["k"], "n": op["n"],
+                                 "persistance_min": round(op["n"] * tr.STEP_MINUTES, 2),
+                                 "contrainte_tenue": op["contrainte_tenue"], "critere": ta.criterion_text(),
+                                 "validation": {x: op[x] for x in ("precision", "recall", "f1", "fa_h")}},
+        "par_role": {"alarme": m["alarme"], "ligne": m["ligne"], "auc": m["auc"], "ap": m["ap"]},
+        "grille_validation": [x for x in rows if (x["k"], x["n"]) in {(op["k"], op["n"]), (1, 1)}],
+        "courbe_pr": {"val": pr_curve(yv, sv), "test": pr_curve(yt, st)},
     }
     return res
 
 
-def rank_models(results: dict, op: str | None = None) -> list[str]:
-    """Classement sur la VALIDATION uniquement (le test ne sert qu'à confirmer).
-    op = « rappel_0.90 » (mode rappel d'abord) : F2 de validation à ce point, puis moins
-    de fausses alertes/h, puis délai le plus court. op = « max_f1 » : F1 de validation."""
-    op = op or op_key(TARGET_RECALL)
+def rank_models(results: dict, keys: list[str] | None = None) -> list[str]:
+    """Classement sur la VALIDATION uniquement : modèles qui tiennent la contrainte (précision,
+    fausses alertes/h) d'abord, puis rappel (alarme) le plus haut, puis moins de fausses
+    alertes/h, puis délai le plus court."""
+    keys = [k for k in (keys or results) if k in results]
 
     def cle(k):
-        v = results[k]["points_fonctionnement"][op]["val"]
-        main = v["f1"] if op == "max_f1" else v["f2"]
-        delai = v["delai_median_min"] if v["delai_median_min"] is not None else 1e9
-        return (-main, v["fausses_alarmes_evenements_par_heure"], delai)
+        r = results[k]
+        op = r.get("point_fonctionnement") or {}
+        delai = r.get("val_delai_median_min")
+        return (not op.get("contrainte_tenue", False), -(r.get("val_recall") or 0.0),
+                r.get("val_fausses_alarmes_par_heure") or 0.0, delai if delai is not None else 1e9)
 
-    return sorted(results, key=cle)
-
-
-def role_prevalence(y: np.ndarray, idx_by_role: dict[str, np.ndarray]) -> dict:
-    return {r: {"lignes": int(len(i)), "attaques": int(y[i].sum()),
-                "part": round(float(y[i].mean()), 4) if len(i) else 0.0} for r, i in idx_by_role.items()}
+    return sorted(keys, key=cle)
 
 
-# ── Une répétition ───────────────────────────────────────────────────────────
+def diagnostic(res: dict) -> dict:
+    """Écart train → validation → test (AP, F1 de l'alarme) : sur- ou sous-apprentissage."""
+    ap = res["par_role"]["ap"]
+    f1 = {r: res["par_role"]["alarme"][r]["f1"] for r in ("train", "val", "test")}
+    gap = None if ap["train"] is None or ap["val"] is None else round(ap["train"] - ap["val"], 4)
+    if gap is None:
+        verdict = "non évalué"
+    elif ap["train"] >= 0.97 and gap > 0.1:
+        verdict = "surapprentissage : le modèle connaît presque par cœur son train, l'écart avec la validation est grand"
+    elif ap["train"] < 0.8:
+        verdict = "sous-apprentissage : même sur son train, le modèle sépare mal attaques et normal"
+    elif gap > 0.1:
+        verdict = "écart train-validation marqué : variance (sur-apprentissage partiel)"
+    else:
+        verdict = "écart train-validation faible : pas de sur-apprentissage marqué"
+    return {"ap": ap, "f1_alarme": f1, "ecart_ap_train_val": gap,
+            "ecart_ap_val_test": None if ap["val"] is None or ap["test"] is None else round(ap["val"] - ap["test"], 4),
+            "verdict": verdict}
 
-def one_run(base: pd.DataFrame, run: int) -> dict:
-    rng = np.random.default_rng(SEED + run)
-    episodes = tr.build_schedule(len(base), rng, run, roles=("train", "val", "test"))
-    df = tr.inject(base, episodes, rng, run)
-    df, feats = engineer(df)
-    y = df["label"].to_numpy().astype(int)
-    split = tr.block_split(len(df), run)   # 70/15/15 non aléatoire, recalculé (non stocké dans le CSV)
-    garde = df["garde"].to_numpy().astype(bool)
-    train_all = np.where((split == "train") & ~garde)[0]
-    train_norm = train_all[y[train_all] == 0]
-    val_idx = np.where((split == "val") & ~garde)[0]
-    test_idx = np.where((split == "test") & ~garde)[0]
-    X = df[feats].to_numpy(float)
-    X_s = StandardScaler().fit(X[train_norm]).transform(X)
 
-    out = {"episodes": episodes, "df": df, "feats": feats, "counts": {}, "models": {}, "params": {},
-           "prevalence": role_prevalence(y, {"train": train_all, "val": val_idx, "test": test_idx}),
-           "train_all": train_all, "X": X, "X_s": X_s, "y": y}
-    scores: dict[str, np.ndarray] = {}
+# ── Courbe d'apprentissage ───────────────────────────────────────────────────
 
-    def attempt(key, fn):
-        try:
-            s, p, m = fn()
-            scores[key], out["params"][key], out["models"][key] = s, p, m
-        except Exception:  # noqa: BLE001 — un modèle en échec ne doit pas arrêter l'étude
-            traceback.print_exc()
-            log(f"  !! {key} : échec, ignoré (répétition {run})")
-
-    attempt("RandomForest", lambda: random_forest(X, y, train_all))
-    if XGBClassifier is not None:
-        attempt("XGBoost", lambda: xgboost_model(X, y, train_all))
-    attempt("Logistique", lambda: logistic_regression(X_s, y, train_all))
-    attempt("MLP", lambda: mlp(X_s, y, train_all))
-
-    for key, _ in MODELS:
-        if key in scores:
-            out["counts"][key] = evaluate_scores(scores[key], df, y, val_idx, test_idx, episodes)
-    out["test_idx"] = test_idx
-    att = test_idx[y[test_idx] == 1]
-    out["shap_X"], out["shap_types"] = X[att], df["attack_type"].to_numpy()[att]
-    prev = out["prevalence"]
-    op = op_key(TARGET_RECALL)
-    log(f"    répétition {run} : {len(episodes)} épisodes "
-        f"(train {sum(e['split'] == 'train' for e in episodes)}, val {sum(e['split'] == 'val' for e in episodes)}, "
-        f"test {sum(e['split'] == 'test' for e in episodes)}) ; attaques train {100 * prev['train']['part']:.1f} %, "
-        f"val {100 * prev['val']['part']:.1f} %, test {100 * prev['test']['part']:.1f} % ; "
-        + ", ".join(f"{k} F2 val {tr.pool([c['points'][op]['val']])['f2']:.2f}" for k, c in out["counts"].items()))
-    return out
+def learning_curve(base: pd.DataFrame, key: str, op: dict) -> list[dict]:
+    """Score selon la taille du train (fraction des BLOCS d'entraînement tirés au hasard),
+    moyenne sur LC_RUNS rotations : AP et F1 (ligne, seuil retenu) sur le train utilisé et sur la validation."""
+    from sklearn.metrics import f1_score  # noqa: PLC0415
+    acc: dict[float, list] = {f: [] for f in LC_FRACTIONS}
+    for run in LC_RUNS:
+        r = prepare_run(base, run)
+        tri, vai = r["idx"]["train"], r["idx"]["val"]
+        blocks = np.unique(tri // tr.STEPS_HOUR)
+        rng = np.random.default_rng(SEED + 1000 + run)
+        order = rng.permutation(blocks)
+        for f in LC_FRACTIONS:
+            keep = np.isin(tri // tr.STEPS_HOUR, order[:max(2, int(round(f * len(blocks))))])
+            rows = tri[keep]
+            model, _ = fit_model(key, r["X"], r["y"], rows)
+            s_tr, s_va = scores_of(model, r["X"][rows]), scores_of(model, r["X"][vai])
+            acc[f].append({"lignes": len(rows),
+                           "ap_train": average_precision_score(r["y"][rows], s_tr),
+                           "ap_val": average_precision_score(r["y"][vai], s_va),
+                           "f1_train": f1_score(r["y"][rows], s_tr >= op["seuil"]),
+                           "f1_val": f1_score(r["y"][vai], s_va >= op["seuil"])})
+            log(f"    courbe d'apprentissage {key} rotation {run} : {100 * f:.0f} % du train → "
+                f"AP train {acc[f][-1]['ap_train']:.3f}, val {acc[f][-1]['ap_val']:.3f}")
+    return [{"part_train": f, "lignes_train": int(np.mean([x["lignes"] for x in v])),
+             **{m: round(float(np.mean([x[m] for x in v])), 4) for m in ("ap_train", "ap_val", "f1_train", "f1_val")}}
+            for f, v in acc.items()]
 
 
 # ── Validation croisée de confirmation ───────────────────────────────────────
@@ -391,71 +491,65 @@ def shared_blocks(splitter, X, y, groups) -> int:
     return total
 
 
-def validation_croisee(X, X_s, y, train_all, n_splits: int = 5) -> dict:
-    """StratifiedKFold naïf (lignes mélangées : une même attaque et ses fenêtres
-    glissantes de part et d'autre → score trop optimiste) contre StratifiedGroupKFold
-    avec le BLOC d'une heure comme groupe (chaque attaque tient dans un bloc, et les
-    lignes normales qui l'entourent partagent ses fenêtres glissantes : grouper par bloc
-    retire la fuite). Lignes d'entraînement de la répétition 0, seuil par défaut (0,5)."""
-    from sklearn.model_selection import cross_validate  # noqa: PLC0415
-
-    y_tr = y[train_all]
-    groups = tr.block_index(len(y))[train_all]
-    pos = max(1, int(y_tr.sum()))
-    estimators = {"RandomForest": (make_random_forest(), X, None),
-                  "Logistique": (make_logistic(), X_s, None),
-                  "MLP": (make_mlp(), X_s, {"sample_weight": balanced_weights(y_tr)})}
-    if XGBClassifier is not None:
-        estimators["XGBoost"] = (make_xgboost(float((len(y_tr) - pos) / pos)), X, None)
-    scoring = {"recall": "recall", "precision": "precision", "f1": "f1", "average_precision": "average_precision"}
-    out = {"repetition": 0, "lignes": int(len(train_all)), "attaques": int(y_tr.sum()),
+def validation_croisee(r0: dict, keys: list[str], n_splits: int = 5) -> dict:
+    """StratifiedKFold naïf (lignes mélangées : une attaque et ses fenêtres glissantes de part
+    et d'autre → score trop optimiste) contre StratifiedGroupKFold par bloc d'une heure.
+    Lignes d'entraînement de la répétition 0, seuil par défaut (0,5)."""
+    from sklearn.metrics import f1_score, precision_score, recall_score  # noqa: PLC0415
+    tri = r0["idx"]["train"]
+    X, y = r0["X"], r0["y"]
+    groups = tr.block_index(len(y))[tri]
+    out = {"repetition": 0, "lignes": int(len(tri)), "attaques": int(y[tri].sum()),
            "blocs": int(len(np.unique(groups))), "folds": n_splits,
-           "seuil": "predict (probabilité ≥ 0,5), modèles pondérés",
-           "methodes": {}}
+           "seuil": "probabilité ≥ 0,5, modèles pondérés", "methodes": {}}
     for meth, splitter in cv_splitters(n_splits).items():
         res = {"description": ("StratifiedKFold(shuffle=True) : lignes mélangées — à NE PAS faire"
                                if meth == "naif" else "StratifiedGroupKFold, groupe = bloc d'une heure"),
-               "blocs_partages": shared_blocks(splitter, X[train_all], y_tr, groups), "modeles": {}}
-        for key, _ in MODELS:
-            if key not in estimators:
-                continue
-            est, Xm, params = estimators[key]
+               "blocs_partages": shared_blocks(splitter, X[tri], y[tri], groups), "modeles": {}}
+        folds = list(splitter.split(X[tri], y[tri], groups if meth == "groupes_blocs" else None))
+        for key in keys:
             t0 = time.time()
-            cv = cross_validate(est, Xm[train_all], y_tr, cv=splitter,
-                                groups=groups if meth == "groupes_blocs" else None, scoring=scoring,
-                                params=params, n_jobs=1)
-            res["modeles"][key] = {m: {"mean": round(float(cv[f"test_{m}"].mean()), 4),
-                                       "std": round(float(cv[f"test_{m}"].std()), 4)} for m in scoring}
-            log(f"    CV {meth:13s} {key:12s} rappel {res['modeles'][key]['recall']['mean']:.3f} "
-                f"± {res['modeles'][key]['recall']['std']:.3f}, précision {res['modeles'][key]['precision']['mean']:.3f} "
-                f"± {res['modeles'][key]['precision']['std']:.3f} ({time.time() - t0:.0f} s)")
+            vals = {m: [] for m in ("recall", "precision", "f1", "average_precision")}
+            for a, b in folds:
+                model, _ = fit_model(key, X, y, tri[a])
+                s = scores_of(model, X[tri[b]])
+                yb, pb = y[tri[b]], s >= 0.5
+                vals["recall"].append(recall_score(yb, pb, zero_division=0))
+                vals["precision"].append(precision_score(yb, pb, zero_division=0))
+                vals["f1"].append(f1_score(yb, pb, zero_division=0))
+                vals["average_precision"].append(average_precision_score(yb, s))
+            res["modeles"][key] = {m: {"mean": round(float(np.mean(v)), 4), "std": round(float(np.std(v)), 4)}
+                                   for m, v in vals.items()}
+            log(f"    CV {meth:13s} {key:12s} AP {res['modeles'][key]['average_precision']['mean']:.3f} "
+                f"rappel {res['modeles'][key]['recall']['mean']:.3f} précision "
+                f"{res['modeles'][key]['precision']['mean']:.3f} ({time.time() - t0:.0f} s)")
         out["methodes"][meth] = res
     return out
 
 
 # ── SHAP ─────────────────────────────────────────────────────────────────────
 
-def shap_summary(runs: list[dict], best_key: str, rng) -> dict:
-    """SHAP (TreeExplainer) du meilleur modèle, cumulé sur les répétitions, sur les
-    lignes d'attaque du test : importance moyenne |SHAP| par feature, globale et par
-    scénario (chaque répétition apporte ses propres épisodes de test)."""
+def shap_summary(runs: list[dict], key: str, rng) -> dict:
+    """SHAP (TreeExplainer) du meilleur modèle arborescent sur les lignes d'attaque du test des
+    SHAP_RUNS premières rotations : importance moyenne |SHAP| par feature, globale et par scénario."""
     import shap
 
     feats = runs[0]["feats"]
     imps, types_all = [], []
-    for r in runs:
-        model = r["models"].get(best_key)
+    for r in runs[:SHAP_RUNS]:
+        model = r["models"].get(key)
         if model is None:
             continue
-        X_att, types_att = r["shap_X"], r["shap_types"]      # lignes d'attaque du test
-        rows = rng.choice(len(X_att), min(1500, len(X_att)), replace=False)
-        values = shap.TreeExplainer(model).shap_values(X_att[rows])
+        att = r["idx"]["test"][r["y"][r["idx"]["test"]] == 1]
+        rows = rng.choice(att, min(1000, len(att)), replace=False)
+        values = shap.TreeExplainer(model).shap_values(r["X"][rows])
         if isinstance(values, list):
             values = values[-1]
+        values = np.asarray(values)
         if values.ndim == 3:
             values = values[:, :, -1]
         imps.append(np.abs(values))
-        types_all.append(types_att[rows])
+        types_all.append(r["types"][rows])
     imp = np.vstack(imps)
     types = np.concatenate(types_all)
 
@@ -464,7 +558,8 @@ def shap_summary(runs: list[dict], best_key: str, rng) -> dict:
         order = np.argsort(m)[::-1][:k]
         return [{"feature": feats[i], "importance": round(float(m[i]), 4)} for i in order]
 
-    out = {"n_lignes": int(len(imp)), "global": top(np.ones(len(imp), dtype=bool), 10), "par_scenario": {}}
+    out = {"n_lignes": int(len(imp)), "repetitions": min(SHAP_RUNS, len(runs)),
+           "global": top(np.ones(len(imp), dtype=bool), 15), "par_scenario": {}}
     for nm in tr.ATTACK_NAMES:
         mask = types == nm
         if mask.any():
@@ -474,73 +569,97 @@ def shap_summary(runs: list[dict], best_key: str, rng) -> dict:
 
 # ── Affichage ────────────────────────────────────────────────────────────────
 
-def print_operating_points(results: dict) -> None:
-    """Tableau val + test à chaque point de fonctionnement, dans l'ordre des métriques :
-    rappel, fausses alertes/h, délai, précision, F1, F2."""
-    for op in ["max_f1"] + [op_key(t) for t in TARGETS]:
-        print()
-        print(f"Point de fonctionnement : {results[next(iter(results))]['points_fonctionnement'][op]['libelle']}")
-        print(f"{'Modèle':36s} {'rôle':5s} {'Rappel':>7s} {'FA/h':>6s} {'Délai':>7s} {'Épisodes':>9s} "
-              f"{'Préc.':>6s} {'F1':>6s} {'F2':>6s}")
-        for k, r in results.items():
-            for role in ("val", "test"):
-                v = r["points_fonctionnement"][op][role]
-                d = "—" if v["delai_median_min"] is None else f"{v['delai_median_min']:.1f}"
-                print(f"{r['nom']:36s} {role:5s} {v['recall']:>7.3f} {v['fausses_alarmes_evenements_par_heure']:>6.2f} "
-                      f"{d:>7s} {str(v['episodes_detectes']) + '/' + str(v['episodes']):>9s} "
-                      f"{v['precision']:>6.3f} {v['f1']:>6.3f} {v['f2']:>6.3f}")
+def print_results(results: dict, ranking: list[str]) -> None:
+    print()
+    print("═" * 118)
+    print(f"Point de fonctionnement unique ({ta.criterion_text()}) — cumul de {N_RUNS} répétitions")
+    print("═" * 118)
+    print(f"{'Modèle':42s} {'seuil':>5s} {'k/n':>6s} {'rôle':5s} {'Rappel':>7s} {'Préc.':>6s} {'F1':>6s} "
+          f"{'FA/h':>6s} {'Épisodes':>9s} {'Délai':>6s} {'AP':>6s}")
+    for k in ranking + [x for x in results if x not in ranking]:
+        r = results[k]
+        op = r["point_fonctionnement"]
+        for role in ("train", "val", "test"):
+            v = r["par_role"]["alarme"][role]
+            d = "—" if v["delai_median_min"] is None else f"{v['delai_median_min']:.1f}"
+            print(f"{r['nom'][:42]:42s} {op['seuil']:>5.2f} {str(op['k']) + '/' + str(op['n']):>6s} {role:5s} "
+                  f"{v['recall']:>7.3f} {v['precision']:>6.3f} {v['f1']:>6.3f} "
+                  f"{v['fausses_alarmes_evenements_par_heure']:>6.2f} "
+                  f"{str(v['episodes_detectes']) + '/' + str(v['episodes']):>9s} {d:>6s} "
+                  f"{ts._fmt(r['par_role']['ap'][role], '.3f', 6)}")
+    best = results[ranking[0]]
+    print()
+    print("Par scénario (meilleur modèle, test) : rappel lignes, épisodes, délai médian")
+    for nm in tr.ATTACK_NAMES:
+        pa, pe = best["per_attack"].get(nm, {}), best["per_episode"].get(nm, {})
+        print(f"  {nm:28s} {pa.get('rate', 0):>6.1f} %  {pe.get('detected')}/{pe.get('n')}  "
+              f"{pe.get('delai_median_min')} min")
 
+
+# ── Programme ────────────────────────────────────────────────────────────────
 
 def main() -> None:
     paths.ensure_dirs()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     t_start = time.time()
+    keys = [k for k, _ in MODELS]
+    if os.environ.get("MODELS"):
+        keys = [k for k in os.environ["MODELS"].split(",") if k in dict(MODELS)]
+    if XGBClassifier is None and "XGBoost" in keys:
+        keys.remove("XGBoost")
+    with_v1 = not os.environ.get("SKIP_V1")
     log("[1] Traces réelles TON_IoT, prétraitement")
     with contextlib.redirect_stdout(io.StringIO()):
         real = bd.load_normal_traces()
     base, fusion = tr.fuse_real(real)
     log(f"    grille {tr.STEP} : {fusion['pas_conserves']:,} lignes ({fusion['debut']} → {fusion['fin']})")
 
-    log(f"[2] {N_RUNS} répétitions : attaques dans tous les rôles, 4 modèles supervisés, {N_JOBS} cœurs")
+    log(f"[2] {N_RUNS} répétitions : {', '.join(keys)}{' + RF_v1' if with_v1 else ''}, {N_JOBS} cœurs")
     runs, run_times = [], []
     for run in range(N_RUNS):
         t0 = time.time()
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            try:
-                r = one_run(base, run)
-            except Exception:  # noqa: BLE001
-                traceback.print_exc(file=sys.__stderr__)
-                raise
+        with contextlib.redirect_stdout(io.StringIO()):
+            r = one_run(base, run, keys, with_v1)
         if run == 0:
             r["df"].to_csv(DATASET_PATH, index=False, float_format="%.4f")
-            # Le planning des épisodes est écrit EN MÊME TEMPS que le jeu de données :
-            # les deux doivent rester cohérents (mêmes épisodes, mêmes bornes).
             with open(EPISODES_PATH, "w", encoding="utf-8") as f:
                 json.dump(r["episodes"], f, indent=1, ensure_ascii=False, default=ts._json_default)
             log(f"    {DATASET_PATH.name} (répétition 0) : {len(r['df']):,} lignes, {len(r['feats'])} features")
-            log(f"    {EPISODES_PATH.name} : {len(r['episodes'])} épisodes")
-        else:
-            # Mémoire : seule la répétition 0 garde son jeu de données (CSV, validation croisée) ;
-            # les autres ne gardent que leurs comptes et, pour SHAP, les modèles arborescents.
-            for k in ("X", "X_s", "df", "y", "train_all"):
-                r.pop(k, None)
+        # Mémoire : on garde scores, masques et étiquettes ; X pour SHAP / courbes ; modèles arborescents
+        # des SHAP_RUNS premières rotations ; tout pour la répétition 0.
+        r.pop("df", None)
+        r.pop("X_v1", None)
+        if run >= SHAP_RUNS:
+            r.pop("X", None)
+            r["models"] = {}
+        elif run > 0:
             r["models"] = {k: m for k, m in r["models"].items() if k in TREE_MODELS}
         runs.append(r)
         run_times.append(time.time() - t0)
-        log(f"    répétition {run} terminée ({run_times[-1]:.0f} s)")
+        prev = r["prevalence"]
+        log(f"    répétition {run} terminée ({run_times[-1]:.0f} s) ; attaques train {100 * prev['train']['part']:.1f} %, "
+            f"val {100 * prev['val']['part']:.1f} %, test {100 * prev['test']['part']:.1f} % ; "
+            + ", ".join(f"{k} {v:.0f} s" for k, v in r["fit_s"].items()))
 
+    log("[3] Point de fonctionnement unique de chaque modèle (validation cumulée)")
     results: dict = {}
-    for key, nom in MODELS:
-        evals = [r["counts"][key] for r in runs if key in r["counts"]]
-        if not evals:
+    for key in keys + ([BASELINE[0]] if with_v1 else []):
+        if not any(key in r["scores"] for r in runs):
             continue
-        res = summarize_model(evals, nom)
+        t0 = time.time()
+        res = summarize_model(runs, key)
         res["hyperparameters"] = runs[0]["params"].get(key)
+        res["duree_entrainement_s"] = round(float(np.mean([r["fit_s"][key] for r in runs if key in r["fit_s"]])), 1)
+        res["diagnostic"] = diagnostic(res)
         results[key] = res
-    tr.print_tables(results)
-    print_operating_points(results)
+        op = res["point_fonctionnement"]
+        log(f"    {key:12s} seuil {op['seuil']:.2f}, {op['k']}/{op['n']} lignes, validation : rappel "
+            f"{op['validation']['recall']:.3f}, précision {op['validation']['precision']:.3f}, "
+            f"{op['validation']['fa_h']:.2f} FA/h ({time.time() - t0:.0f} s)")
+    ranking = rank_models(results, keys)
+    best_key = ranking[0]
+    print_results(results, ranking)
 
-    # Prévalence mesurée par rôle (lignes évaluées, cumul des répétitions)
     prevalence = {}
     for role in ("train", "val", "test"):
         n = sum(r["prevalence"][role]["lignes"] for r in runs)
@@ -548,91 +667,103 @@ def main() -> None:
         prevalence[role] = {"lignes": n, "attaques": a, "part": round(a / max(1, n), 4),
                             "part_min": min(r["prevalence"][role]["part"] for r in runs),
                             "part_max": max(r["prevalence"][role]["part"] for r in runs)}
+    b = results[best_key]
     print()
-    print("Part d'attaques par rôle (cumul) : " + ", ".join(
-        f"{role} {100 * v['part']:.1f} % ({100 * v['part_min']:.1f}–{100 * v['part_max']:.1f} %)"
-        for role, v in prevalence.items()))
+    print("Classement sur la VALIDATION : " + " > ".join(
+        f"{k} (rappel {results[k]['val_recall']:.3f}, {results[k]['val_fausses_alarmes_par_heure']:.2f} FA/h)"
+        for k in ranking))
+    print(f"→ Meilleur modèle : {b['nom']} — test : rappel {b['recall']:.3f}, précision {b['precision']:.3f}, "
+          f"{b['fausses_alarmes_evenements_par_heure']:.2f} FA/h, {b['episodes_detectes']}/{b['episodes']} épisodes, "
+          f"délai médian {b['delai_median_min']} min")
 
-    # Choix du modèle : VALIDATION uniquement
-    op = op_key(TARGET_RECALL)
-    ranking = rank_models(results, op)
-    ranking_f1 = rank_models(results, "max_f1")
-    par_cible = {f"{t:.2f}": rank_models(results, op_key(t)) for t in TARGETS}
-    print()
-    print(f"Classement sur la VALIDATION, mode rappel d'abord (F2 au rappel cible {TARGET_RECALL:.2f}) : "
-          + " > ".join(f"{k} ({results[k]['points_fonctionnement'][op]['val']['f2']:.3f})" for k in ranking))
-    print("Classement sur la VALIDATION au seuil max F1 (F1) : "
-          + " > ".join(f"{k} ({results[k]['val_f1']:.3f})" for k in ranking_f1))
-    best_key = ranking[0]
-    b = results[best_key]["points_fonctionnement"][op]
-    print(f"→ Meilleur des 4 modèles : {results[best_key]['nom']} — confirmation sur le test au rappel cible : "
-          f"rappel {b['test']['recall']:.3f}, {b['test']['fausses_alarmes_evenements_par_heure']:.2f} fausse(s) "
-          f"alarme(s)/heure, délai médian {b['test']['delai_median_min']} min, précision {b['test']['precision']:.3f}, "
-          f"F2 {b['test']['f2']:.3f}, {b['test']['episodes_detectes']}/{b['test']['episodes']} épisodes")
+    # Sauvegarde intermédiaire (scores, masques, épisodes) : permet de refaire le résumé sans réentraîner
+    try:
+        joblib.dump([{k: r[k] for k in ("run", "episodes", "y", "ev", "types", "scores", "params", "fit_s", "prevalence")}
+                     for r in runs], OUT_DIR / "_repetitions_scores.joblib", compress=3)
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+
+    lc = None
+    if not os.environ.get("SKIP_LC"):
+        log(f"[4] Courbe d'apprentissage de {best_key}")
+        try:
+            lc = learning_curve(base, best_key, b["point_fonctionnement"])
+        except Exception:  # noqa: BLE001 — une étape annexe ne doit pas faire perdre les résultats
+            traceback.print_exc()
 
     cv = None
     if not os.environ.get("SKIP_CV"):
-        log("[3] Validation croisée de confirmation (répétition 0) : naïve contre groupée par bloc")
-        r0 = runs[0]
-        cv = validation_croisee(r0["X"], r0["X_s"], r0["y"], r0["train_all"])
-        cv["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-        with open(CV_PATH, "w", encoding="utf-8") as f:
-            json.dump(cv, f, indent=2, ensure_ascii=False, default=ts._json_default)
+        log("[5] Validation croisée de confirmation (répétition 0) : naïve contre groupée par bloc")
+        try:
+            # Démonstration de la fuite : meilleur modèle, Random Forest et baseline linéaire (coût limité)
+            cv_keys = [k for k in dict.fromkeys([best_key, "RandomForest", "Logistique"]) if k in keys]
+            cv = validation_croisee(runs[0], cv_keys)
+            cv["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with open(CV_PATH, "w", encoding="utf-8") as f:
+                json.dump(cv, f, indent=2, ensure_ascii=False, default=ts._json_default)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            cv = None
 
-    log("[4] SHAP du meilleur modèle arborescent (cumulé sur les répétitions)")
-    shap_out = None
-    shap_key = next((k for k in ranking if k in TREE_MODELS), None)
-    # SKIP_SHAP=1 : on saute l'étape SHAP (lente, inutile pour le tableau comparatif).
-    # Le .pkl du meilleur modèle est quand même écrit ci-dessous.
-    if shap_key is not None and runs[0]["models"].get(shap_key) is not None and not os.environ.get("SKIP_SHAP"):
-        shap_out = shap_summary(runs, shap_key, np.random.default_rng(SEED))
-        print()
-        print(f"SHAP — features qui font détecter ({results[shap_key]['nom']}, lignes d'attaque du test, "
-              f"{N_RUNS} répétitions)" + ("" if shap_key == best_key else " — meilleur modèle arborescent"))
-        print("  global : " + ", ".join(f"{f['feature']} ({f['importance']:.3f})" for f in shap_out["global"][:6]))
-        for nm, lst in shap_out["par_scenario"].items():
-            print(f"  {nm:28s} " + ", ".join(f"{f['feature']} ({f['importance']:.3f})" for f in lst[:4]))
-    # Le .pkl du meilleur modèle est écrit quelle que soit sa famille (arbre ou non)
-    model0 = runs[0]["models"].get(best_key)
-    if model0 is not None:
-        joblib.dump(model0, OUT_DIR / "meilleur_modele.pkl")
+    shap_out, shap_key = None, next((k for k in ranking if k in TREE_MODELS), None)
+    if shap_key is not None and not os.environ.get("SKIP_SHAP"):
+        log(f"[6] SHAP de {shap_key} ({SHAP_RUNS} rotations)")
+        try:
+            shap_out = shap_summary(runs, shap_key, np.random.default_rng(SEED))
+            print("SHAP global : " + ", ".join(f"{f['feature']} ({f['importance']:.3f})" for f in shap_out["global"][:8]))
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+
+    # Modèle en service : celui de la répétition 0, avec son point de fonctionnement
+    r0 = runs[0]
+    joblib.dump(r0["models"][best_key], OUT_DIR / "meilleur_modele.pkl")
+    op = b["point_fonctionnement"]
+    with open(BEST_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump({"modele": best_key, "nom": b["nom"], "features": r0["feats"], "seuil": op["seuil"],
+                   "k": op["k"], "n": op["n"], "critere": op["critere"], "repetition": 0,
+                   "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S")}, f, indent=2, ensure_ascii=False)
+    np.savez_compressed(SCORES0_PATH, **{k: v for k, v in r0["scores"].items()})
 
     summary = {
+        "version": 3,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "duree_s": round(time.time() - t_start, 1),
         "duree_par_repetition_s": round(float(np.mean(run_times)), 1),
         "n_jobs": N_JOBS,
         "dataset": DATASET_PATH.name,
         "fusion": fusion,
-        "features": runs[0]["feats"],
+        "features": r0["feats"],
+        "features_v1": r0.get("feats_v1"),
         "protocole": {
             "split": "70/15/15 NON aléatoire, blocs d'une heure entrelacés (14 train / 3 val / 3 test "
-                     "sur un cycle de 20), rôles tournant à chaque répétition ; recalculé à l'entraînement "
-                     "(transmission_real.block_split), plus stocké dans le jeu de données",
-            "attaques": "un épisode de 15 à 25 min dans CHAQUE bloc d'entraînement (~33 %), dans 2 blocs sur 5 "
-                        "de validation et de test (prévalence réaliste ≈ 13–15 %)",
+                     "sur un cycle de 20), rôles tournant à chaque répétition",
+            "zone_de_garde": {"pas": tr.GUARD, "minutes": tr.GUARD * tr.STEP_MINUTES,
+                              "plus_longue_fenetre_min": tr.W_MAX * tr.STEP_MINUTES,
+                              "persistance_max_min": ta.N_MAX * tr.STEP_MINUTES,
+                              "ou": "après chaque épisode et au début de chaque bloc qui change de rôle"},
+            "attaques": "un épisode de 15 à 25 min dans CHAQUE bloc d'entraînement, dans 2 blocs sur 5 "
+                        "de validation et de test (prévalence réaliste ≈ 13 %)",
             "repetitions": N_RUNS,
             "couverture": ("les 20 rotations du cycle : chaque heure sert 3 fois de test et 3 fois de validation"
                            if N_RUNS % tr.BLOCK_CYCLE == 0 else
                            f"{N_RUNS} rotations sur {tr.BLOCK_CYCLE} : toutes les heures ne servent pas de test"),
-            "seuil": "choisi sur la validation de chaque répétition, appliqué tel quel à son test : max F1, "
-                     "et rappel cible (seuil le plus haut qui atteint ce rappel sur la validation)",
-            "selection": "sur la VALIDATION uniquement ; mode rappel d'abord : F2 de validation au rappel cible",
+            "seuil": ta.criterion_text(),
+            "precision_min": ta.PRECISION_MIN, "fa_max_par_heure": ta.FA_MAX,
+            "persistances_essayees": [list(x) for x in ta.DEBOUNCE_GRID],
+            "selection": "sur la VALIDATION uniquement : contrainte tenue, puis rappel, puis fausses alertes/h, "
+                         "puis délai",
+            "hyperparametres": "petite grille, StratifiedGroupKFold par bloc sur le train de la répétition 0 "
+                               "(recherche_hyperparametres.json)",
             "desequilibre": "class_weight / scale_pos_weight / sample_weight, pas de SMOTE",
             "episodes_par_repetition": [len(r["episodes"]) for r in runs],
         },
         "prevalence": prevalence,
-        "cible_rappel": TARGET_RECALL,
-        "cibles_rappel": list(TARGETS),
-        "ordre_metriques": ["rappel", "fausses alertes/heure", "délai de détection", "précision", "F1/F2"],
-        "modeles": {k: nom for k, nom in MODELS},
+        "modeles": {k: MODEL_NAMES[k] for k in results},
         "classement_validation": ranking,
-        "classement_validation_max_f1": ranking_f1,
-        "classement_validation_par_cible": par_cible,
         "meilleur_modele": best_key,
-        "meilleur_par_cible": {t: lst[0] for t, lst in par_cible.items()},
         "modele_shap": shap_key if shap_out is not None else None,
         "resultats": results,
+        "courbe_apprentissage": {"modele": best_key, "rotations": list(LC_RUNS), "points": lc} if lc else None,
         "validation_croisee": cv,
         "shap": shap_out,
     }

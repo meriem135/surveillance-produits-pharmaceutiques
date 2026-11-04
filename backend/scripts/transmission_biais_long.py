@@ -16,7 +16,7 @@ tient ENTIÈREMENT dans son bloc de 4 h, donc dans un seul rôle.
   - 60 min après chaque épisode exclues de l'évaluation (fenêtres glissantes jusqu'à 1 h).
 Modèle : Random Forest (mêmes réglages que l'étude principale, class_weight équilibré),
 avec deux jeux de features :
-  A. les 35 features de l'étude principale (fenêtres ≤ 15 min, EWMA 10 min) ;
+  A. les features de l'étude principale (fenêtres ≤ 15 min, dont min, max et quantiles) ;
   B. A + moyennes glissantes sur 30 et 60 min et EWMA ≈ 1 h de chaque capteur.
 Seuil : choisi sur la VALIDATION pour un budget d'au plus 1 fausse alerte par heure
 (le seuil le plus bas qui le respecte), appliqué tel quel au test.
@@ -235,7 +235,7 @@ def main() -> None:
             "seuil": f"le plus bas qui garde ≤ {FA_BUDGET:g} fausse alerte/h sur la validation",
             "zone_de_garde_min": GUARD * 5 // 60,
         },
-        "jeux_features": {"A": "35 features de l'étude principale (fenêtres ≤ 15 min, EWMA 10 min)",
+        "jeux_features": {"A": "features de l'étude principale (fenêtres ≤ 15 min, dont min, max et quantiles)",
                           "B": "A + moyennes glissantes 30 et 60 min, EWMA ≈ 1 h, par capteur"},
         "resultats": res,
     }

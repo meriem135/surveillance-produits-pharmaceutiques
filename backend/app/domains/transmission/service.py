@@ -5,12 +5,13 @@ Réutilise les scripts d'étude (backend/scripts/transmission_real.py et
 transmission_models.py) : même jeu de données, mêmes features, même protocole.
 
 - summary()            : état du jeu de données, résultats de référence, dernier entraînement web
-- train(emit)          : entraîne les 4 modèles supervisés (Random Forest, XGBoost,
-                         Régression Logistique, MLP) en diffusant la progression ; seuils
-                         « max F1 » et « rappel cible » choisis sur la validation, choix du
-                         modèle sur la validation (F2 au rappel cible)
-                         (le Random Forest est entraîné par paliers d'arbres pour tracer
-                         sa courbe en direct), puis SHAP du meilleur et sauvegarde
+- train(emit)          : entraîne les 6 modèles supervisés en diffusant la progression ; un seul
+                         réglage d'alerte par modèle (seuil + persistance k sur n) choisi sur la
+                         validation (rappel maximal sous précision et fausses alertes/h
+                         bornées), choix du modèle sur la validation (le Random Forest est
+                         entraîné par paliers d'arbres pour tracer sa courbe en direct), puis
+                         SHAP du meilleur et sauvegarde ; study_records() prépare les lignes
+                         écrites en base (jeu de données, scores, alertes, épisodes)
 - operator_report()    : rapport de recommandation pour l'opérateur (JSON + Markdown)
 - alert_recommendation : consigne pour une alerte précise
 """
@@ -170,12 +171,24 @@ def feature_label(feature: str) -> str:
                 return f"écart-type sur {rest[4:].replace('min', ' min')} du {fr}"
             if rest == "ewma_10min":
                 return f"moyenne lissée sur 10 min du {fr}"
+            for tag, txt in (("min_", "minimum"), ("max_", "maximum"), ("q10_", "quantile 10 %"),
+                             ("q90_", "quantile 90 %")):
+                if rest.startswith(tag):
+                    return f"{txt} sur {rest[len(tag):].replace('min', ' min')} du {fr}"
+            if rest == "absdiff_5min":
+                return f"variation absolue moyenne sur 5 min du {fr}"
+            if rest.endswith("_diff_mean_15min"):
+                a, b = feature.replace("_diff_mean_15min", "").split("_", 1)
+                return f"écart {SENSOR_FR.get(a, a)} − {SENSOR_FR.get(b, b)} moyen sur 15 min"
             if rest == "repeat_2min":
                 return f"séquence de 2 min du {fr} déjà transmise"
             if rest == "cond_enc":
                 return "état « high / low » du frigo"
     if feature == "thermo_status":
         return "état du thermostat"
+    if feature.endswith("_diff_mean_15min"):
+        a, b = feature.replace("_diff_mean_15min", "").split("_", 1)
+        return f"écart {SENSOR_FR.get(a, a)} − {SENSOR_FR.get(b, b)} moyen sur 15 min"
     if feature.endswith("_diff"):
         a, b = feature.replace("_diff", "").split("_", 1)
         return f"écart {SENSOR_FR.get(a, a)} − {SENSOR_FR.get(b, b)}"
@@ -190,8 +203,10 @@ def scenarios() -> list[dict]:
 
 # ── Résumé ───────────────────────────────────────────────────────────────────
 
-def _op_key(target: float) -> str:
-    return f"rappel_{float(target):.2f}"
+def _scripts_all():
+    tr, tm = _scripts()
+    import transmission_alertes as ta  # noqa: PLC0415
+    return tr, tm, ta
 
 
 def summary() -> dict:
@@ -200,18 +215,21 @@ def summary() -> dict:
     if DATASET_PATH.exists() and EPISODES_PATH.exists():
         tr, _ = _scripts()
         cols = pd.read_csv(DATASET_PATH, usecols=["label", "attack_type", "garde"], keep_default_na=False)
-        cols["split"] = tr.block_split(len(cols), 0)   # le découpage n'est plus stocké dans le CSV
-        cols = cols[~cols["garde"].astype(str).str.lower().eq("true")]   # lignes évaluées (hors zone de garde)
+        garde = cols["garde"].astype(str).str.lower().eq("true").to_numpy()
+        split = tr.block_split(len(cols), 0)   # le découpage n'est pas stocké dans le CSV
+        keep = ~tr.excluded_rows(garde, 0)     # lignes évaluées (hors zones de garde)
         episodes = _load_json(EPISODES_PATH) or []
         par_role = {}
         for r in ("train", "val", "test"):
-            sub = cols.loc[cols["split"] == r, "label"]
+            sub = cols.loc[(split == r) & keep, "label"]
             par_role[r] = {"lignes": int(len(sub)), "attaques": int(sub.sum()),
                            "part": round(float(sub.mean()), 4) if len(sub) else 0.0}
         out["dataset"] = {
-            "fichier": DATASET_PATH.name, "lignes": int(len(cols)), "attaques": int(cols["label"].sum()),
-            "heures": round(len(cols) * 5 / 3600, 1), "episodes": len(episodes),
-            "par_role": par_role, "scenarios": sorted(set(e["name"] for e in episodes)),
+            "fichier": DATASET_PATH.name, "lignes": int(len(cols)), "lignes_evaluees": int(keep.sum()),
+            "attaques": int(cols["label"].sum()), "heures": round(len(cols) * 5 / 3600, 1),
+            "episodes": len(episodes), "par_role": par_role,
+            "scenarios": sorted(set(e["name"] for e in episodes)),
+            "zone_de_garde_min": tr.GUARD * tr.STEP_MINUTES,
         }
     study = _load_json(REAL_STUDY)
     if study:
@@ -219,14 +237,12 @@ def summary() -> dict:
     pooled = _load_json(POOLED_RESULTS)
     if pooled:
         out["reference"] = {
-            "generated_at": pooled.get("generated_at"), "repetitions": pooled["protocole"]["repetitions"],
-            "protocole": pooled.get("protocole"), "prevalence": pooled.get("prevalence"),
-            "cible_rappel": pooled.get("cible_rappel"), "cibles_rappel": pooled.get("cibles_rappel"),
-            "meilleur": pooled.get("meilleur_modele"), "meilleur_par_cible": pooled.get("meilleur_par_cible"),
+            "generated_at": pooled.get("generated_at"), "version": pooled.get("version"),
+            "repetitions": pooled["protocole"]["repetitions"], "protocole": pooled.get("protocole"),
+            "prevalence": pooled.get("prevalence"), "meilleur": pooled.get("meilleur_modele"),
             "classement_validation": pooled.get("classement_validation"),
-            "classement_validation_max_f1": pooled.get("classement_validation_max_f1"),
-            "classement_validation_par_cible": pooled.get("classement_validation_par_cible"),
-            "modeles": pooled["resultats"],
+            "modeles": {k: _compact(v) for k, v in pooled["resultats"].items()},
+            "courbe_apprentissage": pooled.get("courbe_apprentissage"),
         }
     out["validation_croisee"] = _load_json(CV_RESULTS) or (pooled or {}).get("validation_croisee")
     out["biais_long"] = _load_json(LONG_BIAS_RESULTS)
@@ -236,21 +252,19 @@ def summary() -> dict:
 
 
 def public_kpis() -> dict | None:
-    """Chiffres de la page d'accueil (publics) : uniquement des agrégats des résultats de
-    référence sur les traces réelles (comparaison_modeles.json, cumul des répétitions).
-    Le modèle et ses chiffres sont ceux du point « rappel cible » (choisi sur la validation),
-    mesurés sur le test."""
+    """Chiffres de la page d'accueil (publics) : agrégats des résultats de référence
+    (comparaison_modeles.json, cumul des répétitions), meilleur modèle au point de
+    fonctionnement unique choisi sur la validation, mesuré sur le test."""
     pooled = _load_json(POOLED_RESULTS)
     if not pooled or not pooled.get("resultats"):
         return None
     fusion = pooled.get("fusion") or {}
     best_id = pooled.get("meilleur_modele")
-    best = pooled["resultats"].get(best_id, {})
-    cible = pooled.get("cible_rappel")
-    point = ((best.get("points_fonctionnement") or {}).get(_op_key(cible)) or {}).get("test") if cible else None
-    m = point or best
+    m = pooled["resultats"].get(best_id, {})
+    op = m.get("point_fonctionnement") or {}
     mesures = int(fusion.get("pas_conserves") or 0)
-    par_scenario = sorted(m.get("per_attack", {}).items(), key=lambda kv: -kv[1]["rate"])
+    par_scenario = sorted(m.get("per_episode", {}).items(),
+                          key=lambda kv: -(kv[1]["detected"] / max(1, kv[1]["n"])))
     return {
         "generated_at": pooled.get("generated_at"),
         "traces": {"debut": fusion.get("debut"), "fin": fusion.get("fin"), "pas": fusion.get("pas"),
@@ -258,27 +272,32 @@ def public_kpis() -> dict | None:
         "capteurs": list(SENSOR_FR),
         "repetitions": pooled.get("protocole", {}).get("repetitions"),
         "scenarios": len(par_scenario),
-        "cible_rappel": cible,
+        "critere": op.get("critere"),
         "part_attaques_test": (pooled.get("prevalence") or {}).get("test", {}).get("part"),
-        "meilleur": {"id": best_id, "nom": best.get("nom"), "recall": m.get("recall"),
+        "meilleur": {"id": best_id, "nom": m.get("nom"), "recall": m.get("recall"),
                      "fausses_alarmes_par_heure": m.get("fausses_alarmes_evenements_par_heure"),
                      "delai_median_min": m.get("delai_median_min"), "precision": m.get("precision"),
-                     "f1": m.get("f1"), "f2": m.get("f2"), "roc_auc": best.get("roc_auc"),
-                     "episodes": m.get("episodes"), "episodes_detectes": m.get("episodes_detectes")},
-        "modeles": [{"id": k, "nom": v.get("nom"), "f1": v.get("f1")} for k, v in pooled["resultats"].items()],
-        "detection_par_scenario": [{"scenario": k, "description": SCENARIOS_FR.get(k, k), "taux": v["rate"],
-                                    "points": v["n"], "detectes": v["detected"]} for k, v in par_scenario],
+                     "f1": m.get("f1"), "roc_auc": m.get("roc_auc"),
+                     "episodes": m.get("episodes"), "episodes_detectes": m.get("episodes_detectes"),
+                     "seuil": op.get("seuil"), "k": op.get("k"), "n": op.get("n")},
+        "modeles": [{"id": k, "nom": v.get("nom"), "f1": v.get("f1")} for k, v in pooled["resultats"].items()
+                    if k != "RF_v1"],
+        "detection_par_scenario": [
+            {"scenario": k, "description": SCENARIOS_FR.get(k, k),
+             "taux": round(100 * v["detected"] / max(1, v["n"]), 1), "episodes": v["n"], "detectes": v["detected"],
+             "lignes_signalees": (m.get("per_attack", {}).get(k) or {}).get("rate")}
+            for k, v in par_scenario],
     }
 
 
 # ── Entraînement ─────────────────────────────────────────────────────────────
 
-def _dataset_is_current(tr) -> bool:
-    """Le CSV en place suit-il le protocole actuel ? Un ancien CSV (colonne split, autres
-    scénarios) est reconstruit plutôt que mélangé au nouveau découpage."""
+def _dataset_is_current(tr, tm) -> bool:
+    """Le CSV en place suit-il le protocole actuel (mêmes scénarios, mêmes features, épisodes
+    placés après la zone de garde) ? Sinon il est reconstruit."""
     header = pd.read_csv(DATASET_PATH, nrows=0).columns
     episodes = _load_json(EPISODES_PATH) or []
-    if "split" in header or not episodes:
+    if "split" in header or not episodes or "fridge_q10_15min" not in header:
         return False
     if {e.get("name") for e in episodes} != set(tr.ATTACK_NAMES):
         return False
@@ -289,7 +308,7 @@ def _dataset_is_current(tr) -> bool:
 def _load_or_build_dataset(tr, tm) -> tuple[pd.DataFrame, list[str], list[dict], bool]:
     """Jeu de données réel avec attaques (répétition 0). Construit s'il manque ou s'il
     vient d'un ancien protocole."""
-    if DATASET_PATH.exists() and EPISODES_PATH.exists() and _dataset_is_current(tr):
+    if DATASET_PATH.exists() and EPISODES_PATH.exists() and _dataset_is_current(tr, tm):
         df = pd.read_csv(DATASET_PATH, parse_dates=["datetime"], keep_default_na=False)
         df["garde"] = df["garde"].astype(str).str.lower().eq("true")
         episodes = json.load(open(EPISODES_PATH, encoding="utf-8"))
@@ -309,149 +328,197 @@ def _load_or_build_dataset(tr, tm) -> tuple[pd.DataFrame, list[str], list[dict],
     return df, feats, episodes, True
 
 
+COMPACT_KEYS = ("nom", "type", "recall", "fausses_alarmes_evenements_par_heure", "delai_median_min", "delai_p90_min",
+                "precision", "precision_alertes", "f1", "fpr", "alertes", "fausses_alertes", "episodes",
+                "episodes_detectes", "part_attaques", "val_recall", "val_fausses_alarmes_par_heure",
+                "val_delai_median_min", "val_precision", "val_f1", "val_episodes", "val_episodes_detectes",
+                "val_part_attaques", "roc_auc", "avg_precision", "val_roc_auc", "val_avg_precision", "train_roc_auc",
+                "train_avg_precision", "threshold", "point_fonctionnement", "par_role", "diagnostic",
+                "per_attack", "per_episode", "courbe_pr", "hyperparameters", "duree_entrainement_s")
+
+
 def _compact(r: dict) -> dict:
-    keys = ("nom", "type", "recall", "fausses_alarmes_evenements_par_heure", "delai_median_min", "precision",
-            "f1", "f2", "fpr", "episodes", "episodes_detectes", "part_attaques",
-            "val_recall", "val_fausses_alarmes_par_heure", "val_delai_median_min", "val_precision", "val_f1",
-            "val_f2", "val_episodes", "val_episodes_detectes", "val_part_attaques",
-            "roc_auc", "avg_precision", "val_roc_auc", "val_avg_precision", "threshold",
-            "per_attack", "per_episode", "points_fonctionnement", "courbe_pr", "hyperparameters")
-    return {k: r[k] for k in keys if k in r}
+    return {k: r[k] for k in COMPACT_KEYS if k in r}
 
 
-async def train(emit: Emit) -> dict:
-    """Une répétition (la 0) des 4 modèles supervisés, même protocole que transmission_models.py :
-    seuils max F1 et rappel cible choisis sur la validation, mesurés sur le test ; choix du
-    modèle sur la validation (F2 au rappel cible)."""
-    tr, tm = _scripts()
-    from sklearn.metrics import roc_auc_score  # noqa: PLC0415
-    from sklearn.preprocessing import StandardScaler  # noqa: PLC0415
+def study_records(df: pd.DataFrame, episodes: list[dict], run: int, scores: np.ndarray, op: dict) -> dict:
+    """Ce que les pages lisent en base pour UNE répétition : lignes du jeu de données (rôle,
+    zone de garde), score / signal / alarme du meilleur modèle, alertes, épisodes détectés."""
+    tr, _, ta = _scripts_all()
+    n = len(df)
+    split = tr.block_split(n, run)
+    excl = tr.excluded_rows(df["garde"].to_numpy().astype(bool), run)
+    y = df["label"].to_numpy().astype(int)
+    ts = pd.to_datetime(df["datetime"]).to_numpy()
+    s = np.asarray(scores, dtype=float)
+    signal = s >= op["seuil"]
+    alarm = ta.apply(s, op)
+    alerts = []
+    for role in ("train", "val", "test"):
+        ev = (split == role) & ~excl
+        for a, b in ta.alert_events(alarm, ev):
+            vraie = bool(y[a:b].any())
+            types = df["attack_type"].to_numpy()[a:b]
+            sc = next((t for t in types if t != "normal"), None)
+            cible = df["cible"].to_numpy()[a:b]
+            alerts.append({"role": role, "start_idx": int(a), "end_idx": int(b), "start_ts": pd.Timestamp(ts[a]),
+                           "end_ts": pd.Timestamp(ts[b - 1]), "duree_min": round((b - a) * tr.STEP_MINUTES, 2),
+                           "score_max": round(float(s[a:b].max()), 4), "vraie": vraie, "scenario": sc,
+                           "capteur": next((c for c in cible if c), None) if vraie else None})
+    eps = []
+    for e in episodes:
+        seg = alarm[e["start"]:e["end"]]
+        eps.append({**e, "detecte": bool(seg.any()),
+                    "delai_min": round(int(np.argmax(seg)) * tr.STEP_MINUTES, 2) if seg.any() else None,
+                    "start_ts": pd.Timestamp(ts[e["start"]]), "end_ts": pd.Timestamp(ts[min(n - 1, e["end"] - 1)])})
+    return {"split": split, "evaluee": ~excl, "scores": s, "signal": signal, "alarme": alarm,
+            "alertes": alerts, "episodes": eps}
 
+
+async def train(emit: Emit, precision_min: float | None = None, fa_max: float | None = None) -> dict:
+    """Une répétition (la 0) des 6 modèles supervisés, même protocole que transmission_models.py :
+    un seul point de fonctionnement par modèle (seuil + persistance k sur n) choisi sur la
+    validation (rappel maximal sous précision ≥ precision_min et ≤ fa_max fausse alerte/h),
+    mesuré sur train, validation et test ; choix du modèle sur la validation."""
+    tr, tm, ta = _scripts_all()
+    from sklearn.metrics import average_precision_score  # noqa: PLC0415
+
+    precision_min = ta.PRECISION_MIN if precision_min is None else float(precision_min)
+    fa_max = ta.FA_MAX if fa_max is None else float(fa_max)
     t0 = time.time()
     await emit("dataset", 3, "Chargement des traces réelles avec attaques de transmission…")
     df, feats, episodes, built = await asyncio.to_thread(_load_or_build_dataset, tr, tm)
     y = df["label"].to_numpy().astype(int)
-    split = tr.block_split(len(df), 0)     # découpage 70/15/15 recalculé (non stocké dans le CSV)
-    garde = df["garde"].to_numpy().astype(bool)
-    train_all = np.where((split == "train") & ~garde)[0]
-    train_norm = train_all[y[train_all] == 0]
-    val_idx = np.where((split == "val") & ~garde)[0]
-    test_idx = np.where((split == "test") & ~garde)[0]
-    X = df[feats].to_numpy(float)
-    X_s = StandardScaler().fit(X[train_norm]).transform(X)
-    prevalence = tm.role_prevalence(y, {"train": train_all, "val": val_idx, "test": test_idx})
+    split = tr.block_split(len(df), 0)
+    excl = tr.excluded_rows(df["garde"].to_numpy().astype(bool), 0)
+    ev = {r: (split == r) & ~excl for r in ("train", "val", "test")}
+    idx = {r: np.where(m)[0] for r, m in ev.items()}
+    X = df[feats].to_numpy(np.float32)
+    types = df["attack_type"].to_numpy()
+    prevalence = tm.role_prevalence(y, idx)
     dataset_info = {
         "fichier": DATASET_PATH.name, "construit": built, "lignes": int(len(df)), "features": len(feats),
-        "train": int(len(train_all)), "train_normales": int(len(train_norm)),
-        "val": int(len(val_idx)), "test": int(len(test_idx)),
-        "attaques_train": int(y[train_all].sum()), "attaques_val": int(y[val_idx].sum()),
-        "attaques_test": int(y[test_idx].sum()), "prevalence": prevalence,
-        "episodes": len(episodes),
+        "train": int(len(idx["train"])), "val": int(len(idx["val"])), "test": int(len(idx["test"])),
+        "exclues_zone_de_garde": int(excl.sum()), "zone_de_garde_min": tr.GUARD * tr.STEP_MINUTES,
+        "attaques_train": int(y[idx["train"]].sum()), "attaques_val": int(y[idx["val"]].sum()),
+        "attaques_test": int(y[idx["test"]].sum()), "prevalence": prevalence, "episodes": len(episodes),
     }
-    await emit("dataset", 10, f"{len(df):,} lignes, {len(feats)} features, {len(episodes)} épisodes d'attaque "
-               f"(train {len(train_all):,} · val {len(val_idx):,} · test {len(test_idx):,} ; attaques "
-               f"{100 * prevalence['train']['part']:.0f} % / {100 * prevalence['val']['part']:.0f} % / "
-               f"{100 * prevalence['test']['part']:.0f} %)", dataset=dataset_info)
+    await emit("dataset", 8, f"{len(df):,} lignes, {len(feats)} features, {len(episodes)} épisodes ; train "
+               f"{len(idx['train']):,} · val {len(idx['val']):,} · test {len(idx['test']):,} lignes (zone de garde "
+               f"de {tr.GUARD * tr.STEP_MINUTES:.0f} min exclue)", dataset=dataset_info)
 
-    cible = tm.TARGET_RECALL
-    op = tm.op_key(cible)
     results: dict[str, dict] = {}
+    models: dict[str, Any] = {}
+    all_scores: dict[str, np.ndarray] = {}
+    run_view = {"scores": all_scores, "y": y, "ev": ev, "episodes": episodes, "types": types}
 
-    def evaluate(key: str, nom: str, scores: np.ndarray, params: dict | None = None) -> dict:
-        ev = tm.evaluate_scores(scores, df, y, val_idx, test_idx, episodes)
-        r = tm.summarize_model([ev], nom)
-        r["hyperparameters"] = params or {}
-        results[key] = r
-        return r
+    def evaluate(key: str, scores: np.ndarray, params: dict) -> dict:
+        all_scores[key] = scores
+        rows = ta.grid([{"s": scores, "y": y, "evaluated_val": ev["val"]}], "val")
+        op = ta.choose(rows, precision_min, fa_max)
+        m = tm.role_metrics([run_view], key, op)
+        t, v = m["alarme"]["test"], m["alarme"]["val"]
+        res = {"nom": tm.MODEL_NAMES[key], "type": "supervisé",
+               **{k: t[k] for k in ("recall", "precision", "f1", "fpr", "part_attaques",
+                                    "fausses_alarmes_evenements_par_heure", "alertes", "fausses_alertes",
+                                    "precision_alertes", "episodes", "episodes_detectes", "delai_median_min",
+                                    "delai_p90_min", "per_attack", "per_episode")},
+               **{f"val_{k}": v[k] for k in ("recall", "precision", "f1", "episodes", "episodes_detectes",
+                                             "delai_median_min", "part_attaques")},
+               "val_fausses_alarmes_par_heure": v["fausses_alarmes_evenements_par_heure"],
+               "roc_auc": m["auc"]["test"], "avg_precision": m["ap"]["test"],
+               "val_roc_auc": m["auc"]["val"], "val_avg_precision": m["ap"]["val"],
+               "train_roc_auc": m["auc"]["train"], "train_avg_precision": m["ap"]["train"],
+               "threshold": op["seuil"],
+               "point_fonctionnement": {"seuil": op["seuil"], "k": op["k"], "n": op["n"],
+                                        "persistance_min": round(op["n"] * tr.STEP_MINUTES, 2),
+                                        "contrainte_tenue": op["contrainte_tenue"],
+                                        "critere": ta.criterion_text(precision_min, fa_max),
+                                        "validation": {x: op[x] for x in ("precision", "recall", "f1", "fa_h")}},
+               "par_role": m, "hyperparameters": params}
+        res["diagnostic"] = tm.diagnostic(res)
+        results[key] = res
+        return res
 
     def line(r: dict) -> str:
-        t = r["points_fonctionnement"][op]["test"]
-        return (f"rappel {t['recall']:.2f}, {t['fausses_alarmes_evenements_par_heure']:.1f} FA/h, "
-                f"précision {t['precision']:.2f}, F2 {t['f2']:.2f} sur le test (rappel cible {cible:.2f})")
+        op = r["point_fonctionnement"]
+        return (f"seuil {op['seuil']:.2f}, {op['k']}/{op['n']} lignes ; test : rappel {r['recall']:.2f}, "
+                f"précision {r['precision']:.2f}, {r['fausses_alarmes_evenements_par_heure']:.2f} FA/h, "
+                f"{r['episodes_detectes']}/{r['episodes']} épisodes")
 
-    # 1. Random Forest, par paliers d'arbres : la courbe se trace en direct
-    await emit("RandomForest", 12, "Random Forest : apprentissage par paliers de 30 arbres…", model="RandomForest")
-    rf = tm.make_random_forest().set_params(n_estimators=30, warm_start=True)
+    # 1. Random Forest, par paliers d'arbres : la courbe se trace en direct (AP de validation)
+    await emit("RandomForest", 10, "Random Forest : apprentissage par paliers de 30 arbres…", model="RandomForest")
+    rf = tm.make_model("RandomForest", **tm._tuned("RandomForest"))           # réglage retenu (recherche groupée)
+    rf_params = {k: v for k, v in rf.get_params().items()
+                 if k in ("n_estimators", "min_samples_leaf", "max_features", "class_weight")}
+    rf.set_params(n_estimators=30, warm_start=True)
     curve = []
     for n_trees in range(30, 301, 30):
         rf.set_params(n_estimators=n_trees)
-        await asyncio.to_thread(rf.fit, X[train_all], y[train_all])
-        p_val = await asyncio.to_thread(lambda: rf.predict_proba(X[val_idx])[:, 1])
-        thr = tm.threshold_for_recall(y[val_idx], p_val, cible)
-        pred = p_val >= thr
-        tp = int((pred & (y[val_idx] == 1)).sum()); fp = int((pred & (y[val_idx] == 0)).sum())
-        fn = int((~pred & (y[val_idx] == 1)).sum())
-        prec, rec = tp / max(1, tp + fp), tp / max(1, tp + fn)
-        point = {"arbres": n_trees, "f2_validation": round(tr.f_beta(prec, rec, 2.0), 4),
-                 "precision_validation": round(prec, 4),
-                 "auc_validation": round(float(roc_auc_score(y[val_idx], p_val)), 4)}
+        await asyncio.to_thread(rf.fit, X[idx["train"]], y[idx["train"]])
+        p_tr = await asyncio.to_thread(lambda: rf.predict_proba(X[idx["train"]])[:, 1])
+        p_val = await asyncio.to_thread(lambda: rf.predict_proba(X[idx["val"]])[:, 1])
+        point = {"arbres": n_trees, "ap_train": round(float(average_precision_score(y[idx["train"]], p_tr)), 4),
+                 "ap_validation": round(float(average_precision_score(y[idx["val"]], p_val)), 4)}
         curve.append(point)
-        await emit("RandomForest", 12 + int(38 * n_trees / 300),
-                   f"Random Forest : {n_trees} arbres, F2 validation {point['f2_validation']:.2f} "
-                   f"(précision {prec:.2f} au rappel {cible:.2f})", model="RandomForest", curve_point=point)
-    s_rf = await asyncio.to_thread(lambda: rf.predict_proba(X)[:, 1])
-    r = evaluate("RandomForest", "Random Forest", s_rf,
-                 {"n_estimators": 300, "min_samples_leaf": 5, "class_weight": "balanced_subsample"})
-    await emit("RandomForest", 52, f"Random Forest : {line(r)}", model="RandomForest", result=_compact(r))
+        await emit("RandomForest", 10 + int(30 * n_trees / 300),
+                   f"Random Forest : {n_trees} arbres, AP train {point['ap_train']:.3f}, validation "
+                   f"{point['ap_validation']:.3f}", model="RandomForest", curve_point=point)
+    models["RandomForest"] = rf
+    r = evaluate("RandomForest", await asyncio.to_thread(tm.scores_of, rf, X), {**rf_params, "n_estimators": 300})
+    await emit("RandomForest", 41, f"Random Forest : {line(r)}", model="RandomForest", result=_compact(r))
 
-    # 2. XGBoost, 3. Régression Logistique, 4. MLP : mêmes réglages que transmission_models.py
-    models = {"RandomForest": rf}
-    steps = []
-    if tm.XGBClassifier is not None:
-        steps.append(("XGBoost", "XGBoost", tm.xgboost_model, X, (55, 68), "XGBoost : 400 itérations de boosting…"))
-    else:
-        await emit("XGBoost", 55, "XGBoost absent (pip install xgboost) : modèle ignoré", model="XGBoost", skipped=True)
-    steps += [("Logistique", "Régression Logistique", tm.logistic_regression, X_s, (70, 76),
-               "Régression Logistique (class_weight équilibré)…"),
-              ("MLP", "MLP", tm.mlp, X_s, (77, 83), "MLP (64, 32), early stopping, sample_weight équilibré…")]
-    for key, nom, fn, Xm, (p0, p1), msg in steps:
-        await emit(key, p0, msg, model=key)
-        s_m, p_m, m_m = await asyncio.to_thread(fn, Xm, y, train_all)
-        r = evaluate(key, nom, s_m, p_m)
-        models[key] = m_m
-        await emit(key, p1, f"{nom} : {line(r)}", model=key, result=_compact(r))
+    # 2. Les autres modèles, mêmes réglages que transmission_models.py
+    others = [k for k, _ in tm.MODELS if k != "RandomForest" and not (k == "XGBoost" and tm.XGBClassifier is None)]
+    for i, key in enumerate(others):
+        p0 = 42 + int(40 * i / len(others))
+        nom = tm.MODEL_NAMES[key]
+        await emit(key, p0, f"{nom} : entraînement…", model=key)
+        model, params = await asyncio.to_thread(tm.fit_model, key, X, y, idx["train"])
+        models[key] = model
+        r = evaluate(key, await asyncio.to_thread(tm.scores_of, model, X), params)
+        await emit(key, p0 + 6, f"{nom} : {line(r)}", model=key, result=_compact(r))
 
-    ranking = tm.rank_models(results, op)          # VALIDATION uniquement
+    ranking = tm.rank_models(results)          # VALIDATION uniquement
     best_key = ranking[0]
     tree_key = next((k for k in ranking if k in tm.TREE_MODELS), None)
 
-    # 5. SHAP du meilleur modèle arborescent
+    # 3. SHAP du meilleur modèle arborescent
     shap_out = None
     if tree_key is not None:
         await emit("SHAP", 85, f"SHAP : explication de {results[tree_key]['nom']} sur les attaques de validation et de test…")
-        shap_out = await asyncio.to_thread(_shap_summary, models[tree_key], df, feats, val_idx, test_idx, tr)
+        shap_out = await asyncio.to_thread(_shap_summary, models[tree_key], df, feats, idx["val"], idx["test"], tr)
         shap_out["modele"] = tree_key
-        await emit("SHAP", 95, "SHAP terminé", shap=shap_out)
+        await emit("SHAP", 93, "SHAP terminé", shap=shap_out)
 
-    # 6. Sauvegarde
+    # 4. Sauvegarde du modèle retenu et de son point de fonctionnement
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     import joblib  # noqa: PLC0415
-    joblib.dump(rf, MODEL_FILE)
-    with open(FEATURES_FILE, "w", encoding="utf-8") as f:
-        json.dump(feats, f, indent=1)
-    if best_key != "RandomForest":
-        joblib.dump(models[best_key], OUT_DIR / f"{best_key.lower()}.pkl")
+    op = results[best_key]["point_fonctionnement"]
+    joblib.dump(models[best_key], OUT_DIR / "modele_web.pkl")
+    with open(OUT_DIR / "modele_web.json", "w", encoding="utf-8") as f:
+        json.dump({"modele": best_key, "nom": results[best_key]["nom"], "features": feats, "seuil": op["seuil"],
+                   "k": op["k"], "n": op["n"], "critere": op["critere"]}, f, indent=2, ensure_ascii=False)
+    records = await asyncio.to_thread(study_records, df, episodes, 0, all_scores[best_key], op)
     out = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "duree_s": round(time.time() - t0, 1),
         "dataset": dataset_info,
         "features": feats,
-        "cible_rappel": cible,
-        "cibles_rappel": list(tm.TARGETS),
+        "critere": ta.criterion_text(precision_min, fa_max),
+        "precision_min": precision_min, "fa_max": fa_max,
         "modeles": {k: _compact(r) for k, r in results.items()},
         "classement_validation": ranking,
-        "classement_validation_max_f1": tm.rank_models(results, "max_f1"),
-        "classement_validation_par_cible": {f"{t:.2f}": tm.rank_models(results, tm.op_key(t)) for t in tm.TARGETS},
         "meilleur": best_key,
         "courbe_random_forest": curve,
         "shap": shap_out,
     }
     with open(WEB_RESULTS, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False, default=str)
-    b = results[best_key]["points_fonctionnement"][op]["test"]
+    b = results[best_key]
     await emit("done", 100, f"Entraînement terminé en {out['duree_s']:.0f} s — meilleur modèle (validation) : "
-               f"{results[best_key]['nom']} ; test au rappel cible {cible:.2f} : rappel {b['recall']:.2f}, "
-               f"{b['fausses_alarmes_evenements_par_heure']:.1f} FA/h, précision {b['precision']:.2f}", results=out)
+               f"{b['nom']} ; {line(b)}", results=out)
+    out["_records"] = {"df": df, **records}
     return out
 
 
@@ -462,10 +529,11 @@ def _shap_summary(model, df, feats, val_idx, test_idx, tr) -> dict:
     types = df["attack_type"].to_numpy()
     rows = np.concatenate([val_idx[y[val_idx] == 1], test_idx[y[test_idx] == 1]])
     rng = np.random.default_rng(tr.SEED)
-    rows = np.sort(rng.choice(rows, min(800, len(rows)), replace=False))
+    rows = np.sort(rng.choice(rows, min(300, len(rows)), replace=False))   # SHAP exact des arbres : coûteux
     values = shap.TreeExplainer(model).shap_values(df[feats].to_numpy(float)[rows])
     if isinstance(values, list):
         values = values[-1]
+    values = np.asarray(values)
     if values.ndim == 3:
         values = values[:, :, -1]
     imp = np.abs(values)
@@ -476,45 +544,38 @@ def _shap_summary(model, df, feats, val_idx, test_idx, tr) -> dict:
         return [{"feature": feats[i], "label": feature_label(feats[i]), "importance": round(float(m[i]), 4)}
                 for i in order]
 
-    out = {"n_lignes": int(len(rows)), "global": top(np.ones(len(rows), dtype=bool), 10), "par_scenario": {}}
+    out = {"n_lignes": int(len(rows)), "global": top(np.ones(len(rows), dtype=bool), 15), "par_scenario": {}}
     for nm in tr.ATTACK_NAMES:
         mask = types[rows] == nm
         if mask.any():
-            out["par_scenario"][nm] = top(mask, 4)
+            out["par_scenario"][nm] = top(mask, 6)
     return out
 
 
 # ── Rapport pour l'opérateur ─────────────────────────────────────────────────
 
-SEUIL_TXT = ("Le seuil d'alerte est réglé sur la VALIDATION pour signaler au moins {cible} % des mesures "
-             "falsifiées (mode « rappel d'abord » : rater une attaque coûte plus cher qu'une fausse alerte). "
-             "Le modèle est choisi sur la validation (F2) ; les chiffres ci-dessous sont mesurés ensuite sur le "
-             "test, qui n'a servi à aucun choix.")
+SEUIL_TXT = ("Un seul réglage d'alerte, choisi sur la VALIDATION : un seuil de score et une règle de persistance "
+             "(alerte quand au moins {k} mesures sur les {n} dernières, soit {duree} min, dépassent le seuil). Il "
+             "donne le rappel le plus haut possible tout en gardant au moins {pmin} % d'alertes justes et au plus "
+             "{famax} fausse alerte par heure : l'opérateur ne doit pas être noyé de fausses alertes. Le modèle est "
+             "choisi sur la validation ; les chiffres ci-dessous sont mesurés ensuite sur le test, qui n'a servi à "
+             "aucun choix.")
 DESEQUILIBRE_TXT = ("Les attaques sont minoritaires : les modèles compensent par des poids de classe "
                     "(class_weight, scale_pos_weight, sample_weight). Pas de SMOTE : des points synthétiques "
                     "interpolés entre deux lignes d'une série temporelle fabriqueraient des fenêtres glissantes "
                     "qui n'existent pas, et le sur-échantillonnage ne change pas la proportion d'attaques réelle, "
-                    "qui seule fixe la précision. Le vrai levier est le seuil.")
+                    "qui seule fixe la précision. Les leviers sont le seuil et la règle de persistance.")
 
 
-def _results_for_report() -> tuple[dict | None, dict | None, str, float | None]:
+def _results_for_report() -> tuple[dict | None, dict | None, str]:
+    pooled = _load_json(POOLED_RESULTS)
+    if pooled and pooled.get("resultats"):
+        n = pooled.get("protocole", {}).get("repetitions")
+        return pooled["resultats"], _load_json(POOLED_SHAP), f"étude de référence ({n} répétitions)"
     web = _load_json(WEB_RESULTS)
     if web and web.get("modeles"):
-        return web["modeles"], web.get("shap"), "dernier entraînement web", web.get("cible_rappel")
-    pooled = _load_json(POOLED_RESULTS)
-    if pooled:
-        n = pooled.get("protocole", {}).get("repetitions")
-        return (pooled["resultats"], _load_json(POOLED_SHAP), f"étude de référence ({n} répétitions)",
-                pooled.get("cible_rappel"))
-    return None, None, "aucun résultat", None
-
-
-def _point(m: dict, op: str | None, role: str = "test") -> dict:
-    """Métriques d'un modèle à un point de fonctionnement ; anciens résultats : champs à plat (max F1)."""
-    pts = m.get("points_fonctionnement") or {}
-    if op and op in pts:
-        return pts[op][role]
-    return m if role == "test" else {k[4:]: v for k, v in m.items() if k.startswith("val_")}
+        return web["modeles"], web.get("shap"), "dernier entraînement web"
+    return None, None, "aucun résultat"
 
 
 def _niveau(rate: float | None) -> str:
@@ -531,56 +592,47 @@ def _fmt_delai(d) -> str:
     return "—" if d is None else f"{d:.1f} min"
 
 
-def operator_report(models: dict | None = None, shap_data: dict | None = None, source: str | None = None,
-                    cible: float | None = None) -> dict:
-    """Rapport de recommandation : le modèle en service et son seuil (rappel cible), chaque
-    scénario (rappel, épisodes, délai, ce que le modèle regarde, consignes), les limites
-    connues et les règles générales. JSON structuré + rendu Markdown. Les chiffres sont lus
-    dans les résultats (aucun chiffre écrit en dur)."""
+def operator_report(models: dict | None = None, shap_data: dict | None = None, source: str | None = None) -> dict:
+    """Rapport de recommandation : le modèle en service et son réglage d'alerte, chaque scénario
+    (épisodes détectés, délai, lignes signalées, ce que le modèle regarde, consignes), les limites
+    connues et les règles générales. JSON structuré + rendu Markdown. Les chiffres sont lus dans
+    les résultats (aucun chiffre écrit en dur)."""
     if models is None:
-        models, shap_data, source, cible = _results_for_report()
+        models, shap_data, source = _results_for_report()
     tr, tm = _scripts()
     report: dict[str, Any] = {"titre": "Rapport pour l'opérateur — attaques de transmission",
                               "date": datetime.now().strftime("%d/%m/%Y %H:%M"), "source": source,
                               "modele": None, "scenarios": [], "regles_generales": GENERAL_RULES,
                               "desequilibre": DESEQUILIBRE_TXT}
-    if not models:
+    candidates = {k: v for k, v in (models or {}).items() if k != "RF_v1"}
+    if not candidates:
         report["message"] = "Aucun résultat disponible : lancez un entraînement."
         report["markdown"] = f"# {report['titre']}\n\n{report['message']}\n"
         return report
 
-    has_points = all("points_fonctionnement" in m for m in models.values())
-    cible = cible if cible is not None else tm.TARGET_RECALL
-    op = tm.op_key(cible) if has_points else None
-    if op and all(op in m["points_fonctionnement"] for m in models.values()):
-        best_key = tm.rank_models(models, op)[0]                # choix sur la VALIDATION
-    else:
-        op = None
-        best_key = max(models, key=lambda k: models[k].get("val_f1", 0))
-    best = models[best_key]
-    t = _point(best, op, "test")
-    v = _point(best, op, "val")
+    best_key = tm.rank_models(candidates)[0]                # choix sur la VALIDATION
+    t = candidates[best_key]
+    op = t.get("point_fonctionnement") or {}
     fa_h = t.get("fausses_alarmes_evenements_par_heure")
+    import transmission_alertes as ta  # noqa: PLC0415
     report["modele"] = {
-        "cle": best_key, "nom": best.get("nom", best_key), "type": best.get("type", "supervisé"),
-        "point_fonctionnement": f"rappel cible {cible:.2f}" if op else "max F1",
-        "cible_rappel": cible if op else None,
+        "cle": best_key, "nom": t.get("nom", best_key), "type": t.get("type", "supervisé"),
+        "seuil_valeur": op.get("seuil"), "k": op.get("k"), "n": op.get("n"),
+        "point_fonctionnement": (f"seuil {op['seuil']:.2f}, {op['k']} sur {op['n']} mesures" if op else "—"),
         "recall": t["recall"], "fausses_alertes_par_heure": fa_h, "delai_median_min": t.get("delai_median_min"),
-        "precision": t["precision"], "f1": t["f1"], "f2": t.get("f2"),
+        "precision": t["precision"], "f1": t["f1"],
         "episodes": f"{t.get('episodes_detectes')}/{t.get('episodes')}",
-        "validation": {"recall": v.get("recall"), "precision": v.get("precision"), "f2": v.get("f2")},
-        "seuil": SEUIL_TXT.format(cible=round(100 * cible)) if op else "Seuil : F1 maximal sur la validation.",
-        "lecture": (f"Le modèle signale {round(100 * t['recall'])} % des mesures falsifiées, déclenche environ "
-                    f"{fa_h} fausse(s) alerte(s) par heure et réagit en {_fmt_delai(t.get('delai_median_min'))} "
-                    f"(médiane) ; sur 100 alertes, environ {round(100 * t['precision'])} correspondent à une vraie "
-                    "attaque" + (f" ; {round(100 * t['fpr'])} % des mesures normales sont aussi signalées."
-                                 if t.get("fpr") is not None else ".")),
+        "validation": {"recall": t.get("val_recall"), "precision": t.get("val_precision"),
+                       "fausses_alertes_par_heure": t.get("val_fausses_alarmes_par_heure")},
+        "seuil": SEUIL_TXT.format(k=op.get("k", "—"), n=op.get("n", "—"),
+                                  duree=f"{(op.get('n') or 0) * 5 / 60:.1f}".replace(".", ","),
+                                  pmin=round(100 * ta.PRECISION_MIN), famax=f"{ta.FA_MAX:g}".replace(".", ",")),
+        "lecture": (f"Le modèle détecte {t.get('episodes_detectes')} épisodes d'attaque sur {t.get('episodes')} au "
+                    f"test, avec environ {fa_h} fausse(s) alerte(s) par heure et un délai médian de "
+                    f"{_fmt_delai(t.get('delai_median_min'))} ; sur 100 mesures signalées, environ "
+                    f"{round(100 * t['precision'])} sont vraiment falsifiées, et {round(100 * t['recall'])} % des "
+                    "mesures falsifiées sont signalées."),
     }
-    if op and "max_f1" in best.get("points_fonctionnement", {}):
-        m1 = best["points_fonctionnement"]["max_f1"]["test"]
-        report["modele"]["alternative_max_f1"] = {
-            "recall": m1["recall"], "fausses_alertes_par_heure": m1["fausses_alarmes_evenements_par_heure"],
-            "delai_median_min": m1["delai_median_min"], "precision": m1["precision"], "f1": m1["f1"]}
 
     shap_sc = (shap_data or {}).get("par_scenario", {})
     for a in tr.ATTACKS:
@@ -589,62 +641,48 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
         pe = t.get("per_episode", {}).get(name, {})
         reco = RECOMMANDATIONS[_family(kind)]
         feats = shap_sc.get(name, [])[:3]
-        rate = pa.get("rate") if pa.get("n") else None      # scénario absent du test : non évalué
+        rate = round(100 * pe["detected"] / pe["n"], 1) if pe.get("n") else None   # épisodes détectés
         report["scenarios"].append({
             "scenario": name, "capteur": SENSOR_FR[sensor], "description": SCENARIOS_FR.get(name, ""),
             "famille": reco["titre"], "taux_detection": rate, "niveau": _niveau(rate),
+            "lignes_signalees": pa.get("rate") if pa.get("n") else None,
             "episodes": f"{pe.get('detected', '—')}/{pe.get('n', '—')}",
             "delai_median_min": pe.get("delai_median_min"),
             "ce_que_le_modele_regarde": [f.get("label") or feature_label(f["feature"]) for f in feats] or [reco["signes"]],
             "risque": reco["risque"], "actions": reco["actions"],
         })
 
-    # Limites connues : les petits biais, et l'étude complémentaire des biais longs
     limites = []
-    points = [(t, report["modele"]["point_fonctionnement"])]
-    if op and "max_f1" in best.get("points_fonctionnement", {}):
-        points.append((best["points_fonctionnement"]["max_f1"]["test"], "max F1"))
     for name in ("Injection_biais_0.5", "Injection_biais_1.0"):
-        parts = []
-        for m, lib in points:
-            pa = (m.get("per_attack") or {}).get(name, {})
-            if pa.get("n"):
-                fpr = f" pour {100 * m['fpr']:.0f} % des mesures normales" if m.get("fpr") is not None else ""
-                parts.append(f"{pa['rate']:.0f} % des mesures signalées{fpr} (seuil {lib})")
-        if parts:
-            limites.append(f"{SCENARIOS_FR[name]} : " + " ; ".join(parts) + " — non détectable de façon fiable "
-                           "en 15 à 25 min à ce niveau de bruit (σ ≈ 3,4 °C par mesure du frigo) : un épisode "
-                           "« détecté » peut l'être par une alerte fortuite.")
+        pa = (t.get("per_attack") or {}).get(name, {})
+        pe = (t.get("per_episode") or {}).get(name, {})
+        if pa.get("n"):
+            limites.append(f"{SCENARIOS_FR[name]} : {pe.get('detected')}/{pe.get('n')} épisodes détectés, "
+                           f"{pa['rate']:.0f} % des mesures falsifiées signalées, délai médian "
+                           f"{_fmt_delai(pe.get('delai_median_min'))} — décalage plus petit que le bruit du capteur "
+                           "(σ ≈ 3,4 °C par mesure du frigo) : la détection vient de la forme de la distribution sur "
+                           "5 à 15 min, elle reste plus lente et moins sûre que pour les autres scénarios.")
     long_bias = _load_json(LONG_BIAS_RESULTS)
     if long_bias:
-        for jeu, lib in (("B", "avec des moyennes sur 30 et 60 min"), ("A", "avec les features actuelles")):
-            res = long_bias["resultats"].get(jeu, {})
-            for amp, x in res.get("par_amplitude", {}).items():
-                h = x.get("detectes_avant_min", {})
-                parts = ", ".join(f"{v['detectes']}/{v['n']} en moins de {k} min" for k, v in h.items() if v["n"])
-                limites.append(f"Biais long {amp} °C (1 à 3 h), {lib} : {parts} "
-                               f"({res.get('fa_h_test', '—')} fausse(s) alerte(s)/h mesurée(s) au test, seuil fixé sur la "
-                               "validation pour ≤ 1 par heure).")
+        res = long_bias["resultats"].get("B", {})
+        for amp, x in res.get("par_amplitude", {}).items():
+            h = x.get("detectes_avant_min", {})
+            parts = ", ".join(f"{v['detectes']}/{v['n']} en moins de {k} min" for k, v in h.items() if v["n"])
+            limites.append(f"Étude complémentaire, biais long {amp} °C (1 à 3 h, moyennes sur 30 et 60 min) : {parts}.")
     report["limites"] = limites
 
     md = report["modele"]
     lines = [f"# {report['titre']}", f"*{report['date']} · source : {source}*", "",
              "## Le modèle en service", "",
-             f"**{md['nom']}** ({md['type']}), seuil « {md['point_fonctionnement']} » — rappel "
-             f"{round(100 * md['recall'])} %, {fa_h} fausse(s) alerte(s) par heure, délai médian "
-             f"{_fmt_delai(md['delai_median_min'])}, précision {round(100 * md['precision'])} %, "
-             f"F1 {md['f1']:.2f}" + (f", F2 {md['f2']:.2f}" if md.get("f2") is not None else "")
-             + f", épisodes détectés {md['episodes']} (test).", "", md["lecture"], "", md["seuil"], ""]
-    if md.get("alternative_max_f1"):
-        a1 = md["alternative_max_f1"]
-        lines += [f"Au seuil « max F1 », le même modèle aurait un rappel de {round(100 * a1['recall'])} %, "
-                  f"{a1['fausses_alertes_par_heure']} fausse(s) alerte(s)/h et une précision de "
-                  f"{round(100 * a1['precision'])} % : moins d'alertes, mais plus d'attaques ratées.", ""]
-    lines += ["## Déséquilibre des classes", "", DESEQUILIBRE_TXT, "", "## Consignes par type d'attaque", ""]
+             f"**{md['nom']}** ({md['type']}), réglage « {md['point_fonctionnement']} » — épisodes détectés "
+             f"{md['episodes']}, {fa_h} fausse(s) alerte(s) par heure, délai médian "
+             f"{_fmt_delai(md['delai_median_min'])}, précision {round(100 * md['precision'])} %, rappel "
+             f"{round(100 * md['recall'])} %, F1 {md['f1']:.2f} (test).", "", md["lecture"], "", md["seuil"], "",
+             "## Déséquilibre des classes", "", DESEQUILIBRE_TXT, "", "## Consignes par type d'attaque", ""]
     for s in report["scenarios"]:
         rate_txt = ("non évalué" if s["taux_detection"] is None else
-                    f"rappel {s['taux_detection']:.0f} % des mesures, épisodes {s['episodes']}, "
-                    f"délai médian {_fmt_delai(s['delai_median_min'])}")
+                    f"épisodes {s['episodes']}, délai médian {_fmt_delai(s['delai_median_min'])}, "
+                    f"{s['lignes_signalees']:.0f} % des mesures signalées")
         lines += [f"### {s['famille']} — {s['scenario']} ({s['capteur']})", "",
                   f"- **Ce que fait l'attaquant :** {s['description']}",
                   f"- **Détection :** {rate_txt} — {s['niveau']}",

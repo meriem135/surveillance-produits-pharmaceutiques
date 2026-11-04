@@ -88,3 +88,4 @@ _DELETE_LATER/
 
 # ===== JUPYTER =====
 .ipynb_checkpoints/
+/models/transmission_reel/*.npz
