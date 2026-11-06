@@ -1,12 +1,16 @@
+"""Pipeline d'entraînement One-Class SVM (features, split, évaluation, modèle).
+
+Ce module ne contient aucun endpoint HTTP : il est utilisé par les scripts
+d'entraînement et par le service de transmission.
+"""
+
 import json, os, io, asyncio, traceback
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
 import joblib
 import numpy as np
 import pandas as pd
 from app.core import paths
-from app.domains.auth.service import require_any_role
+from app.domains.ml.progress import TrainingProgressManager
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.svm import OneClassSVM
 from sklearn.metrics import (
@@ -22,7 +26,6 @@ try:
 except ImportError:
     SHAP_AVAILABLE = False
 
-router = APIRouter()
 
 RESULTS_PATH = str(paths.RESULTS_COMPARISON)
 
@@ -56,50 +59,13 @@ SENSOR_MAP = {
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  WebSocket Training Progress Manager
+#  Progression d'entraînement
 # ══════════════════════════════════════════════════════════════════════════════
 
-class _TrainingProgressManager:
-    """Gestionnaire de progression d'entrainement via WebSocket.
+progress_manager = TrainingProgressManager()
 
-    Le POST /phase2/train lance l'entrainement en background et broadcast
-    les messages de progression a tous les clients WebSocket connectes sur
-    /ws/phase2/train.
-    """
-
-    def __init__(self):
-        self._connections: list[WebSocket] = []
-        self._latest_status: dict = {}
-
-    async def connect(self, ws: WebSocket):
-        await ws.accept()
-        self._connections.append(ws)
-        if self._latest_status:
-            try:
-                await ws.send_json(self._latest_status)
-            except Exception:
-                pass
-
-    def disconnect(self, ws: WebSocket):
-        if ws in self._connections:
-            self._connections.remove(ws)
-
-    async def broadcast(self, message: dict):
-        self._latest_status = message
-        dead = []
-        for ws in self._connections:
-            try:
-                await ws.send_json(message)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            self._connections.remove(ws)
-
-    def clear(self):
-        self._latest_status = {}
-
-
-progress_manager = _TrainingProgressManager()
+# Id du dernier entraînement TERMINÉ dans ce processus serveur.
+_last_completed_model_id: int | None = None
 
 
 async def _emit(step: str, progress: int, message: str, **extra):
@@ -685,32 +651,6 @@ async def _run_training(
                 }
                 await _emit("shap", 88, f"SHAP: {n_shap} echantillons expliques")
 
-                # Matrice SHAP brute reutilisable par le dashboard (/api/shap/*) :
-                # donnees RELLES du modele entraine, sans re-calcul KernelExplainer
-                # (trop lent pour une requete web).
-                try:
-                    shap_raw = [
-                        [float(shap_values[r, i]) for i in range(len(FEATURE_COLS))]
-                        for r in range(n_shap)
-                    ]
-                    label_arr = featured["label"].values.astype(int) if "label" in featured.columns else np.zeros(len(featured))
-                    shap_live_path = os.path.join(MODEL_DIR, "shap_analysis_live.json")
-                    with open(shap_live_path, "w", encoding="utf-8") as f:
-                        json.dump({
-                            "model_kind": "ocsvm",
-                            "model_type": "OneClassSVM",
-                            "n_samples": int(n_shap),
-                            "features": FEATURE_COLS,
-                            "timestamps": shap_timestamps,
-                            "shap_matrix": shap_raw,
-                            "anomaly_scores": [float(scores_neg[sample_idxs[r]]) for r in range(n_shap)],
-                            "predictions": [int(y_pred[sample_idxs[r]]) for r in range(n_shap)],
-                            "labels": [int(label_arr[sample_idxs[r]]) for r in range(n_shap)],
-                            "trained_at": datetime.now().isoformat(),
-                        }, f)
-                    print(f"[TRAIN] SHAP matrix sauvegarde: {shap_live_path}")
-                except Exception as e:
-                    print(f"[TRAIN] Erreur sauvegarde SHAP matrix: {e}")
             except Exception as e:
                 print(f"[TRAIN] SHAP erreur: {e}")
                 shap_data["error"] = str(e)
@@ -956,223 +896,3 @@ async def _run_training(
         await _emit("error", 0, f"Erreur: {str(e)}")
         raise
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  WebSocket endpoint : /ws/phase2/train
-# ══════════════════════════════════════════════════════════════════════════════
-
-_training_task: asyncio.Task | None = None
-_training_files: dict = {}
-
-# Id du dernier entrainement TERMINE dans ce processus serveur.
-# La page Resultats ne montre des donnees que si un entrainement reel
-# a eu lieu (pas de resultats "avant" d'avoir entraine, pas de stale data).
-_last_completed_model_id: str | None = None
-
-
-@router.websocket("/phase2/train-ws")
-async def training_websocket(websocket: WebSocket):
-    """WebSocket pour le streaming de progression d'entrainement.
-
-    Le client se connecte ici apres avoir upload les fichiers via POST /phase2/train.
-    Le serveur broadcast les messages de progression a tous les clients connectes.
-    """
-    await progress_manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            msg = json.loads(data) if data else {}
-            if msg.get("type") == "ping":
-                await websocket.send_json({"type": "pong"})
-    except WebSocketDisconnect:
-        progress_manager.disconnect(websocket)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  POST /phase2/train — Lance l'entrainement en background
-# ══════════════════════════════════════════════════════════════════════════════
-
-@router.post("/phase2/train")
-async def train_model(
-    weather_file: UploadFile = File(None),
-    fridge_file: UploadFile = File(None),
-    thermostat_file: UploadFile = File(None),
-    use_disk: bool = False,
-    _user=Depends(require_any_role()),
-):
-    """Upload les fichiers et lance l'entrainement One-Class SVM en background.
-
-    La progression est diffusee via WebSocket /ws/phase2/train.
-    Le resultat final est sauvegarde dans PostgreSQL (ml_models + model_metrics).
-    """
-    global _training_task, _training_files
-
-    if _training_task and not _training_task.done():
-        raise HTTPException(status_code=409, detail="Un entraînement est déjà en cours")
-
-    progress_manager.clear()
-
-    upload_contents = {}
-    if not use_disk:
-        for label, uf in [("weather", weather_file), ("fridge", fridge_file), ("thermostat", thermostat_file)]:
-            if uf is not None:
-                content = await uf.read()
-                upload_contents[label] = content
-                print(f"[TRAIN] Upload {label}: {len(content):,} bytes")
-
-    async def _background_train():
-        try:
-            if upload_contents:
-                await _run_training({}, upload_contents=upload_contents)
-            else:
-                await _run_training({})
-        except Exception as e:
-            await _emit("error", 0, f"Erreur entraînement: {str(e)}")
-            traceback.print_exc()
-
-    _training_task = asyncio.create_task(_background_train())
-
-    return {
-        "status": "training_started",
-        "message": "Entraînement lancé en arrière-plan. Connectez-vous à /ws/phase2/train pour suivre la progression.",
-        "ws_url": "/ws/phase2/train",
-    }
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  GET endpoints (resultats, historique, download)
-# ══════════════════════════════════════════════════════════════════════════════
-
-@router.get("/phase2/results")
-async def get_phase2_results():
-    CANONICAL_IDS = [
-        "OCSVM_Multivarie", "Autoencodeur_PCA", "GNN_Correlation", "Forecasting_LSTM",
-    ]
-    try:
-        from app.db.session import AsyncSessionLocal
-        from app.domains.ml.entities import MLModel
-        from sqlalchemy import select
-
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(MLModel).order_by(MLModel.trained_at.desc()))
-            rows = result.scalars().all()
-
-        latest: dict[str, MLModel] = {}
-        for m in rows:
-            # Conserve les lignes OCSVM uniquement ; ignorE les anciens modeles
-            # Isolation Forest encore presents en base.
-            if str(m.id).lower().startswith("if_"):
-                continue
-            key = m.id
-            for base in CANONICAL_IDS:
-                if m.id == base or m.id.startswith(base + "_"):
-                    key = base
-                    break
-            if key not in latest:
-                latest[key] = m
-
-        data = {}
-        for mid, m in latest.items():
-            data[mid] = {
-                "precision": float(m.precision or 0),
-                "recall": float(m.recall or 0),
-                "f1": float(m.f1 or 0),
-                "roc_auc": float(m.roc_auc or 0),
-                "ap": float(m.ap or 0),
-                "fpr": float(m.fpr or 0),
-                "tp": int(m.tp or 0),
-                "fp": int(m.fp or 0),
-                "fn": int(m.fn or 0),
-                "tn": int(m.tn or 0),
-            }
-        return data
-    except Exception as e:
-        print(f"[RESULTS] Erreur PostgreSQL: {e}")
-        return {}
-
-
-@router.get("/phase2/training-results")
-async def get_phase2_training_results():
-    try:
-        from app.db.session import AsyncSessionLocal
-        from app.domains.ml.entities import MLModel
-        from sqlalchemy import select
-
-        async with AsyncSessionLocal() as db:
-            if _last_completed_model_id is not None:
-                query = select(MLModel).where(MLModel.id == _last_completed_model_id)
-            else:
-                # Apres un redemarrage : dernier OCSVM entraine persiste en base
-                query = (
-                    select(MLModel)
-                    .where(MLModel.id.startswith("OCSVM_Multivarie"))
-                    .order_by(MLModel.trained_at.desc())
-                )
-            result = await db.execute(query)
-            model = result.scalars().first()
-
-        if model is None or not model.result_json:
-            return {"error": "Aucun resultats. Lancez l'entrainement d'abord."}
-        return model.result_json
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@router.get("/phase2/model/download")
-async def download_model(_user=Depends(require_any_role("operator"))):
-    path = None
-
-    model_dir = str(paths.MODELS_DIR)
-    for candidate in ["ocsvm_multivarie.pkl"]:
-        p = os.path.join(model_dir, candidate)
-        if os.path.exists(p):
-            path = p
-            break
-
-    if not path:
-        raise HTTPException(status_code=404, detail="Aucun modele disponible")
-
-    filename = os.path.basename(path)
-    return FileResponse(path, media_type="application/octet-stream", filename=filename)
-
-
-@router.get("/phase2/attack-metrics")
-async def get_attack_metrics():
-    try:
-        from app.db.session import AsyncSessionLocal
-        from app.domains.ml.entities import MLModel, ModelMetric
-        from sqlalchemy import select
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(ModelMetric, MLModel.name, MLModel.sensor)
-                .join(MLModel, MLModel.id == ModelMetric.model_id)
-                .order_by(ModelMetric.attack_type, ModelMetric.model_id)
-            )
-            rows = []
-            for m, model_name, model_sensor in result.all():
-                rows.append({
-                    "id": m.id, "model_id": m.model_id,
-                    "model_name": model_name, "model_sensor": model_sensor,
-                    "attack_type": m.attack_type, "capteur": m.capteur,
-                    "n_total": m.n_total, "n_anomalies": m.n_anomalies,
-                    "taux_detection": m.taux_detection, "score_moyen": m.score_moyen,
-                    "roc_auc": m.roc_auc, "avg_precision": m.avg_precision,
-                    "precision_attaque": m.precision_attaque,
-                    "recall_attaque": m.recall_attaque,
-                    "f1_attaque": m.f1_attaque,
-                })
-            return {"metrics": rows}
-    except Exception as e:
-        return {"error": str(e), "metrics": []}
-
-
-@router.get("/phase2/training-status")
-async def get_training_status():
-    """Retourne l'etat actuel de l'entrainement en cours (polling supplementaire)."""
-    if _training_task is None:
-        return {"active": False}
-    return {
-        "active": not _training_task.done(),
-        "done": _training_task.done(),
-        "exception": str(_training_task.exception()) if _training_task.done() and _training_task.exception() else None,
-    }

@@ -12,19 +12,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Activity, ShieldAlert, Users, Moon, Sun, ChevronDown, Cpu, LogOut, User, Brain, Sparkles,
-  LayoutDashboard, LineChart, ScrollText, Radio, Gauge, Menu, X, Crosshair, FileText, Database, Play, Settings,
+  ShieldAlert, Users, Moon, Sun, ChevronDown, LogOut, User, Brain, Sparkles,
+  ScrollText, Radio, Gauge, Menu, X, Crosshair, FileText, Database, Play, Settings,
 } from 'lucide-react';
 
 const OverviewPage = lazy(() => import('../pages/OverviewPage'));
-const Phase1Page = lazy(() => import('../pages/Phase1Page'));
-const Phase2Page = lazy(() => import('../pages/Phase2Page'));
-const TrainingResultsPage = lazy(() => import('../pages/TrainingResultsPage'));
-const ShapDashboardPage = lazy(() => import('../pages/ShapDashboardPage'));
-const ShapPointReportPage = lazy(() => import('../pages/ShapPointReportPage'));
 const AdminUsersPage = lazy(() => import('../pages/AdminUsersPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
-const TableauDeBordPage = lazy(() => import('../pages/TableauDeBordPage'));
 const AuditLogsPage = lazy(() => import('../pages/AuditLogsPage'));
 const TempsReelPage = lazy(() => import('../pages/etude/TempsReelPage'));
 const DetectionPage = lazy(() => import('../pages/etude/DetectionPage'));
@@ -67,16 +61,6 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
       { label: 'Comptes', path: '/dashboard/admin-users', icon: Users, roles: ADMIN },
       { label: "Journal d'audit", path: '/dashboard/audit', icon: ScrollText, roles: ADMIN },
       { label: 'Mon profil', path: '/dashboard/profile', icon: User, roles: ALL },
-    ],
-  },
-  {
-    title: 'Archives : année simulée',
-    items: [
-      { label: 'Ingestion MQTT', path: '/dashboard/phase1', icon: Cpu, roles: ALL, hint: 'Phase 1 : flux des capteurs' },
-      { label: 'ML non supervisé', path: '/dashboard/phase2', icon: Activity, roles: ALL, hint: 'Phase 2 : année simulée' },
-      { label: 'SHAP phase 2', path: '/dashboard/shap', icon: Sparkles, roles: ALL },
-      { label: 'Résultats phase 2', path: '/dashboard/results', icon: LineChart, roles: ALL },
-      { label: 'Jeu annuel simulé', path: '/dashboard/tableau-bord', icon: LayoutDashboard, roles: ALL },
     ],
   },
 ];
@@ -246,12 +230,6 @@ export default function DashboardLayout() {
                 <Route path="/dashboard/entrainement" element={canAccess('/dashboard/entrainement') ? <EntrainementPage /> : <AccessDenied />} />
                 <Route path="/dashboard/parametres" element={canAccess('/dashboard/parametres') ? <ParametresPage /> : <AccessDenied />} />
                 <Route path="/dashboard/transmission" element={<Navigate to="/dashboard/resultats" replace />} />
-                <Route path="/dashboard/phase1" element={canAccess('/dashboard/phase1') ? <Phase1Page /> : <AccessDenied />} />
-                <Route path="/dashboard/phase2" element={canAccess('/dashboard/phase2') ? <Phase2Page /> : <AccessDenied />} />
-                <Route path="/dashboard/shap" element={canAccess('/dashboard/shap') ? <ShapDashboardPage /> : <AccessDenied />} />
-                <Route path="/dashboard/shap/report" element={canAccess('/dashboard/shap') ? <ShapPointReportPage /> : <AccessDenied />} />
-                <Route path="/dashboard/results" element={canAccess('/dashboard/results') ? <TrainingResultsPage /> : <AccessDenied />} />
-                <Route path="/dashboard/tableau-bord" element={canAccess('/dashboard/tableau-bord') ? <TableauDeBordPage /> : <AccessDenied />} />
                 <Route path="/dashboard/admin-users" element={canAccess('/dashboard/admin-users') ? <AdminUsersPage /> : <AccessDenied />} />
                 <Route path="/dashboard/audit" element={canAccess('/dashboard/audit') ? <AuditLogsPage /> : <AccessDenied />} />
                 <Route path="/dashboard/profile" element={canAccess('/dashboard/profile') ? <ProfilePage /> : <AccessDenied />} />

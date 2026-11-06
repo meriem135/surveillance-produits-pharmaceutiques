@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSock
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.phase2 import _TrainingProgressManager
+from app.domains.ml.progress import TrainingProgressManager
 from app.db.session import AsyncSessionLocal, get_session
 from app.domains.auth.service import require_any_role
 from app.domains import parametres as settings_repo
@@ -37,7 +37,7 @@ from app.domains.transmission import repository, service
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-progress_manager = _TrainingProgressManager()
+progress_manager = TrainingProgressManager()
 _training_task: asyncio.Task | None = None
 
 

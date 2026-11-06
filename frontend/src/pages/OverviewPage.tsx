@@ -45,7 +45,6 @@ interface Overview {
   capteurs: { total: number; en_ligne: number; par_type: Record<string, number>;
     liste: { id: string; nom: string; type: string; statut: string; emplacement: string; vu_le: string | null }[] };
   telemetrie: { mesures: number; appareils: number; debut: string | null; fin: string | null };
-  modeles_phase2: { modeles: number; dernier_entrainement: string | null; metriques_par_attaque: number };
   comptes: { total: number; actifs: number; par_role: Record<string, number> };
   audit: { actions: number; derniere: string | null };
   sources: Record<string, string>;
@@ -390,8 +389,6 @@ export default function OverviewPage() {
           <dl className="p-4 sm:p-5 space-y-3 text-sm lg:border-l" style={{ borderColor: 'var(--border)' }}>
             <div><dt className="vc-kicker">Mesures temps réel en base</dt><dd className="mt-0.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>
               {nf(data.telemetrie.mesures)}{data.telemetrie.mesures ? <span className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>, du {dateFr(data.telemetrie.debut)} au {dateFr(data.telemetrie.fin)}</span> : null}</dd></div>
-            <div><dt className="vc-kicker">Modèles de la phase 2 (archives)</dt><dd className="mt-0.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>
-              {nf(data.modeles_phase2.modeles)}<span className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>, {nf(data.modeles_phase2.metriques_par_attaque)} métriques par attaque</span></dd></div>
             <div><dt className="vc-kicker">Actions tracées dans le journal d’audit</dt><dd className="mt-0.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>
               {nf(data.audit.actions)}{data.audit.derniere ? <span className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>, dernière le {dateFr(data.audit.derniere)}</span> : null}</dd></div>
             <div><dt className="vc-kicker">Alertes et rapports</dt><dd className="mt-0.5 text-[12.5px]" style={{ color: 'var(--text-muted)' }}>

@@ -171,21 +171,6 @@ export interface ModelMetric {
   f1_attaque: number | null;
 }
 
-/* ---- Flux temps réel (/ws/stream) ---- */
-
-export interface LivePoint {
-  type?: string;
-  message?: string;
-  timestamp?: string;
-  dataset_datetime?: string;
-  device_type?: string;
-  weather_temperature?: number;
-  fridge_temperature?: number;
-  thermostat_temperature?: number;
-  season?: string;
-  month?: number | null;
-}
-
 /* ---- Advanced Analytics (/api/v1/advanced-analytics) ---- */
 
 export interface CurvePoint {

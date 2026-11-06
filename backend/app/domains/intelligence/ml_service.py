@@ -97,7 +97,7 @@ class MultivariateBuffer:
 class MultivariateMLService:
     """Modele One-Class SVM multivarie (21 features, 3 capteurs fusionnes).
 
-    Convention de score (identique a phase2.py / fusion_insights.py) :
+    Convention de score (identique au pipeline d'entraînement) :
       anomaly_score = -decision_function  -> plus grand = plus anormal
       anomalie si anomaly_score >= seuil calibre (threshold_ocsvm.json,
       max F1 precision/recall = -20.55, mesure sur -decision_function).
@@ -241,7 +241,7 @@ class MultivariateMLService:
 
         X = np.array([[features[c] for c in self.feature_cols]])
         X_scaled = self.scaler.transform(X)
-        # Convention OCSVM (phase2.py:548 et fusion_insights.py:210) :
+        # Convention OCSVM (pipeline d'entraînement) :
         #   anomaly_score = -decision_function  -> plus grand = plus anormal
         #   anomalie si anomaly_score >= threshold calibre (threshold_ocsvm.json)
         score = -float(self.model.decision_function(X_scaled)[0])

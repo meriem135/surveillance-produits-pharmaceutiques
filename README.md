@@ -2,14 +2,12 @@
 
 Plateforme de **détection d'intrusions IoT** pour la chaîne du froid pharmaceutique
 (Industrie 4.0). Trois capteurs — frigo (le produit, 2–8 °C), thermostat (la salle)
-et météo (l'extérieur) — sont suivis en deux temps :
+et météo (l'extérieur) — sont suivis en temps réel.
 
-- **Phase 1 — Ingestion temps réel** : les mesures des trois capteurs (MQTT ou rejeu du flux
-  saisonnier) sont diffusées en direct au dashboard par WebSocket.
-- **Phase 2 — Machine Learning** : 4 détecteurs non supervisés entraînés sur le seul
-  comportement normal, expliqués par SHAP (étude antérieure, année simulée).
 - **Attaques de transmission** (étude principale) : modèles supervisés sur les traces réelles avec
   attaques MITM / injection, réglage d'alerte orienté précision, temps réel et rapport opérateur.
+- **Ingestion temps réel** : les mesures des trois capteurs (MQTT ou rejeu du flux
+  saisonnier) sont diffusées au dashboard par WebSocket.
 
 Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 
@@ -19,11 +17,11 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 ├── backend/                 API FastAPI + ML + services
 │   ├── app/
 │   │   ├── main.py          point d'entrée (lifespan : BDD, seed, MQTT, Modbus)
-│   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview, phase2, shap, analyst…)
+│   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview, analyst…)
 │   │   ├── core/            configuration (.env) et chemins canoniques (paths.py)
 │   │   ├── db/              session (PostgreSQL → repli SQLite), seed
 │   │   ├── domains/         auth, devices, intelligence (OCSVM, risque), transmission, analyst (RAG + LLM)
-│   │   └── services/        MQTT (agrégation 3 capteurs), Modbus, streaming WebSocket
+│   │   └── services/        MQTT (agrégation 3 capteurs), Modbus
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
 │   │   ├── train_models.py  entraîne et compare les 4 modèles → models/
@@ -82,17 +80,6 @@ docker compose logs -f app
 Le port n'écoute que sur `127.0.0.1` : en production, un proxy (Caddy, nginx) le publie et doit
 laisser passer les WebSockets. Les volumes `data`, `models` et `pgdata` gardent le jeu de données,
 les modèles réentraînés et la base entre deux reconstructions.
-
-## Archives — phase 2 : 4 détecteurs non supervisés (année simulée, jeu de test)
-
-| Modèle | Principe | ROC-AUC | F1 | Faux positifs |
-|---|---|---|---|---|
-| OCSVM_Multivarie | frontière One-Class SVM sur 21 features | 0.921 | 0.863 | 0.02 % |
-| Autoencodeur_PCA | erreur de reconstruction (PCA, 95 % de variance) | 0.901 | 0.856 | 0.01 % |
-| Forecasting_LSTM | 3 LSTM prédisent chaque capteur à partir des 2 autres | 0.886 | 0.859 | 0.25 % |
-| GNN_Correlation | graphe de corrélations glissantes entre capteurs | 0.837 | 0.535 | 8.9 % |
-
-Détail par type d'attaque : `models/resultats_comparaison_final.json`.
 
 ## Attaques de transmission (traces réelles) — version 3
 
@@ -159,7 +146,6 @@ Toutes les pages de l'étude lisent **PostgreSQL** (`/api/v1/etude/*`), jamais u
 | Administration | Entraînement | lance un entraînement (6 modèles, répétition 0), progression en direct | admin |
 | | Paramètres | précision minimale, fausses alertes tolérées, vitesse du temps réel | admin |
 | | Comptes, Journal d'audit | gestion des utilisateurs, traçabilité | admin |
-| Archives | Ingestion MQTT, ML non supervisé, SHAP et résultats phase 2, jeu annuel simulé | étude antérieure sur l'année simulée | admin, opérateur |
 
 Rôles : l'inscription publique ne crée que des **opérateurs** ; seul l'**administrateur** gère les comptes,
 lance les entraînements et modifie les paramètres (403 sinon, testé dans `tests/test_etude_roles.py`).

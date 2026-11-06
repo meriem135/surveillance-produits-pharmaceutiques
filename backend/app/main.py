@@ -1,24 +1,19 @@
 import asyncio
 import os
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
-from sqlmodel import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.paths import SEASONAL_STREAM_CSV, ensure_dirs
 from app.db.seed import seed_defaults
-from app.db.session import init_db, close_db, get_session
-from app.api.v1 import devices, risks, phase2, phase2_timeline, analyst, auth, shap_analysis, dataset_analytics, fusion_insights, pharma_impact, transmission, overview, etude, parametres
+from app.db.session import init_db, close_db
+from app.api.v1 import devices, risks, analyst, auth, transmission, overview, etude, parametres
 from app.services.mqtt_service import mqtt_service
 from app.services.modbus_service import modbus_service
-from app.services.realtime_service import manager
-from app.domains.devices.models import Telemetry
 from app.domains.intelligence import ml_service  # noqa: F401 – import for side-effects
-from app.domains.auth.service import require_any_role
 
 async def _charger_etude():
     import sys
@@ -61,9 +56,6 @@ async def lifespan(app: FastAPI):
             settings.MQTT_USERNAME, settings.MQTT_PASSWORD,
         )
         asyncio.create_task(edge_simulator.start())
-    # La simulation backend tourne en continu : c'est le frontend qui démarre/arrête
-    # sa propre réception (connexion WebSocket) via le bouton "COMMENCER".
-    manager.set_simulation(True)
 
     # Étude de référence : chargée en base au démarrage si la version en place est différente
     # (pages Jeu de données, Résultats, SHAP, Détection vs réalité, Temps réel).
@@ -124,44 +116,6 @@ def serve_dashboard(full_path: str = ""):
         status_code=404,
     )
 
-# Endpoints requis pour le Jumeau Numérique / Dashboard
-@app.get("/api/telemetry")
-async def get_dashboard_telemetry(db: AsyncSession = Depends(get_session)):
-    """Récupère les 150 derniers points de télémétrie du jumeau numérique"""
-    statement = (
-        select(Telemetry)
-        .where(Telemetry.metric_key == "behavioral_twin")
-        .order_by(Telemetry.timestamp.desc())
-        .limit(150)
-    )
-    result = await db.execute(statement)
-    records = result.scalars().all()
-    return list(reversed(records))
-
-# /api/shap/latest est gere par shap_analysis.router (pre-calcule, dataset reel).
-
-# WebSocket endpoint pour le streaming temps réel
-@app.websocket("/ws/stream")
-async def websocket_stream(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-@app.post("/api/simulation/toggle")
-async def toggle_simulation(
-    _user=Depends(require_any_role("operator")),
-):
-    active = not manager.get_simulation()
-    manager.set_simulation(active)
-    return {"simulation_active": active}
-
-@app.get("/api/simulation/status")
-async def simulation_status():
-    return {"simulation_active": manager.get_simulation()}
-
 # CORS : origines explicites (jamais "*" avec allow_credentials=True).
 # Configurable via CORS_ORIGINS="http://localhost:5173,https://mon-domaine.fr"
 _cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -176,13 +130,7 @@ app.add_middleware(
 app.include_router(analyst.router, prefix=f"{settings.API_V1_STR}/analyst", tags=["analyst-llm-rag"])
 app.include_router(devices.router, prefix=settings.API_V1_STR, tags=["devices"])
 app.include_router(risks.router, prefix=settings.API_V1_STR, tags=["risks"])
-app.include_router(phase2.router, prefix=settings.API_V1_STR, tags=["phase2"])
-app.include_router(phase2_timeline.router, prefix=settings.API_V1_STR, tags=["phase2"])
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
-app.include_router(shap_analysis.router)
-app.include_router(dataset_analytics.router, prefix=settings.API_V1_STR, tags=["dataset"])
-app.include_router(fusion_insights.router, prefix=settings.API_V1_STR, tags=["fusion"])
-app.include_router(pharma_impact.router, prefix=settings.API_V1_STR, tags=["pharma"])
 app.include_router(transmission.router, prefix=settings.API_V1_STR, tags=["transmission"])
 app.include_router(overview.router, prefix=settings.API_V1_STR, tags=["overview"])
 app.include_router(etude.router, prefix=settings.API_V1_STR, tags=["etude"])

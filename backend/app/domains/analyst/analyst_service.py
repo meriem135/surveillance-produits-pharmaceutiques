@@ -302,7 +302,7 @@ class AnalystService:
 
 ### Période
 - **Saison** : {season}
-- **Contexte** : {context or 'Phase 1 — Ingestion MQTT'}
+- **Contexte** : {context or 'Ingestion MQTT'}
 
 ### Risques Identifiés pour la Saison
 {risks}

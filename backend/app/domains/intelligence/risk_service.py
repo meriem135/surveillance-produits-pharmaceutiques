@@ -6,7 +6,7 @@ Combines multiple signals into a unified 0-100 risk score.
 Architecture:
   Risk = Σ(w_i * f_i)  where f_i are risk factors and w_i are learned weights
 
-Risk Factors (f_i) — weights aligned with Phase 2 model & SHAP:
+Risk Factors (f_i) — weights aligned with the anomaly model & SHAP:
   1. ML_Anomaly_Risk  (30%) — normalized One-Class SVM anomaly score
                                + local causes explaining WHY the anomaly
   2. CVE_Risk         (25%) — CVSS + EPSS from NVD matched to firmware
@@ -14,10 +14,9 @@ Risk Factors (f_i) — weights aligned with Phase 2 model & SHAP:
   4. Risk_Velocity    (10%) — first derivative of risk over time (trend)
   5. Temporal_Decay   (10%) — recency weighting (recent events matter more)
 
-The ML factor is the direct bridge to Phase 2: it consumes the SAME
-One-Class SVM model and SAME local explanations served by the
-/anomalies and /api/shap endpoints, so the risk decomposition and the
-SHAP dashboard tell a single coherent story.
+The ML factor consumes the SAME One-Class SVM model and the SAME local
+explanations served by the anomaly service, so the risk decomposition
+and the SHAP explanations tell a single coherent story.
 
 Data Science innovations:
   - Bayesian updating: prior risk is updated with new evidence
@@ -263,7 +262,7 @@ class RiskScoringEngine:
         """Compute full risk score with all factors."""
         history = self._get_history(device_id)
 
-        # 1. ML Anomaly Risk (+ SHAP explanations bridging Phase 2)
+        # 1. ML Anomaly Risk (+ SHAP explanations)
         ml_risk = 0.0
         ml_raw_score = 0.0
         ml_shap_causes: list = []
@@ -272,7 +271,7 @@ class RiskScoringEngine:
                 analysis = ml_anomaly.analyze(ml_telemetry)
                 ml_raw_score = analysis["anomaly_score"]
                 ml_risk = _normalize_ml_score(ml_raw_score)
-                # top_causes = SHAP explanations (same model/dashboard as Phase 2)
+                # top_causes = SHAP explanations of the anomaly model
                 ml_shap_causes = analysis.get("top_causes", [])
             except Exception as e:
                 print(f"ML analysis failed for {device_id}: {e}")
@@ -340,7 +339,7 @@ class RiskScoringEngine:
                 "contribution": round(contribution, 1),
                 "contribution_pct": round(contribution / max(final_score, 1) * 100, 1),
             }
-            # SHAP bridge: attach the Phase 2 explanations to the ML factor
+            # SHAP bridge: attach the anomaly explanations to the ML factor
             if factor_name == "ml_anomaly" and ml_shap_causes:
                 entry["shap_causes"] = ml_shap_causes
             decomposition.append(entry)

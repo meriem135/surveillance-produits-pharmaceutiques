@@ -10,15 +10,11 @@ frontend/src/
 ├── layouts/             DashboardLayout : navigation + contrôle d'accès par rôle
 ├── pages/
 │   ├── HomePage              page publique (KPIs du dataset)
-│   ├── TableauDeBordPage     taux d'attaque par mois / heure / saison (+ DatasetOverview)
-│   ├── Phase1Page            ingestion temps réel : flux WebSocket, règles et alertes DPI
-│   ├── Phase2Page            4 modèles ML, timeline, entraînement en direct
-│   ├── ShapDashboardPage     explicabilité SHAP (annuelle, horaire, par point)
-│   ├── TrainingResultsPage   résultats détaillés du dernier entraînement
-│   ├── AdvancedAnalyticsPage courbes ROC / PR, distributions de score
-│   ├── PharmaImpactPage      impact des attaques sur stock / production (GMP)
+│   ├── OverviewPage          vue d'ensemble lue en base
+│   ├── etude/                Temps réel, Détection vs réalité, Rapport, Résultats,
+│   │                         Explicabilité SHAP, Jeu de données, Entraînement, Paramètres
 │   ├── AdminUsersPage        comptes (admin)       AuditLogsPage   journal d'audit (admin)
-│   └── ProfilePage, LoginPage, RegisterPage, ShapPointReportPage
+│   └── ProfilePage, LoginPage, RegisterPage
 ├── components/          ui/ (shadcn) + panneaux métier
 ├── contexts/            AuthContext (JWT, expiration, 401 → déconnexion), ThemeContext
 └── types.ts

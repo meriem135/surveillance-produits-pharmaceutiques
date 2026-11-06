@@ -7,7 +7,7 @@
 #
 # Tests : docker compose exec app python -m pytest tests -q
 # Le port n'écoute que sur 127.0.0.1 : publier l'application derrière un proxy (Caddy, nginx)
-# qui laisse passer les WebSockets (/api/v1/phase2/train-ws, /api/v1/transmission/train-ws, /ws/stream).
+# qui laisse passer les WebSockets (/api/v1/transmission/train-ws, /api/v1/etude/live).
 name: vigilochain
 
 services:

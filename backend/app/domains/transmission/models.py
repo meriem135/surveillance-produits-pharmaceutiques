@@ -2,8 +2,8 @@
 
 Une ligne par entraînement lancé depuis le dashboard (transmission_runs) et une ligne par
 modèle candidat de cet entraînement (transmission_model_results). Tables distinctes de
-ml_models / model_metrics : ces dernières alimentent les pages de la phase 2, qui lisent
-toutes leurs lignes sans filtre.
+ml_models / model_metrics : ces dernières sont propres aux archives d'entraînement et
+sont lues sans filtre.
 """
 from datetime import datetime, timezone
 from typing import Optional

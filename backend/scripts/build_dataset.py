@@ -23,7 +23,7 @@ Méthode (celle des notebooks Generation_Annuelle + Pipeline_Phase2_Complet) :
    c) Injection « plausible » : valeurs forgées autour de 7 °C, décorrélées de
       la météo, 3 à 6 h. Météo et thermostat ne sont jamais modifiés en (b)/(c).
 4. Les 21 features multivariées sont calculées par la même fonction que
-   l'entraînement (`app.api.v1.phase2._engineer_features`).
+   l'entraînement (`app.domains.ml.pipeline._engineer_features`).
 
 Usage :  cd backend && .venv/bin/python scripts/build_dataset.py
 """
@@ -284,7 +284,7 @@ def inject_attacks(df: pd.DataFrame, traces: dict, rng: np.random.Generator) -> 
 # ════════════════════════════════════════════════════════════════════════════
 
 def finalize(df: pd.DataFrame) -> pd.DataFrame:
-    from app.api.v1.phase2 import FEATURE_COLS, _engineer_features
+    from app.domains.ml.pipeline import FEATURE_COLS, _engineer_features
 
     df["fridge_cond"] = np.where(df["fridge_temp"] > 8.0, "high", "low")
     df["thermo_status"] = (np.abs(df["thermostat_temp"] - THERMO_SETPOINT) > 1.5).astype(int)

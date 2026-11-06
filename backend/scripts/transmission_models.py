@@ -162,7 +162,7 @@ def engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
               "fridge_thermostat_diff_mean_15min", "weather_fridge_diff_mean_15min",
               "fridge_cond_enc", "thermo_status"]
     d[feats] = d[feats].replace([np.inf, -np.inf], np.nan).fillna(0.0)
-    d = tr.drop_phase2_cols(d)
+    d = tr.drop_legacy_cols(d)
     return d, feats
 
 

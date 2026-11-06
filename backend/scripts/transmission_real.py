@@ -24,7 +24,7 @@ Consigne : travailler uniquement sur les données disponibles (3 traces normales
    ce qui parcourt TOUTES les rotations : chaque heure sert 3 fois de test et 3 fois
    de validation ; les scénarios tournent aussi, les résultats sont cumulés.
 3. Même protocole que transmission_study.py (seuil = max F1 sur la validation de
-   chaque répétition) : les 4 modèles de la phase 2
+   chaque répétition) : les 4 détecteurs non supervisés
    réentraînés, et un détecteur STATISTIQUE par capteur — A : capteur figé,
    L : niveau (EWMA), V : dispersion (EWMA du carré des écarts), R : séquence déjà
    vue (rejeu exact).
@@ -61,7 +61,7 @@ sys.path.insert(0, str(HERE))
 import build_dataset as bd  # noqa: E402
 import train_models as tm  # noqa: E402
 import transmission_study as ts  # noqa: E402
-from app.api.v1 import phase2  # noqa: E402
+from app.domains.ml import pipeline  # noqa: E402
 from app.core import paths  # noqa: E402
 
 SEED = 2019
@@ -81,7 +81,7 @@ W_MAX = 180                     # plus longue fenêtre glissante des features (1
 GUARD = 240                     # 20 min exclues après chaque épisode et en début de bloc changeant de rôle
 EP_MIN, EP_MAX = 180, 300       # durée d'un épisode : 15 à 25 min (≈ 33 % d'un bloc)
 N_RUNS = 20                     # répétitions : les 20 rotations du cycle de blocs (voir BLOCK_CYCLE)
-FEATURES = phase2.FEATURE_COLS
+FEATURES = pipeline.FEATURE_COLS
 OUT_DIR = paths.MODELS_DIR / "transmission_reel"
 DATASET_PATH = paths.PROCESSED_DIR / "dataset_transmission_reel.csv"
 
@@ -112,8 +112,8 @@ log = ts.log
 PHASE2_ONLY_COLS = ("hour_sin", "hour_cos", "season_sin", "season_cos")
 
 
-def drop_phase2_cols(df: pd.DataFrame) -> pd.DataFrame:
-    """Retire les colonnes héritées du pré-calcul phase2 (heure, saison, moyennes et
+def drop_legacy_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Retire les colonnes héritées du pré-calcul historique (heure, saison, moyennes et
     écarts glissants sur 10 pas). Elles ne font pas partie des 35 features du modèle
     de transmission : on garde un jeu de données propre et reproductible."""
     cols = [c for c in df.columns if c.endswith(("_roll_mean_10", "_roll_std_10"))]
@@ -286,7 +286,7 @@ def inject(df: pd.DataFrame, episodes: list[dict], rng: np.random.Generator, run
     # Le rôle train/val/test n'est PLUS écrit dans le jeu de données : il est recalculé
     # au moment de l'entraînement par block_split() (non aléatoire, 70/15/15, par blocs).
     out["garde"] = garde
-    return phase2._engineer_features(out)
+    return pipeline._engineer_features(out)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -520,7 +520,7 @@ def one_run(base: pd.DataFrame, run: int, quiet: bool) -> tuple[dict, list[dict]
             s = np.nan_to_num(np.asarray(scores[key], dtype=float), nan=0.0)
             # Le canal R est tout-ou-rien : son seuil est naturel, pas choisi par le F1
             # (sinon « tout signaler » gagne sur la validation dès que R voit peu d'attaques).
-            thr = REPLAY_SCORE / 2 if key == "Canal R" else phase2._best_f1_threshold(y[val_idx], s[val_idx])
+            thr = REPLAY_SCORE / 2 if key == "Canal R" else pipeline._best_f1_threshold(y[val_idx], s[val_idx])
             preds[key] = s >= thr
         if key not in preds:
             continue
