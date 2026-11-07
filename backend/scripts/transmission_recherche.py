@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/transmission_recherche.py
+#   RECHERCHE D'HYPERPARAMÈTRES. Petite grille par modèle, validation croisée groupée par bloc
+#   sur le train uniquement.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Recherche d'hyperparamètres (petite grille) — validation croisée GROUPÉE par bloc
 ==================================================================================
@@ -47,6 +52,14 @@ GRID = {
 N_SPLITS = 4
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] main
+#   Rôle   : RECHERCHE D'HYPERPARAMÈTRES : essaie une petite grille de réglages pour chaque modèle, en
+#            validation croisée groupée par bloc sur le train uniquement, et écrit
+#            recherche_hyperparametres.json.
+#   Entrée : rien
+#   Sortie : fichier JSON lu ensuite par _tuned()
+# ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     from sklearn.metrics import average_precision_score
     from sklearn.model_selection import StratifiedGroupKFold

@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/api/v1/auth.py
+#   ROUTES COMPTES ET SÉCURITÉ (/api/v1/auth/...). Inscription, connexion (jeton JWT), profil,
+#   gestion des comptes et journal d'audit (admin).
+# ══════════════════════════════════════════════════════════════════════════
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -21,6 +26,12 @@ VALID_ROLES = {"admin", "operator"}
 PUBLIC_ROLES = {"operator"}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _log
+#   Rôle   : Écrit une action d'administrateur dans le journal d'audit.
+#   Entrée : session, admin, action, cible, détails
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def _log(session: AsyncSession, admin: User, action: str,
               target_id: int | None = None, target_username: str | None = None,
               details: str | None = None):
@@ -33,6 +44,12 @@ async def _log(session: AsyncSession, admin: User, action: str,
 
 # ── Public ────────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] register
+#   Rôle   : route API POST /auth/register : INSCRIPTION publique (crée seulement des opérateurs).
+#   Entrée : data : email, nom, mot de passe
+#   Sortie : le compte créé
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/auth/register", response_model=UserRead, status_code=201,
              summary="Créer un compte (public)")
 async def register(data: UserCreate, session: AsyncSession = Depends(get_session)):
@@ -53,6 +70,12 @@ async def register(data: UserCreate, session: AsyncSession = Depends(get_session
     return UserRead.model_validate(user)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] login
+#   Rôle   : route API POST /auth/login : CONNEXION. Vérifie le mot de passe et renvoie un jeton JWT.
+#   Entrée : data : nom et mot de passe
+#   Sortie : jeton + utilisateur
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/auth/login", response_model=Token)
 async def login(data: UserLogin, session: AsyncSession = Depends(get_session)):
     repo = UserRepository(session)
@@ -67,11 +90,23 @@ async def login(data: UserLogin, session: AsyncSession = Depends(get_session)):
 
 # ── Profile (all roles) ───────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_me
+#   Rôle   : route API GET /auth/me : mon profil.
+#   Entrée : utilisateur connecté
+#   Sortie : profil
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/auth/me", response_model=UserRead)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] update_me
+#   Rôle   : route API PATCH /auth/me : modifier mon profil (email, nom).
+#   Entrée : data ; utilisateur connecté
+#   Sortie : profil modifié
+# ──────────────────────────────────────────────────────────────────────
 @router.patch("/auth/me", response_model=UserRead, summary="Modifier mon profil")
 async def update_me(
     data: UserUpdate,
@@ -93,6 +128,12 @@ async def update_me(
     return UserRead.model_validate(current_user)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] change_my_password
+#   Rôle   : route API POST /auth/me/password : changer mon mot de passe.
+#   Entrée : ancien et nouveau mot de passe
+#   Sortie : rien (204)
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/auth/me/password", status_code=204, summary="Changer mon mot de passe")
 async def change_my_password(
     data: ChangePassword,
@@ -109,6 +150,12 @@ async def change_my_password(
 
 # ── Admin user management ─────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] list_users
+#   Rôle   : route API GET /auth/users : liste des comptes (admin).
+#   Entrée : admin connecté
+#   Sortie : liste d'utilisateurs
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/auth/users", response_model=list[UserRead],
             summary="Lister tous les comptes (admin)")
 async def list_users(
@@ -120,6 +167,12 @@ async def list_users(
     return [UserRead.model_validate(u) for u in users]
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] create_user
+#   Rôle   : route API POST /auth/users : créer un compte (admin).
+#   Entrée : data ; admin
+#   Sortie : compte créé
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/auth/users", response_model=UserRead, status_code=201,
              summary="Créer un compte (admin)")
 async def create_user(
@@ -145,6 +198,12 @@ async def create_user(
     return UserRead.model_validate(user)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] update_user
+#   Rôle   : route API PATCH /auth/users/{id} : modifier un compte (admin).
+#   Entrée : user_id ; data ; admin
+#   Sortie : compte modifié
+# ──────────────────────────────────────────────────────────────────────
 @router.patch("/auth/users/{user_id}", response_model=UserRead,
               summary="Modifier un compte (admin)")
 async def update_user(
@@ -178,6 +237,12 @@ async def update_user(
     return UserRead.model_validate(user)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] toggle_active
+#   Rôle   : route API PATCH /auth/users/{id}/toggle-active : activer / désactiver un compte (admin).
+#   Entrée : user_id ; admin
+#   Sortie : nouvel état
+# ──────────────────────────────────────────────────────────────────────
 @router.patch("/auth/users/{user_id}/toggle-active",
               summary="Activer/Désactiver un compte (admin)")
 async def toggle_active(
@@ -201,6 +266,12 @@ async def toggle_active(
     return UserRead.model_validate(user)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] reset_password
+#   Rôle   : route API POST /auth/users/{id}/reset-password : réinitialiser un mot de passe (admin).
+#   Entrée : user_id ; nouveau mot de passe
+#   Sortie : message
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/auth/users/{user_id}/reset-password",
              summary="Réinitialiser le mot de passe (admin)")
 async def reset_password(
@@ -220,6 +291,12 @@ async def reset_password(
     return {"status": "ok"}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] delete_user
+#   Rôle   : route API DELETE /auth/users/{id} : supprimer un compte (admin, pas le sien).
+#   Entrée : user_id ; admin
+#   Sortie : rien (204)
+# ──────────────────────────────────────────────────────────────────────
 @router.delete("/auth/users/{user_id}", status_code=204,
                summary="Supprimer un compte (admin)")
 async def delete_user(
@@ -242,6 +319,12 @@ async def delete_user(
 
 # ── Audit log ─────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_audit_logs
+#   Rôle   : route API GET /auth/audit-logs : les 100 dernières actions d'administration.
+#   Entrée : admin
+#   Sortie : liste
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/auth/audit-logs", response_model=list[AuditLogRead],
             summary="Historique des actions (admin)")
 async def get_audit_logs(
@@ -254,6 +337,12 @@ async def get_audit_logs(
     return [AuditLogRead.model_validate(r) for r in result.scalars().all()]
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] delete_audit_logs
+#   Rôle   : route API DELETE /auth/audit-logs : vider le journal d'audit (admin).
+#   Entrée : admin
+#   Sortie : rien (204)
+# ──────────────────────────────────────────────────────────────────────
 @router.delete("/auth/audit-logs", status_code=204,
                summary="Supprimer l'historique des actions (admin)")
 async def delete_audit_logs(

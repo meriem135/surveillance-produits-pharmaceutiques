@@ -1,8 +1,9 @@
 /** Résultats et métriques — transmission_metrics, transmission_model_results, transmission_learning_curve
  *  (GET /api/v1/etude/metrics). Le modèle est choisi sur la validation ; le test ne fait que confirmer. */
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Empty, Loading, MODEL_FR, Note, PageHeader, Readouts, State, ROLE_FR, SCENARIO_FR, Section, Stat, Table, minutes, nf, pct,
+  Empty, Loading, MODEL_FR, Note, PageHeader, Readouts, State, ROLE_FR, SCENARIO_FR, Section, Stat, Table, dateFr, minutes, nf, pct,
   tooltipStyle, useApi, usePalette,
 } from '../../components/etude/kit';
 
@@ -24,7 +25,7 @@ interface ModelBlock {
 interface CvStat { mean: number; std: number }
 interface MetricsResp {
   run: { id: number; source: string; date: string; critere: string | null; repetitions: number; zone_de_garde_min: number | null;
-    meilleur_modele: string | null };
+    meilleur_modele: string | null; lignes?: number | null };
   modeles: Record<string, ModelBlock>; classement_validation: string[];
   courbe_apprentissage: { modele: string | null; points: { part_train: number; lignes_train: number; ap_train: number; ap_val: number; f1_train: number | null; f1_val: number | null }[] };
   validation_croisee: null | { lignes: number; blocs: number; folds: number;
@@ -32,11 +33,44 @@ interface MetricsResp {
   sources: Record<string, string>;
 }
 
+interface RunItem { id: number; source: string; date: string; meilleur_modele: string | null; lance_par: string | null;
+  jeu_de_donnees: string | null; importe: boolean }
+
+function runLabel(r: RunItem) {
+  if (r.source === 'reference') return `Étude de référence (n° ${r.id})`;
+  const model = r.meilleur_modele ? MODEL_FR[r.meilleur_modele] ?? r.meilleur_modele : '—';
+  return `Entraînement n° ${r.id} du ${dateFr(r.date)} : ${model}, ${r.jeu_de_donnees ?? 'jeu du projet'}${r.importe ? ' (importé)' : ''}`;
+}
+
 export default function ResultatsPage() {
-  const { data, error, loading, reload } = useApi<MetricsResp>('/api/v1/etude/metrics');
+  // Entraînement affiché : ?run=<id> dans l'adresse, sinon le plus récent terminé (dernier entraînement lancé).
+  const [params, setParams] = useSearchParams();
+  const runs = useApi<{ runs: RunItem[]; defaut: number | null }>('/api/v1/etude/runs');
+  const asked = Number(params.get('run')) || null;
+  const runId = asked ?? runs.data?.runs[0]?.id ?? null;
+  const { data, error, loading, reload } = useApi<MetricsResp>(runId ? `/api/v1/etude/metrics?run_id=${runId}` : '/api/v1/etude/metrics');
   const pal = usePalette();
-  const header = <PageHeader title="Résultats et métriques" loading={loading} onRefresh={reload}
-    subtitle="Un seul réglage d'alerte par modèle, choisi sur la validation ; les chiffres du test confirment le choix sans y avoir servi." />;
+  const current = runs.data?.runs.find(r => r.id === (data?.run.id ?? runId));
+  const header = (
+    <>
+      <PageHeader title="Résultats et métriques" loading={loading} onRefresh={() => { runs.reload(); reload(); }}
+        subtitle="Un seul réglage d'alerte par modèle, choisi sur la validation ; les chiffres du test confirment le choix sans y avoir servi." />
+      {runs.data && runs.data.runs.length > 0 && (
+        <div className="vc-fiche p-4 flex flex-wrap items-center gap-3 text-[14px]" style={{ color: 'var(--text-secondary)' }}>
+          <label htmlFor="run-select" className="font-semibold" style={{ color: 'var(--text-primary)' }}>Résultats affichés :</label>
+          <select id="run-select" className="vc-select max-w-full" value={runId ?? ''} data-testid="select-run"
+            onChange={e => setParams({ run: e.target.value })}>
+            {runs.data.runs.map(r => <option key={r.id} value={r.id}>{runLabel(r)}</option>)}
+          </select>
+          {current && current.source === 'web' && (
+            <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+              Métriques réelles enregistrées en base pour cet entraînement (table transmission_metrics, run_id = {current.id}).
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  );
   if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
   const ranking = data.classement_validation.filter(k => data.modeles[k]);
   const bestKey = ranking[0];
@@ -146,7 +180,7 @@ export default function ResultatsPage() {
 
       {best && bt && (
         <div className="grid xl:grid-cols-2 gap-6">
-          <Section title={`Par scénario, ${MODEL_FR[bestKey]} sur le test`} subtitle="Épisodes détectés, délai médian et part des mesures falsifiées signalées." source={data.sources.modeles}>
+          <Section title={`Par scénario, ${MODEL_FR[bestKey]} sur le test`} subtitle="Évaluation par scénario injecté : le modèle répond seulement « attaque » ou « normal », il ne reconnaît pas le type. Épisodes détectés, délai médian et part des mesures falsifiées signalées." source={data.sources.modeles}>
             <Table>
               <thead><tr><th>Scénario</th><th className="vc-num">Épisodes</th><th className="vc-num">Délai</th><th className="vc-num">Mesures signalées</th></tr></thead>
               <tbody>

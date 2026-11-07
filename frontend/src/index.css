@@ -1,94 +1,91 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════════════════
-   VigiloChain : thème « salle de contrôle de la chaîne du froid »
+   VigiloChain : interface claire et moderne
 
-   Principe (inspiré des écrans de supervision ISA-101) : l'écran reste
-   gris et calme tant que tout va bien ; la couleur est réservée à ce qui
-   a un sens.
-     - bleu froid : la plage 2–8 °C, le détecteur, ce qui est conforme ;
-     - ambre      : une alerte levée par le modèle ;
-     - rouge      : une attaque réelle, une détection manquée, une erreur.
-   Pas de vert « tout va bien » : l'absence de couleur suffit.
-
-   Typographie : une seule famille, Barlow, en deux largeurs. Barlow
-   Condensed pour les titres et les lectures chiffrées (comme les
-   étiquettes d'instrument et les cartons pharmaceutiques), Barlow pour le
-   texte courant et les tables.
+   Fond doux, cartes blanches aux angles arrondis et ombres légères, un
+   seul accent indigo. Les couleurs d'état gardent leur sens :
+     - indigo : conforme / détecteur ;
+     - ambre  : alerte levée par le modèle ;
+     - rouge  : attaque réelle, détection manquée, erreur.
+   Typographie : Inter (texte) et Plus Jakarta Sans (titres).
    ══════════════════════════════════════════════════════════════════════ */
 :root, [data-theme="light"] {
   color-scheme: light;
-  --bg-base:    #E3E6E8;   /* gris salle */
-  --bg-panel:   #F6F7F8;   /* panneau */
-  --bg-card:    #F6F7F8;
-  --bg-subtle:  #ECEEF0;
-  --bg-sidebar: #EEF0F1;
-  --border:     #CBD0D5;   /* trait */
-  --border-strong: #A9B1B8;
-  --text-primary:   #1A2026; /* encre */
-  --text-secondary: #46515B;
-  --text-muted:     #66717B;
-  --accent-primary: #1F5FA6; /* bleu froid */
+  --bg-base:    #F4F6FB;
+  --bg-panel:   #FFFFFF;
+  --bg-card:    #FFFFFF;
+  --bg-subtle:  #F1F4FA;
+  --bg-sidebar: #FFFFFF;
+  --border:     #E5E9F2;
+  --border-strong: #CFD6E4;
+  --text-primary:   #0F172A;
+  --text-secondary: #475569;
+  --text-muted:     #6B7689;
+  --accent-primary: #3B5BDB;
   --accent-primary-fg: #FFFFFF;
-  --accent-success: #1F5FA6; /* « conforme » = bleu froid, pas de vert */
-  --accent-danger:  #B3261E; /* rouge alarme */
-  --accent-warning: #8F5300; /* ambre alarme (texte) */
-  --alarm-amber-fill: #F0B13C;
-  --accent-purple:  #5B5F97;
-  --accent-pink:    #8E4B6E;
-  --accent-glow:    rgba(31, 95, 166, 0.10);
-  --shadow-card: none;
-  --chart-grid: #D5DADE;
-  --paper-line: rgba(31, 95, 166, 0.07);
-  --paper-line-major: rgba(31, 95, 166, 0.13);
-  --band: rgba(31, 95, 166, 0.14);
+  --accent-success: #3B5BDB;
+  --accent-danger:  #C92A2A;
+  --accent-warning: #B45309;
+  --alarm-amber-fill: #F59E0B;
+  --accent-purple:  #7048E8;
+  --accent-pink:    #C2410C;
+  --accent-glow:    rgba(59, 91, 219, 0.14);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px -8px rgba(15, 23, 42, 0.08);
+  --shadow-pop:  0 10px 30px -10px rgba(15, 23, 42, 0.18);
+  --chart-grid: #E8ECF4;
+  --paper-line: rgba(59, 91, 219, 0.04);
+  --paper-line-major: rgba(59, 91, 219, 0.08);
+  --band: rgba(59, 91, 219, 0.12);
+  --radius: 14px;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg-base:    #1D2328;
-  --bg-panel:   #262D33;
-  --bg-card:    #262D33;
-  --bg-subtle:  #2C343B;
-  --bg-sidebar: #21282D;
-  --border:     #3A444C;
-  --border-strong: #56616B;
-  --text-primary:   #E4E8EB;
-  --text-secondary: #AEB7BF;
-  --text-muted:     #8D97A0;
-  --accent-primary: #7AAEE8;
-  --accent-primary-fg: #0E1B2A;
-  --accent-success: #7AAEE8;
-  --accent-danger:  #F2857A;
-  --accent-warning: #F2B54E;
-  --alarm-amber-fill: #E0A23A;
-  --accent-purple:  #A9ACD9;
-  --accent-pink:    #D59BB8;
-  --accent-glow:    rgba(122, 174, 232, 0.13);
-  --shadow-card: none;
-  --chart-grid: #38424A;
-  --paper-line: rgba(122, 174, 232, 0.06);
-  --paper-line-major: rgba(122, 174, 232, 0.11);
-  --band: rgba(122, 174, 232, 0.16);
+  --bg-base:    #0B1020;
+  --bg-panel:   #131A2D;
+  --bg-card:    #131A2D;
+  --bg-subtle:  #1A2238;
+  --bg-sidebar: #0F1527;
+  --border:     #222C45;
+  --border-strong: #34415F;
+  --text-primary:   #E8EDF7;
+  --text-secondary: #AAB5CA;
+  --text-muted:     #8190AA;
+  --accent-primary: #8AA4FF;
+  --accent-primary-fg: #0B1020;
+  --accent-success: #8AA4FF;
+  --accent-danger:  #FF8787;
+  --accent-warning: #FBBF24;
+  --alarm-amber-fill: #F59E0B;
+  --accent-purple:  #B7A3FF;
+  --accent-pink:    #FDBA74;
+  --accent-glow:    rgba(138, 164, 255, 0.18);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.5);
+  --shadow-pop:  0 12px 32px -10px rgba(0, 0, 0, 0.6);
+  --chart-grid: #232D46;
+  --paper-line: rgba(138, 164, 255, 0.04);
+  --paper-line-major: rgba(138, 164, 255, 0.08);
+  --band: rgba(138, 164, 255, 0.16);
 }
 
 @theme {
-  --color-bg-base:      #E3E6E8;
-  --color-bg-panel:     #F6F7F8;
-  --color-bg-card:      #F6F7F8;
-  --color-bg-sidebar:   #EEF0F1;
-  --color-border:       #CBD0D5;
-  --color-border-panel: #CBD0D5;
-  --color-text-primary:   #1A2026;
-  --color-text-secondary: #46515B;
-  --color-accent-cyan:    #1F5FA6;
-  --color-accent-green:   #1F5FA6;
-  --color-accent-red:     #B3261E;
-  --color-accent-orange:  #8F5300;
-  --color-accent-purple:  #5B5F97;
-  --breakpoint-3xl: 112.5rem; /* 1800 px : écrans larges, une colonne de plus */
-  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
-  --font-body: "Barlow", system-ui, sans-serif;
+  --color-bg-base:      #F4F6FB;
+  --color-bg-panel:     #FFFFFF;
+  --color-bg-card:      #FFFFFF;
+  --color-bg-sidebar:   #FFFFFF;
+  --color-border:       #E5E9F2;
+  --color-border-panel: #E5E9F2;
+  --color-text-primary:   #0F172A;
+  --color-text-secondary: #475569;
+  --color-accent-cyan:    #3B5BDB;
+  --color-accent-green:   #3B5BDB;
+  --color-accent-red:     #C92A2A;
+  --color-accent-orange:  #B45309;
+  --color-accent-purple:  #7048E8;
+  --breakpoint-3xl: 112.5rem;
+  --font-display: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
@@ -112,8 +109,8 @@
   --color-accent-glow: var(--accent-glow);
   --accent-red: var(--accent-danger);
   --accent-orange: var(--accent-warning);
-  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
-  --body: "Barlow", system-ui, sans-serif;
+  --display: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+  --body: "Inter", system-ui, sans-serif;
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────── */
@@ -124,21 +121,20 @@ body {
   color: var(--text-primary);
   font-family: var(--body);
   font-size: 15px;
-  line-height: 1.5;
-  word-spacing: 0.06em; /* l'espace de Barlow est étroite : on l'élargit un peu pour la lecture */
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: 0; }
-code, pre, kbd { font-family: var(--font-mono); font-size: 0.92em; word-spacing: 0; }
-/* Les petites étiquettes ne sont jamais en monospace : seul le code l'est */
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; }
+code, pre, kbd { font-family: var(--font-mono); font-size: 0.9em; }
+code { background: var(--bg-subtle); padding: 1px 6px; border-radius: 6px; }
 .font-mono { font-family: var(--body); font-variant-numeric: tabular-nums; }
-.font-display { font-family: var(--display); letter-spacing: 0; }
+.font-display { font-family: var(--display); letter-spacing: -0.02em; }
 .font-black { font-weight: 700; }
 .tabular, .tabular-nums { font-variant-numeric: tabular-nums; }
 ::selection { background: color-mix(in srgb, var(--accent-primary) 25%, transparent); }
 
-:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; border-radius: 2px; }
+:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; border-radius: 8px; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -148,37 +144,39 @@ code, pre, kbd { font-family: var(--font-mono); font-size: 0.92em; word-spacing:
 @layer components {
 /* ─── Composants de la plateforme ───────────────────────────────────── */
 
-/* Panneau : la brique de base. Rayon faible, trait fin, pas d'ombre. */
+/* Carte : fond blanc, angles arrondis, ombre légère. */
 .vc-card, .vc-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
-/* Fiche : le panneau principal d'une page (détecteur en service, modèle retenu).
-   Bande bleu froid à gauche, comme le liseré d'une étiquette « produit réfrigéré ». */
+/* Fiche : carte principale d'une page, avec un dégradé discret en tête. */
 .vc-fiche {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-left: 5px solid var(--accent-primary);
-  border-radius: 6px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 9%, transparent), transparent 55%),
+    var(--bg-panel);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 22%, var(--border));
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
 }
 .vc-panel-head { border-bottom: 1px solid var(--border); }
 .vc-panel-foot {
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
   color: var(--text-muted);
   font-size: 12.5px;
 }
 
-/* Petite étiquette : casse normale, pas d'espacement élargi. */
-.vc-kicker { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0; text-transform: none; }
+.vc-kicker { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
 
-/* Lectures chiffrées : une rangée d'instruments séparés par des traits verticaux. */
-.vc-readouts { display: grid; background: var(--border); gap: 1px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
-.vc-readouts > * { background: var(--bg-panel); padding: 14px 16px 15px; min-width: 0; }
-.vc-readout-value { font-family: var(--display); font-weight: 500; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text-primary); }
-.vc-readout-unit { font-family: var(--display); font-weight: 500; font-size: 18px; color: var(--text-secondary); margin-left: 3px; }
+/* Lectures chiffrées : une rangée de mini-cartes séparées par un filet. */
+.vc-readouts { display: grid; background: var(--border); gap: 1px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-card); }
+.vc-readouts > * { background: var(--bg-panel); padding: 16px 18px 17px; min-width: 0; }
+.vc-readout-value { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.vc-readout-unit { font-family: var(--body); font-weight: 500; font-size: 14px; color: var(--text-secondary); margin-left: 4px; letter-spacing: 0; }
 
-/* Papier d'enregistreur : quadrillage fin derrière les courbes, comme une bande de data-logger. */
+/* Fond des courbes : quadrillage très léger. */
 .vc-paper {
   background-color: var(--bg-panel);
   background-image:
@@ -188,68 +186,77 @@ code, pre, kbd { font-family: var(--font-mono); font-size: 0.92em; word-spacing:
     linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
   background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: 12px;
 }
 
 /* Boutons */
 .vc-btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
-  border-radius: 4px; font-size: 14px; font-weight: 600; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px;
+  border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap;
   border: 1px solid var(--border-strong); background: var(--bg-panel); color: var(--text-primary);
+  transition: background .15s, border-color .15s, box-shadow .15s, transform .1s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
-.vc-btn:hover:not(:disabled) { background: var(--bg-subtle); }
+.vc-btn:hover:not(:disabled) { background: var(--bg-subtle); border-color: var(--text-muted); }
+.vc-btn:active:not(:disabled) { transform: translateY(1px); }
 .vc-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.vc-btn-primary { background: var(--accent-primary); border-color: var(--accent-primary); color: var(--accent-primary-fg); }
-.vc-btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-primary) 88%, var(--text-primary)); }
+.vc-btn-primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 92%, white), var(--accent-primary));
+  border-color: var(--accent-primary); color: var(--accent-primary-fg);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent-primary) 70%, transparent);
+}
+.vc-btn-primary:hover:not(:disabled) { background: var(--accent-primary); border-color: var(--accent-primary); filter: brightness(1.06); }
 .vc-btn-danger { color: var(--accent-danger); }
 
-/* Sélecteur segmenté (rôle train / validation / test, scénarios) */
-.vc-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border-strong); border-radius: 4px; overflow: hidden; background: var(--bg-panel); }
-.vc-seg > button { padding: 6px 12px; font-size: 13.5px; color: var(--text-secondary); border-left: 1px solid var(--border); }
-.vc-seg > button:first-child { border-left: none; }
-.vc-seg > button[aria-pressed="true"] { background: var(--text-primary); color: var(--bg-panel); font-weight: 600; }
-.vc-seg > button:hover:not([aria-pressed="true"]) { background: var(--bg-subtle); color: var(--text-primary); }
+/* Sélecteur segmenté */
+.vc-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 12px; background: var(--bg-subtle); border: 1px solid var(--border); }
+.vc-seg > button { padding: 6px 13px; font-size: 13.5px; font-weight: 500; color: var(--text-secondary); border-radius: 9px; transition: background .15s, color .15s; }
+.vc-seg > button[aria-pressed="true"] { background: var(--bg-panel); color: var(--text-primary); font-weight: 600; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.vc-seg > button:hover:not([aria-pressed="true"]) { color: var(--text-primary); }
 
 .vc-input, .vc-select {
-  height: 34px; padding: 0 10px; border-radius: 4px; font-size: 14px;
+  height: 38px; padding: 0 12px; border-radius: 10px; font-size: 14px;
   background: var(--bg-panel); border: 1px solid var(--border-strong); color: var(--text-primary);
+  transition: border-color .15s, box-shadow .15s;
 }
-.vc-input:focus, .vc-select:focus { border-color: var(--accent-primary); outline: 2px solid var(--accent-glow); outline-offset: 0; }
+.vc-input:focus, .vc-select:focus { border-color: var(--accent-primary); outline: none; box-shadow: 0 0 0 4px var(--accent-glow); }
 
-/* Tables : en-têtes en casse normale, chiffres alignés à droite */
+/* Tables */
 table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table th { font-weight: 600; }
 .vc-table th {
-  text-align: left; font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
-  padding: 9px 12px; border-bottom: 1.5px solid var(--border-strong); white-space: nowrap; background: transparent;
+  text-align: left; font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+  padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--bg-subtle);
 }
-.vc-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+.vc-table th:first-child { border-top-left-radius: 10px; }
+.vc-table th:last-child { border-top-right-radius: 10px; }
+.vc-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
 .vc-table tbody tr:last-child td { border-bottom: none; }
-.vc-table tbody tr:hover td { background: var(--bg-subtle); }
+.vc-table tbody tr:hover td { background: color-mix(in srgb, var(--accent-primary) 5%, transparent); }
 .vc-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* Pastille d'état : forme + couleur (lisible sans la couleur) */
+/* Pastille d'état */
 .vc-state { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 
-/* Registre des épisodes : un repère par épisode d'attaque. */
+/* Registre des épisodes */
 .vc-tally { display: flex; flex-wrap: wrap; gap: 3px; }
 .vc-tally > i {
-  display: block; width: 13px; height: 18px; border-radius: 2px;
+  display: block; width: 12px; height: 18px; border-radius: 4px;
   background: var(--accent-primary);
 }
 .vc-tally > i[data-miss] {
-  background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--accent-danger) 55%, transparent) 3px 4.5px);
+  background: color-mix(in srgb, var(--accent-danger) 14%, transparent);
   box-shadow: inset 0 0 0 1.5px var(--accent-danger);
 }
 @keyframes tally-in { from { opacity: 0; transform: scaleY(0.2); } to { opacity: 1; transform: scaleY(1); } }
 .vc-tally-animate > i { animation: tally-in 0.28s ease-out both; transform-origin: bottom; }
 
-/* Bande de plage 2–8 °C (logo, repères) */
-.vc-band { background: var(--band); border-top: 1px solid var(--accent-primary); border-bottom: 1px solid var(--accent-primary); }
+/* Bande de plage 2–8 °C */
+.vc-band { background: var(--band); border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, transparent); }
 
-/* Barre de mesure fine */
-.vc-meter { height: 6px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 1px; overflow: hidden; }
-.vc-meter > span { display: block; height: 100%; }
+/* Barre de mesure */
+.vc-meter { height: 8px; background: var(--bg-subtle); border-radius: 999px; overflow: hidden; }
+.vc-meter > span { display: block; height: 100%; border-radius: 999px; transition: width .4s ease; }
 
 }
 
@@ -259,7 +266,7 @@ table th { font-weight: 600; }
 .recharts-cartesian-axis-line, .recharts-cartesian-axis-tick-line { stroke: var(--border-strong); }
 .recharts-default-tooltip {
   background: var(--bg-panel) !important; border: 1px solid var(--border-strong) !important;
-  border-radius: 3px !important; color: var(--text-primary); font-size: 12.5px;
+  border-radius: 10px !important; color: var(--text-primary); font-size: 12.5px; box-shadow: var(--shadow-pop);
 }
 .recharts-legend-item-text { color: var(--text-secondary) !important; }
 .vc-paper .recharts-cartesian-grid { display: none; }
@@ -312,7 +319,7 @@ table th { font-weight: 600; }
 
 /* Tables dans un panneau sans marge intérieure : pas de débord négatif */
 .vc-flush .vc-table-wrap { margin-left: 0; margin-right: 0; }
-td .vc-tally > i { width: 10px; height: 15px; }
+td .vc-tally > i { width: 9px; height: 14px; border-radius: 3px; }
 td .vc-tally { gap: 2px; flex-wrap: nowrap; }
 
 /* Rangée de lectures sur deux colonnes (téléphone, tablette) : une dernière lecture seule occupe

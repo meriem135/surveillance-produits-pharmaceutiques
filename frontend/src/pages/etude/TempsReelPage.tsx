@@ -1,10 +1,11 @@
 /** Temps réel — les mesures du jeu de données (table transmission_dataset) passent une à une dans le
- *  modèle sauvegardé ; le seuil et la règle de persistance décident de l'alerte (WS /api/v1/etude/live). */
+ *  modèle sauvegardé ; le seuil et la règle de persistance décident de l'alerte. La page démarre une lecture
+ *  (POST /api/v1/etude/live/start) puis demande chaque seconde le paquet suivant (GET /api/v1/etude/live/{id}/next). */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Pause, Play, Square } from 'lucide-react';
-import { getToken } from '../../lib/auth';
-import { BandLegend, Empty, MODEL_FR, Note, PageHeader, Paper, Readouts, ROLE_FR, SCENARIO_FR, Section, Stat, State, heure, nf, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
+import { authHeaders } from '../../lib/auth';
+import { BandLegend, Empty, MODEL_FR, Note, PageHeader, Readouts, ROLE_FR, SCENARIO_FR, Section, Stat, State, heure, nf, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
 
 interface Info { modele: string; nom: string; seuil: number; k: number; n: number; critere: string | null;
   roles: Record<string, { lignes: number; episodes: number }>; vitesse_defaut: number; sources: Record<string, string> }
@@ -24,8 +25,13 @@ export default function TempsReelPage() {
   const [events, setEvents] = useState<(Ev & { recu: string })[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [progress, setProgress] = useState(0);
-  const [wsError, setWsError] = useState<string | null>(null);
-  const ws = useRef<WebSocket | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  // Lecture en cours côté serveur, interrogée chaque seconde (polling).
+  const sid = useRef<string | null>(null);
+  const timer = useRef<number | null>(null);
+  const busy = useRef(false);
+  const paused = useRef(false);
+  const speedRef = useRef(24);
   // Les messages du flux sont regroupés et appliqués une fois par image (requestAnimationFrame) :
   // à vitesse élevée, plusieurs messages arrivent entre deux images et chacun redessinait les courbes.
   const pending = useRef<{ points: Pt[]; events: (Ev & { recu: string })[]; stats: Stats | null; progress: number | null; fini: boolean }>(
@@ -42,40 +48,97 @@ export default function TempsReelPage() {
     if (p.fini) setState('fini');
   }, []);
   const vitesse = speed ?? info?.vitesse_defaut ?? 24;
+  useEffect(() => { speedRef.current = vitesse; }, [vitesse]);
 
-  useEffect(() => () => { ws.current?.close(); if (frame.current != null) cancelAnimationFrame(frame.current); }, []);
+  const stopTimer = useCallback(() => {
+    if (timer.current != null) { window.clearInterval(timer.current); timer.current = null; }
+  }, []);
 
-  const send = (m: object) => ws.current?.readyState === WebSocket.OPEN && ws.current.send(JSON.stringify(m));
+  const release = useCallback(() => {
+    stopTimer();
+    const id = sid.current;
+    sid.current = null;
+    if (id) fetch(`/api/v1/etude/live/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => undefined);
+  }, [stopTimer]);
 
-  const start = useCallback(() => {
-    ws.current?.close();
+  useEffect(() => () => { release(); if (frame.current != null) cancelAnimationFrame(frame.current); }, [release]);
+
+  const tick = useCallback(async () => {
+    const id = sid.current;
+    if (!id || paused.current || busy.current) return;
+    busy.current = true;
+    try {
+      const r = await fetch(`/api/v1/etude/live/${id}/next?taille=${speedRef.current}`, { headers: authHeaders() });
+      if (sid.current !== id) return;                       // arrêtée pendant la requête
+      if (!r.ok) {
+        const e = await r.json().catch(() => null);
+        setLiveError(e?.detail ?? `Flux temps réel interrompu (HTTP ${r.status})`);
+        stopTimer(); sid.current = null; setState('arret');
+        return;
+      }
+      const msg = await r.json();
+      const p = pending.current;
+      p.points.push(...msg.points);
+      if (msg.evenements.length) p.events.unshift(...msg.evenements.map((x: Ev) => ({ ...x, recu: new Date().toLocaleTimeString('fr-FR') })).reverse());
+      p.stats = msg.stats; p.progress = msg.progression; p.fini ||= !!msg.fini;
+      if (frame.current == null) frame.current = requestAnimationFrame(flush);
+      if (msg.fini) { stopTimer(); sid.current = null; }
+    } catch {
+      /* réseau indisponible : nouvel essai à la seconde suivante */
+    } finally {
+      busy.current = false;
+    }
+  }, [flush, stopTimer]);
+
+  const start = useCallback(async () => {
+    release();
     if (frame.current != null) { cancelAnimationFrame(frame.current); frame.current = null; }
     pending.current = { points: [], events: [], stats: null, progress: null, fini: false };
-    setPoints([]); setEvents([]); setStats(null); setProgress(0); setWsError(null); setState('connexion');
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const sock = new WebSocket(`${proto}://${location.host}/api/v1/etude/live?token=${encodeURIComponent(getToken() ?? '')}`);
-    ws.current = sock;
-    sock.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'info') { sock.send(JSON.stringify({ action: 'start', role, vitesse })); setState('lecture'); }
-      else if (msg.type === 'mesures') {
-        const p = pending.current;
-        p.points.push(...msg.points);
-        if (msg.evenements.length) p.events.unshift(...msg.evenements.map((x: Ev) => ({ ...x, recu: new Date().toLocaleTimeString('fr-FR') })).reverse());
-        p.stats = msg.stats; p.progress = msg.progression; p.fini ||= !!msg.fini;
-        if (frame.current == null) frame.current = requestAnimationFrame(flush);
-      } else if (msg.type === 'erreur') { setWsError(msg.message); setState('arret'); }
-    };
-    sock.onerror = () => setWsError('Connexion temps réel impossible');
-    sock.onclose = () => setState(s => (s === 'fini' ? s : 'arret'));
-  }, [role, vitesse, flush]);
+    setPoints([]); setEvents([]); setStats(null); setProgress(0); setLiveError(null); setState('connexion');
+    paused.current = false;
+    try {
+      const r = await fetch('/api/v1/etude/live/start', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ role }),
+      });
+      const body = await r.json().catch(() => null);
+      if (!r.ok || !body?.session) { setLiveError(body?.detail ?? 'Démarrage du flux temps réel impossible'); setState('arret'); return; }
+      sid.current = body.session;
+      setState('lecture');
+      tick();
+      timer.current = window.setInterval(tick, 1000);
+    } catch {
+      setLiveError('Démarrage du flux temps réel impossible'); setState('arret');
+    }
+  }, [role, release, tick]);
 
   const header = <PageHeader title="Temps réel"
     subtitle="Les mesures enregistrées repassent une à une dans le modèle sauvegardé, comme un flux de capteurs : valeur transmise, score, alerte et réalité côte à côte." />;
   if (!info) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <div className="vc-panel h-40 animate-pulse" />}</div>;
 
   const last = points[points.length - 1];
-  const chart = points.map(p => ({ ...p, reel: p.label ? [18.7, 19.9] : null, alerte: p.alarme ? [17.1, 18.3] : null }));
+  // Périodes continues d'attaque réelle et d'alerte, tracées comme des bandes verticales sur les deux courbes.
+  const bandes = (pick: (p: Pt) => boolean) => {
+    const out: { a: string; b: string }[] = [];
+    let a: string | null = null, prev = '';
+    for (const p of points) {
+      if (pick(p)) { if (a == null) a = p.ts; prev = p.ts; } else if (a != null) { out.push({ a, b: prev }); a = null; }
+    }
+    if (a != null) out.push({ a, b: prev });
+    return out;
+  };
+  const attaques = bandes(p => !!p.label);
+  const alertes = bandes(p => p.alarme);
+  const chart = points;
+  const bornes = (() => {
+    const v = points.map(p => p.fridge);
+    return [Math.floor(Math.min(1, ...v) - 1), Math.ceil(Math.max(14, ...v) + 1)] as [number, number];
+  })();
+  const calques = (
+    <>
+      {attaques.map((b, i) => <ReferenceArea key={`a${i}`} x1={b.a} x2={b.b} fill={pal.attackLine} fillOpacity={0.14} stroke="none" ifOverflow="visible" />)}
+      {alertes.map((b, i) => <ReferenceArea key={`l${i}`} x1={b.a} x2={b.b} fill={pal.alert} fillOpacity={0.22} stroke="none" ifOverflow="visible" />)}
+    </>
+  );
   const etat = {
     arret: { t: 'Arrêté', c: 'var(--text-muted)' }, connexion: { t: 'Connexion…', c: 'var(--text-secondary)' },
     lecture: { t: 'Lecture en cours', c: 'var(--accent-primary)' }, pause: { t: 'En pause', c: 'var(--accent-warning)' },
@@ -94,16 +157,16 @@ export default function TempsReelPage() {
           <label className="text-[13px] font-semibold flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>Vitesse de lecture
             <span className="flex items-center gap-2 h-[34px] font-normal">
               <input type="range" min={6} max={180} step={6} value={vitesse} aria-label="Vitesse de lecture"
-                onChange={e => { const v = Number(e.target.value); setSpeed(v); send({ action: 'vitesse', vitesse: v }); }}
+                onChange={e => setSpeed(Number(e.target.value))}
                 style={{ accentColor: 'var(--accent-primary)' }} />
               <span className="tabular-nums text-[13px] w-36" style={{ color: 'var(--text-primary)' }}>{vitesse} mesures/s (×{nf(vitesse * 5)})</span>
             </span>
           </label>
           <div className="flex flex-wrap gap-2 sm:ml-auto">
             {(state === 'arret' || state === 'fini') && <button onClick={start} className="vc-btn vc-btn-primary"><Play className="w-4 h-4" />Démarrer</button>}
-            {state === 'lecture' && <button onClick={() => { send({ action: 'pause' }); setState('pause'); }} className="vc-btn"><Pause className="w-4 h-4" />Pause</button>}
-            {state === 'pause' && <button onClick={() => { send({ action: 'reprendre' }); setState('lecture'); }} className="vc-btn"><Play className="w-4 h-4" />Reprendre</button>}
-            {(state === 'lecture' || state === 'pause') && <button onClick={() => { send({ action: 'stop' }); ws.current?.close(); setState('arret'); }} className="vc-btn vc-btn-danger"><Square className="w-4 h-4" />Arrêter</button>}
+            {state === 'lecture' && <button onClick={() => { paused.current = true; setState('pause'); }} className="vc-btn"><Pause className="w-4 h-4" />Pause</button>}
+            {state === 'pause' && <button onClick={() => { paused.current = false; setState('lecture'); }} className="vc-btn"><Play className="w-4 h-4" />Reprendre</button>}
+            {(state === 'lecture' || state === 'pause') && <button onClick={() => { release(); setState('arret'); }} className="vc-btn vc-btn-danger"><Square className="w-4 h-4" />Arrêter</button>}
           </div>
         </div>
         <div className="mt-4 pt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]" style={{ borderTop: '1px dashed var(--border)', color: 'var(--text-secondary)' }}>
@@ -116,7 +179,7 @@ export default function TempsReelPage() {
             <span className="flex-1 vc-meter"><span style={{ width: `${progress * 100}%`, background: 'var(--accent-primary)' }} /></span>
             <span className="tabular-nums">{nf(progress * 100, 0)}&#8239;%</span>
           </span>
-          {wsError && <State kind="manque">{wsError}</State>}
+          {liveError && <State kind="manque">{liveError}</State>}
         </div>
       </div>
 
@@ -134,37 +197,53 @@ export default function TempsReelPage() {
           {points.length ? (
             <>
               <BandLegend items={[
-                { label: 'Frigo, valeur transmise', color: pal.series[0], kind: 'line' },
-                { label: 'Attaque réelle (piste du haut)', color: pal.attackLine },
-                { label: 'Alerte du modèle (piste du dessous)', color: pal.alert },
+                { label: 'Température du frigo (transmise)', color: pal.series[0], kind: 'line' },
+                { label: 'Plage des mesures 1 à 14 °C', color: 'var(--band)' },
+                { label: 'Attaque réelle', color: pal.attack },
+                { label: 'Alerte du modèle', color: pal.alert },
               ]} />
-              <Paper height={220}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chart} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
-                    <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
-                    <YAxis domain={[0, 20]} ticks={[0, 4, 8, 12, 16, 17.7, 19.3]} interval={0} width={64} tickFormatter={(v: number) => (v > 19 ? 'attaque' : v > 17 ? 'alerte' : `${v} °C`)} tick={{ fill: pal.axis, fontSize: 12 }} />
-                    <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={(v, n) => (n === 'Attaque réelle' || n === 'Alerte' ? ['oui', n] : [`${nf(Number(v), 2)} °C`, n])} />
-                    <Area dataKey="reel" name="Attaque réelle" fill={pal.attackLine} fillOpacity={1} stroke="none" isAnimationActive={false} />
-                    <Area dataKey="alerte" name="Alerte" fill={pal.alert} fillOpacity={1} stroke="none" isAnimationActive={false} />
-                    <Line dataKey="fridge" name="Frigo" stroke={pal.series[0]} dot={false} strokeWidth={1.4} isAnimationActive={false} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </Paper>
-              <div className="mt-3 mb-1"><BandLegend items={[
-                { label: 'Score du modèle', color: pal.ink, kind: 'line' },
-                { label: `Seuil ${nf(info.seuil, 2)}`, color: pal.alert, kind: 'dash' },
+              <div className="vc-card p-3 pr-4" style={{ boxShadow: 'none' }}>
+                <div className="h-[230px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chart} margin={{ top: 6, right: 4, left: -8, bottom: 0 }}>
+                      <CartesianGrid stroke={pal.grid} vertical={false} />
+                      <XAxis dataKey="ts" tickFormatter={heure} minTickGap={56} tick={{ fill: pal.axis, fontSize: 12 }} tickLine={false} />
+                      <YAxis domain={bornes} allowDecimals={false} width={52} tickFormatter={(v: number) => `${v} °C`} tick={{ fill: pal.axis, fontSize: 12 }} tickLine={false} axisLine={false} />
+                      <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={(v) => [`${nf(Number(v), 2)} °C`, 'Frigo']} />
+                      <ReferenceArea y1={1} y2={14} fill="var(--band)" stroke="none" ifOverflow="hidden" />
+                      <ReferenceLine y={1} stroke={pal.ok} strokeOpacity={0.5} strokeDasharray="3 4" />
+                      <ReferenceLine y={14} stroke={pal.ok} strokeOpacity={0.5} strokeDasharray="3 4" />
+                      {calques}
+                      <Line dataKey="fridge" name="Frigo" stroke={pal.series[0]} dot={false} strokeWidth={2} isAnimationActive={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="mt-4 mb-1"><BandLegend items={[
+                { label: 'Score de risque du modèle', color: pal.series[0], kind: 'line' },
+                { label: `Seuil ${nf(info.seuil * 100, 0)} %`, color: pal.alert, kind: 'dash' },
               ]} /></div>
-              <Paper height={150}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chart} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
-                    <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
-                    <YAxis domain={[0, 1]} width={64} tick={{ fill: pal.axis, fontSize: 12 }} />
-                    <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={v => [nf(Number(v), 3), 'score']} />
-                    <Line dataKey="score" name="Score du modèle" stroke={pal.ink} dot={false} strokeWidth={1.2} isAnimationActive={false} />
-                    <ReferenceLine y={info.seuil} stroke={pal.alert} strokeWidth={1.5} strokeDasharray="5 4" />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </Paper>
+              <div className="vc-card p-3 pr-4" style={{ boxShadow: 'none' }}>
+                <div className="h-[170px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chart} margin={{ top: 6, right: 4, left: -8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="vc-score" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stopColor={pal.series[0]} stopOpacity={0.28} />
+                          <stop offset="1" stopColor={pal.series[0]} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke={pal.grid} vertical={false} />
+                      <XAxis dataKey="ts" tickFormatter={heure} minTickGap={56} tick={{ fill: pal.axis, fontSize: 12 }} tickLine={false} />
+                      <YAxis domain={[0, 1]} ticks={[0, 0.25, 0.5, 0.75, 1]} width={52} tickFormatter={(v: number) => `${Math.round(v * 100)} %`} tick={{ fill: pal.axis, fontSize: 12 }} tickLine={false} axisLine={false} />
+                      <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={v => [`${nf(Number(v) * 100, 0)} %`, 'Score de risque']} />
+                      {calques}
+                      <Area dataKey="score" name="Score de risque" stroke={pal.series[0]} strokeWidth={2} fill="url(#vc-score)" dot={false} isAnimationActive={false} />
+                      <ReferenceLine y={info.seuil} stroke={pal.alert} strokeWidth={1.5} strokeDasharray="5 4" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </>
           ) : <Empty>Choisissez les données puis cliquez sur « Démarrer » : le modèle analyse les mesures au fil de l’eau.</Empty>}
         </Section>
@@ -179,7 +258,7 @@ export default function TempsReelPage() {
                         <State kind="alerte">Alerte levée</State>
                         <span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{e.ts && new Date(e.ts).toLocaleTimeString('fr-FR')}</span>
                       </div>
-                      <div className="mt-0.5" style={{ color: 'var(--text-muted)' }}>Réalité : {SCENARIO_FR[e.attaque_reelle ?? 'normal'] ?? e.attaque_reelle} ; score {nf(e.score, 3)}</div>
+                      <div className="mt-0.5" style={{ color: 'var(--text-muted)' }}>Type réel (connu du jeu de données, pas du modèle) : {SCENARIO_FR[e.attaque_reelle ?? 'normal'] ?? e.attaque_reelle} ; score {nf(e.score, 3)}</div>
                     </>
                   ) : (
                     <div className="flex items-center justify-between gap-2">

@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/transmission_biais_long.py
+#   ÉTUDE COMPLÉMENTAIRE. À partir de quelle durée les petits biais (−0,5 / −1 °C) deviennent
+#   détectables.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Étude complémentaire : petits biais (−0,5 et −1 °C) LONGS, de 1 à 3 heures
 =========================================================================
@@ -56,7 +61,6 @@ sys.path.insert(0, str(HERE))
 import build_dataset as bd  # noqa: E402
 import transmission_models as tm  # noqa: E402
 import transmission_real as tr  # noqa: E402
-import transmission_study as ts  # noqa: E402
 
 SEED = tr.SEED + 100
 BLOCK = 4 * tr.STEPS_HOUR            # blocs de 4 h
@@ -69,7 +73,7 @@ GUARD = tr.STEPS_HOUR                # 60 min exclues après chaque épisode
 FA_BUDGET = 1.0                      # fausses alertes par heure tolérées sur la validation
 HORIZONS_MIN = (20, 60, 120, 180)
 OUT_PATH = tr.OUT_DIR / "biais_long.json"
-log = ts.log
+log = tr.log
 
 LONG_WINDOWS = {"30min": 360, "60min": 720}
 EWMA_1H = 2 / (720 + 1)
@@ -84,6 +88,12 @@ def block_roles(n: int, rot: int) -> np.ndarray:
     return np.array([role_of_block(b, rot) for b in np.arange(n) // BLOCK], dtype=object)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] schedule
+#   Rôle   : Place un épisode de biais par bloc de 4 h.
+#   Entrée : n, rng, rot, draw
+#   Sortie : liste d'épisodes
+# ──────────────────────────────────────────────────────────────────────
 def schedule(n: int, rng: np.random.Generator, rot: int, draw: int) -> list[dict]:
     """Un épisode de biais par bloc de 4 h, entièrement dans le bloc."""
     episodes = []
@@ -116,6 +126,12 @@ def fa_events_per_hour(pred: np.ndarray, y: np.ndarray, idx: np.ndarray) -> floa
     return events / max(1e-9, (y[idx] == 0).sum() / tr.STEPS_HOUR)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] budget_threshold
+#   Rôle   : Seuil le plus bas qui garde les fausses alertes sous le budget autorisé.
+#   Entrée : s, y, val_idx
+#   Sortie : seuil
+# ──────────────────────────────────────────────────────────────────────
 def budget_threshold(s: np.ndarray, y: np.ndarray, val_idx: np.ndarray) -> float:
     """Seuil le plus bas dont les fausses alertes de validation restent ≤ FA_BUDGET par heure."""
     normal = s[val_idx][y[val_idx] == 0]
@@ -128,6 +144,12 @@ def budget_threshold(s: np.ndarray, y: np.ndarray, val_idx: np.ndarray) -> float
     return float("inf")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] one_run
+#   Rôle   : Une répétition de l'étude des biais longs : injection, entraînement, mesure.
+#   Entrée : base, rot, draw
+#   Sortie : résultats de la répétition
+# ──────────────────────────────────────────────────────────────────────
 def one_run(base, rot: int, draw: int) -> dict:
     run = draw * CYCLE + rot
     rng = np.random.default_rng(SEED + run)
@@ -164,6 +186,12 @@ def one_run(base, rot: int, draw: int) -> dict:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] summarize
+#   Rôle   : Cumule les répétitions et calcule les métriques.
+#   Entrée : runs, jeu
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 def summarize(runs: list[dict], jeu: str) -> dict:
     eps = [e for r in runs for e in r["jeux"][jeu]["episodes"]]
     hours = sum(r["jeux"][jeu]["normal_h_test"] for r in runs)
@@ -194,6 +222,13 @@ def summarize(runs: list[dict], jeu: str) -> dict:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] main
+#   Rôle   : ÉTUDE COMPLÉMENTAIRE : mesure à partir de quelle durée (1 à 3 h) les petits biais −0,5 et −1 °C
+#            deviennent détectables.
+#   Entrée : rien
+#   Sortie : fichier JSON de résultats
+# ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     t0 = time.time()
     log("[1] Traces réelles TON_IoT")
@@ -240,7 +275,7 @@ def main() -> None:
         "resultats": res,
     }
     with open(OUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(out, f, indent=2, ensure_ascii=False, default=ts._json_default)
+        json.dump(out, f, indent=2, ensure_ascii=False, default=tr._json_default)
     log(f"Résultats : {OUT_PATH} ({time.time() - t0:.0f} s)")
 
 

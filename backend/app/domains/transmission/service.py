@@ -42,6 +42,10 @@ CV_RESULTS = OUT_DIR / "validation_croisee.json"
 LONG_BIAS_RESULTS = OUT_DIR / "biais_long.json"
 MODEL_FILE = OUT_DIR / "random_forest.pkl"
 FEATURES_FILE = OUT_DIR / "random_forest_features.json"
+IMPORT_PATH = OUT_DIR / "dataset_importe.csv"      # jeu de données importé depuis la page Entraînement
+IMPORT_META = OUT_DIR / "dataset_importe.json"
+IMPORT_COLS = ["datetime", "weather_temp", "fridge_temp", "thermostat_temp", "fridge_cond", "thermo_status",
+               "fridge_true", "thermostat_true", "label", "attack_type", "cible", "garde"]
 
 Emit = Callable[..., Awaitable[None]]
 
@@ -395,15 +399,137 @@ def reference_choice(ref: dict | None) -> dict | None:
                                                      "episodes", "episodes_detectes", "delai_median_min")}}
 
 
+# ── Jeu de données importé (CSV de la forme de dataset_transmission_reel.csv) ─────────────────
+
+def episodes_from_labels(df: pd.DataFrame, tr) -> list[dict]:
+    """Retrouve les épisodes d'attaque d'un CSV : suites de lignes label = 1 de même scénario.
+    Le rôle (train / val / test) vient du découpage par blocs de la répétition 0."""
+    spec = {a[0]: a for a in tr.ATTACKS}
+    y = df["label"].to_numpy().astype(int)
+    types = df["attack_type"].astype(str).to_numpy()
+    split = tr.block_split(len(df), 0)
+    episodes, i, n = [], 0, len(df)
+    while i < n:
+        if y[i] != 1:
+            i += 1
+            continue
+        name, j = types[i], i
+        while j < n and y[j] == 1 and types[j] == name:
+            j += 1
+        if name not in spec:
+            raise ValueError(f"Scénario d'attaque inconnu dans attack_type : « {name} » (attendus : "
+                             + ", ".join(tr.ATTACK_NAMES) + ").")
+        _, sensor, kind, param = spec[name]
+        episodes.append({"name": name, "sensor": sensor, "kind": kind, "param": param,
+                         "start": i, "end": j, "split": str(split[i])})
+        i = j
+    return episodes
+
+
+def import_dataset(src, nom: str) -> dict:
+    """Vérifie un CSV importé et le garde pour les prochains entraînements. Lève ValueError s'il est inutilisable."""
+    tr, _ = _scripts()
+    try:
+        df = pd.read_csv(src, keep_default_na=False, usecols=lambda c: c in IMPORT_COLS)
+    except Exception as e:  # noqa: BLE001
+        raise ValueError(f"Fichier illisible : {e}") from e
+    missing = [c for c in IMPORT_COLS if c not in df.columns]
+    if missing:
+        raise ValueError("Colonnes manquantes : " + ", ".join(missing))
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    if df["datetime"].isna().any():
+        raise ValueError("La colonne datetime contient des dates illisibles.")
+    df = df.sort_values("datetime").reset_index(drop=True)
+    need = tr.STEPS_HOUR * tr.BLOCK_CYCLE
+    if len(df) < need:
+        raise ValueError(f"Jeu trop court : {len(df):,} lignes, au moins {need:,} sont nécessaires "
+                         f"({tr.BLOCK_CYCLE} blocs d'une heure à 5 s).")
+    for c in ("weather_temp", "fridge_temp", "thermostat_temp", "fridge_true", "thermostat_true", "label", "thermo_status"):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    if df[["weather_temp", "fridge_temp", "thermostat_temp", "fridge_true", "thermostat_true", "label"]].isna().any().any():
+        raise ValueError("Valeurs non numériques ou vides dans les colonnes de température ou label.")
+    df["label"] = df["label"].astype(int)
+    df["garde"] = df["garde"].astype(str).str.lower().eq("true")
+    df["attack_type"] = df["attack_type"].astype(str).replace("", "normal")
+    episodes = episodes_from_labels(df, tr)
+    if not episodes:
+        raise ValueError("Aucun épisode d'attaque (label = 1) dans ce fichier.")
+    par_role = {r: sum(1 for e in episodes if e["split"] == r) for r in ("train", "val", "test")}
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    df[IMPORT_COLS].to_csv(IMPORT_PATH, index=False, float_format="%.4f")
+    info = {"fichier": nom, "lignes": int(len(df)), "colonnes": int(len(IMPORT_COLS)),
+            "attaques": int(df["label"].sum()), "episodes": len(episodes), "episodes_par_role": par_role,
+            "scenarios": sorted({e["name"] for e in episodes}), "debut": str(df["datetime"].iloc[0]),
+            "fin": str(df["datetime"].iloc[-1]), "importe_le": datetime.now().isoformat(timespec="seconds")}
+    with open(IMPORT_META, "w", encoding="utf-8") as f:
+        json.dump(info, f, indent=2, ensure_ascii=False)
+    return info
+
+
+def imported_dataset() -> dict | None:
+    """Résumé du jeu de données importé, ou None s'il n'y en a pas."""
+    return _load_json(IMPORT_META) if IMPORT_PATH.exists() else None
+
+
+def remove_imported_dataset() -> None:
+    IMPORT_PATH.unlink(missing_ok=True)
+    IMPORT_META.unlink(missing_ok=True)
+
+
+def _read_imported() -> pd.DataFrame:
+    df = pd.read_csv(IMPORT_PATH, parse_dates=["datetime"], keep_default_na=False)
+    df["garde"] = df["garde"].astype(str).str.lower().eq("true")
+    return df
+
+
+def _load_imported_dataset(tr, tm) -> tuple[pd.DataFrame, list[str], list[dict], bool]:
+    """Jeu importé tel quel (répétition 0) : features recalculées, épisodes retrouvés dans les labels."""
+    df = _read_imported()
+    episodes = episodes_from_labels(df, tr)
+    df, feats = tm.engineer(df)
+    return df, feats, episodes, False
+
+
+def _imported_base() -> pd.DataFrame:
+    """Mesures sans attaque du jeu importé (les vraies valeurs), point de départ des répétitions 1 à N-1."""
+    d = _read_imported()
+    return pd.DataFrame({"datetime": d["datetime"], "weather_temp": d["weather_temp"],
+                         "fridge_temp": d["fridge_true"], "thermostat_temp": d["thermostat_true"],
+                         "fridge_cond": d["fridge_cond"], "thermo_status": d["thermo_status"]})
+
+
+def _load_base(tr) -> pd.DataFrame:
+    """Traces réelles fusionnées (sans attaque), point de départ de chaque répétition."""
+    import contextlib  # noqa: PLC0415
+    import io  # noqa: PLC0415
+    import build_dataset as bd  # noqa: PLC0415
+    with contextlib.redirect_stdout(io.StringIO()):
+        real = bd.load_normal_traces()
+    base, _ = tr.fuse_real(real)
+    return base
+
+
+def _train_repetition(tm, base: pd.DataFrame, run: int, key: str, params: dict) -> dict:
+    """Une répétition : injection des attaques, features, entraînement du modèle retenu, scores de toutes
+    les lignes. Ne garde que ce qu'il faut pour les métriques cumulées."""
+    r = tm.prepare_run(base, run)
+    model, _ = tm.fit_model(key, r["X"], r["y"], r["idx"]["train"], dict(params))
+    return {"scores": {key: tm.scores_of(model, r["X"])}, "y": r["y"], "ev": r["ev"],
+            "episodes": r["episodes"], "types": r["types"]}
+
+
 WARM_START_MODELS = ("RandomForest", "ExtraTrees")
 
 
 async def train(emit: Emit, reference: dict | None = None, precision_min: float | None = None,
-                fa_max: float | None = None) -> dict:
+                fa_max: float | None = None, use_import: bool = False, repetitions: int | None = None) -> dict:
     """Entraînement web : UNIQUEMENT le modèle retenu par l'étude de référence (lue en base), avec
-    ses hyperparamètres, son seuil et sa règle de persistance (k sur n) tels quels, sur une seule
-    répétition (la 0) du découpage par blocs ; métriques train / validation / test. L'étude
-    complète (6 modèles, 20 répétitions) reste celle de scripts/transmission_models.py.
+    ses hyperparamètres, son seuil et sa règle de persistance (k sur n) tels quels, sur les
+    `repetitions` rotations du découpage par blocs (20 par défaut, comme l'étude de référence) ;
+    métriques train / validation / test cumulées sur toutes les répétitions. La courbe en direct,
+    le SHAP et les lignes en base viennent de la répétition 0. `use_import` : jeu de données importé
+    (répétition 0 = le fichier tel quel ; répétitions suivantes = mêmes mesures, attaques réinjectées).
+    L'étude complète (6 modèles) reste celle de scripts/transmission_models.py.
 
     Sans étude de référence, repli : Extra Trees avec le réglage de la recherche groupée et un
     point de fonctionnement choisi sur la validation (précision ≥ precision_min, ≤ fa_max FA/h)."""
@@ -417,8 +543,12 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
     nom = tm.MODEL_NAMES.get(key, key)
     params = dict(choice["hyperparameters"]) if choice else tm._tuned(key)
     t0 = time.time()
-    await emit("dataset", 3, "Chargement des traces réelles avec attaques de transmission…")
-    df, feats, episodes, built = await asyncio.to_thread(_load_or_build_dataset, tr, tm)
+    imp = imported_dataset() if use_import else None
+    if use_import and imp is None:
+        raise ValueError("Aucun jeu de données importé : importez d'abord un CSV.")
+    await emit("dataset", 3, ("Chargement du fichier importé " + imp["fichier"] + "…") if imp
+               else "Chargement des traces réelles avec attaques de transmission…")
+    df, feats, episodes, built = await asyncio.to_thread(_load_imported_dataset if imp else _load_or_build_dataset, tr, tm)
     y = df["label"].to_numpy().astype(int)
     split = tr.block_split(len(df), 0)
     excl = tr.excluded_rows(df["garde"].to_numpy().astype(bool), 0)
@@ -428,7 +558,8 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
     types = df["attack_type"].to_numpy()
     prevalence = tm.role_prevalence(y, idx)
     dataset_info = {
-        "fichier": DATASET_PATH.name, "construit": built, "lignes": int(len(df)), "features": len(feats),
+        "fichier": imp["fichier"] if imp else DATASET_PATH.name, "importe": bool(imp),
+        "construit": built, "lignes": int(len(df)), "features": len(feats),
         "train": int(len(idx["train"])), "val": int(len(idx["val"])), "test": int(len(idx["test"])),
         "exclues_zone_de_garde": int(excl.sum()), "zone_de_garde_min": tr.GUARD * tr.STEP_MINUTES,
         "attaques_train": int(y[idx["train"]].sum()), "attaques_val": int(y[idx["val"]].sum()),
@@ -463,7 +594,7 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
             point = {"arbres": n_trees, "ap_train": round(float(average_precision_score(y[tr_eval], p_tr)), 4),
                      "ap_validation": round(float(average_precision_score(y[idx["val"]], p_val)), 4)}
             curve.append(point)
-            await emit(key, 10 + int(60 * n_trees / total),
+            await emit(key, 10 + int(24 * n_trees / total),
                        f"{nom} : {n_trees} arbres, AP train {point['ap_train']:.3f}, validation "
                        f"{point['ap_validation']:.3f}", model=key, curve_point=point)
         model.set_params(warm_start=False)
@@ -472,19 +603,41 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
         await emit(key, 15, f"{nom} : entraînement…", model=key)
         model, used = await asyncio.to_thread(tm.fit_model, key, X, y, idx["train"], params)
 
-    # 2. Mesure au point de fonctionnement de l'étude (aucun nouveau choix sur cette répétition)
-    await emit(key, 74, f"{nom} : scores et alertes sur train, validation et test…", model=key)
+    # 2. Scores de la répétition 0, puis des autres répétitions (même modèle, mêmes hyperparamètres)
+    await emit(key, 34, f"{nom} : répétition 0 terminée (scores sur train, validation et test)…", model=key)
     scores = await asyncio.to_thread(tm.scores_of, model, X)
+    n_runs = max(1, int(repetitions or tm.N_RUNS))
+    run_views = [{"scores": {key: scores}, "y": y, "ev": ev, "episodes": episodes, "types": types}]
+    if n_runs > 1:
+        await emit(key, 35, "Préparation des autres répétitions (environ 1 minute)…", model=key)
+        base = await asyncio.to_thread(_imported_base if imp else _load_base, *(() if imp else (tr,)))
+        for run in range(1, n_runs):
+            run_views.append(await asyncio.to_thread(_train_repetition, tm, base, run, key, params))
+            await emit(key, 36 + int(40 * run / (n_runs - 1)),
+                       f"{nom} : répétition {run} sur {n_runs - 1} terminée.", model=key)
+        del base
+
+    # 3. Mesure au point de fonctionnement, cumulée sur toutes les répétitions
+    await emit(key, 78, f"{nom} : métriques cumulées sur {n_runs} répétitions…", model=key)
     if choice:
         op = {"seuil": choice["seuil"], "k": choice["k"], "n": choice["n"],
               "contrainte_tenue": choice.get("contrainte_tenue"),
               "critere": "réglage de l'étude de référence appliqué tel quel ("
                          + (choice.get("critere") or ta.criterion_text(precision_min, fa_max)) + ")"}
     else:
-        rows = ta.grid([{"s": scores, "y": y, "evaluated_val": ev["val"]}], "val")
+        rows = ta.grid([{"s": v["scores"][key], "y": v["y"], "evaluated_val": v["ev"]["val"]} for v in run_views], "val")
         op = {**ta.choose(rows, precision_min, fa_max), "critere": ta.criterion_text(precision_min, fa_max)}
-    run_view = {"scores": {key: scores}, "y": y, "ev": ev, "episodes": episodes, "types": types}
-    m = tm.role_metrics([run_view], key, op)
+    m = tm.role_metrics(run_views, key, op)
+    # Épisodes des répétitions 1 à N-1 avec leur détection (stockés en base pour la page Détection)
+    all_eps: list[dict] = []
+    for run, v in enumerate(run_views):
+        if run == 0:
+            continue
+        alarm = ta.apply(v["scores"][key], op)
+        for e in v["episodes"]:
+            seg = alarm[e["start"]:e["end"]]
+            all_eps.append({**e, "run": run, "detecte": bool(seg.any()),
+                            "delai_min": round(int(np.argmax(seg)) * tr.STEP_MINUTES, 2) if seg.any() else None})
     t, v = m["alarme"]["test"], m["alarme"]["val"]
     res = {"nom": nom, "type": "supervisé",
            **{k: t[k] for k in ("recall", "precision", "f1", "fpr", "part_attaques",
@@ -505,7 +658,7 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
                                                    "fa_h": v["fausses_alarmes_evenements_par_heure"]}},
            "par_role": m, "hyperparameters": used}
     res["diagnostic"] = tm.diagnostic(res)
-    await emit(key, 80, (f"{nom} : test (répétition 0, {t['episodes']} épisodes) : précision {t['precision']:.2f}, "
+    await emit(key, 82, (f"{nom} : test ({n_runs} répétitions, {t['episodes']} épisodes) : précision {t['precision']:.2f}, "
                          f"{t['fausses_alarmes_evenements_par_heure']:.2f} FA/h, rappel {t['recall']:.2f}, "
                          f"{t['episodes_detectes']}/{t['episodes']} épisodes"), model=key, result=_compact(res))
 
@@ -529,9 +682,10 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "duree_s": round(time.time() - t0, 1),
         "mode": "modele_retenu",
-        "description": (f"Une seule répétition (découpage n° 0, {t['episodes']} épisodes d'attaque au test) du modèle "
-                        f"retenu, {nom}, avec le réglage de l'étude de référence. Les chiffres de référence "
-                        f"sont ceux de l'étude complète ({(choice or {}).get('repetitions') or 20} répétitions)."),
+        "description": (f"{n_runs} répétitions (rotations du découpage par blocs, {t['episodes']} épisodes d'attaque au "
+                        f"test en tout) du modèle retenu, {nom}, avec le réglage de l'étude de référence. "
+                        "Courbe en direct, SHAP et lignes détaillées : répétition 0."),
+        "repetitions": n_runs,
         "reference": choice,
         "dataset": dataset_info,
         "features": feats,
@@ -545,10 +699,11 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
     }
     with open(WEB_RESULTS, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False, default=str)
-    await emit("done", 100, f"Entraînement terminé en {out['duree_s']:.0f} s — {nom} (modèle retenu) : test de la "
-               f"répétition 0, précision {res['precision']:.2f}, {res['fausses_alarmes_evenements_par_heure']:.2f} "
+    await emit("done", 100, f"Entraînement terminé en {out['duree_s']:.0f} s — {nom} (modèle retenu) : test sur "
+               f"{n_runs} répétitions, précision {res['precision']:.2f}, {res['fausses_alarmes_evenements_par_heure']:.2f} "
                f"FA/h, {res['episodes_detectes']}/{res['episodes']} épisodes", results=out)
     out["_records"] = {"df": df, **records}
+    out["_all_episodes"] = all_eps
     return out
 
 

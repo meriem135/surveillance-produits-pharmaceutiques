@@ -1,8 +1,8 @@
 """
-Entraînement et comparaison des 4 détecteurs non supervisés
-==========================================================
+Entraînement et comparaison des 4 modèles de la Phase 2
+=======================================================
 Les 4 détecteurs apprennent UNIQUEMENT le comportement normal (apprentissage
-non supervisé) sur le même split temporel que l'API (`pipeline._split_tvt`) :
+non supervisé) sur le même split temporel que l'API (`phase2._split_tvt`) :
 
   train      = les 70 % premières lignes normales de l'année
   validation = moitié des normales restantes + première moitié des attaques
@@ -38,13 +38,13 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.domains.ml import pipeline  # noqa: E402
+from app.api.v1 import phase2  # noqa: E402
 from app.core import paths  # noqa: E402
 from app.db.session import AsyncSessionLocal, init_db  # noqa: E402
 from app.domains.ml.entities import MLModel, ModelMetric  # noqa: E402
 
 SEED = 42
-FEATURES = pipeline.FEATURE_COLS
+FEATURES = phase2.FEATURE_COLS
 SENSORS = {"weather": "weather_temp", "fridge": "fridge_temp", "thermostat": "thermostat_temp"}
 
 GNN_WINDOW = 72          # 6 h au pas de 5 min
@@ -212,9 +212,9 @@ def train_forecasting_lstm(df: pd.DataFrame, X_s: np.ndarray, train_idx: np.ndar
 
 def evaluate(scores: np.ndarray, y: np.ndarray, attack_type: pd.Series,
              val_idx: np.ndarray, test_idx: np.ndarray) -> dict:
-    thr = pipeline._best_f1_threshold(y[val_idx], scores[val_idx])
-    val_auc = pipeline._evaluate_pr(y[val_idx], scores[val_idx], thr)["roc_auc"]
-    m = pipeline._evaluate_pr(y[test_idx], scores[test_idx], thr)
+    thr = phase2._best_f1_threshold(y[val_idx], scores[val_idx])
+    val_auc = phase2._evaluate_pr(y[val_idx], scores[val_idx], thr)["roc_auc"]
+    m = phase2._evaluate_pr(y[test_idx], scores[test_idx], thr)
     metrics = {k: (round(v, 4) if isinstance(v, float) else v) for k, v in m.items()}
     metrics["val_roc_auc"] = round(val_auc, 4)
 
@@ -264,11 +264,11 @@ async def main() -> None:
     stamp = trained_at.strftime("%Y%m%d_%H%M%S")
 
     log("[1/4] OCSVM_Multivarie — pipeline complet de l'API (grille, SHAP, base)")
-    ocsvm = await pipeline._run_training(files={})
+    ocsvm = await phase2._run_training(files={})
     log(f"  OCSVM test : {json.dumps({k: ocsvm['model_metrics'][k] for k in ('roc_auc', 'precision', 'recall', 'f1', 'fpr')})}")
 
-    df = pipeline._load_fusionne_dataset()
-    train, val, test = pipeline._split_tvt(df)
+    df = phase2._load_fusionne_dataset()
+    train, val, test = phase2._split_tvt(df)
     train_idx, val_idx, test_idx = train.index.to_numpy(), val.index.to_numpy(), test.index.to_numpy()
     y = df["label"].to_numpy().astype(int)
     val_norm_idx = val_idx[y[val_idx] == 0]

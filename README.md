@@ -1,13 +1,13 @@
 # PeakSoft Security Platform (VigiloChain)
 
 Plateforme de **détection d'intrusions IoT** pour la chaîne du froid pharmaceutique
-(Industrie 4.0). Trois capteurs — frigo (le produit, 2–8 °C), thermostat (la salle)
+(Industrie 4.0). Trois capteurs — frigo (le produit, mesures de 1 à 14 °C), thermostat (la salle)
 et météo (l'extérieur) — sont suivis en temps réel.
 
 - **Attaques de transmission** (étude principale) : modèles supervisés sur les traces réelles avec
   attaques MITM / injection, réglage d'alerte orienté précision, temps réel et rapport opérateur.
 - **Ingestion temps réel** : les mesures des trois capteurs (MQTT ou rejeu du flux
-  saisonnier) sont diffusées au dashboard par WebSocket.
+  saisonnier) sont lues par le dashboard via l'API REST (interrogation chaque seconde).
 
 Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 
@@ -16,21 +16,19 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 ```
 ├── backend/                 API FastAPI + ML + services
 │   ├── app/
-│   │   ├── main.py          point d'entrée (lifespan : BDD, seed, MQTT, Modbus)
-│   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview, analyst…)
+│   │   ├── main.py          point d'entrée (lifespan : BDD, seed, MQTT)
+│   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview…)
 │   │   ├── core/            configuration (.env) et chemins canoniques (paths.py)
 │   │   ├── db/              session (PostgreSQL → repli SQLite), seed
-│   │   ├── domains/         auth, devices, intelligence (OCSVM, risque), transmission, analyst (RAG + LLM)
-│   │   └── services/        MQTT (agrégation 3 capteurs), Modbus
+│   │   ├── domains/         auth, devices, intelligence (score de risque), ml (features), transmission
+│   │   └── services/        MQTT (agrégation 3 capteurs)
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
-│   │   ├── train_models.py  entraîne et compare les 4 modèles → models/
-│   │   ├── transmission_real.py    traces réelles, injection des attaques, découpage et zone de garde
+│   │   ├── transmission_real.py    traces réelles, injection des attaques, découpage et zone de garde (aucun modèle)
 │   │   ├── transmission_models.py  6 modèles supervisés, réglage d'alerte unique, diagnostic, SHAP → models/transmission_reel/
 │   │   ├── transmission_alertes.py persistance des alertes, métriques alerte / épisode, choix du seuil
 │   │   ├── transmission_recherche.py grille d'hyperparamètres (validation croisée groupée par bloc)
-│   │   ├── charger_base.py          charge l'étude dans PostgreSQL (tables transmission_*)
-│   │   └── transmission_study.py   même étude sur une année simulée (banc d'essai, hypothèses déclarées)
+│   │   └── charger_base.py          charge l'étude dans PostgreSQL (tables transmission_*)
 │   └── tests/               pytest
 ├── frontend/                dashboard React 19 + Vite + TypeScript + Tailwind
 ├── notebook/Raw/            traces brutes TON_IoT (Normal + 9 types d'attaque)
@@ -41,28 +39,125 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 └── Soutenance/              notes de soutenance
 ```
 
+## Comprendre le backend (fichier par fichier)
+
+### L'idée en 30 secondes
+
+Le backend fait deux choses bien séparées :
+
+1. **Les scripts (`backend/scripts/`) font l'étude, hors ligne.** Ils prennent les vraies mesures
+   TON_IoT, y injectent des attaques, entraînent 6 modèles, choisissent le meilleur et écrivent les
+   résultats dans `models/transmission_reel/` (fichiers `.json` et `.pkl`).
+2. **L'application (`backend/app/`) sert le site.** Au démarrage, elle charge ces résultats dans la
+   base de données, puis répond aux pages du dashboard (API REST FastAPI).
+
+```
+ traces TON_IoT (notebook/Raw)
+        │  build_dataset.py        ← lit et nettoie les traces
+        ▼
+ transmission_real.py               ← fusionne les 3 capteurs, découpe train/val/test, injecte les attaques
+        │
+ transmission_models.py             ← features + 6 modèles + choix du réglage d'alerte + SHAP
+        │  (utilise transmission_alertes.py pour la règle « k mesures sur n »)
+        ▼
+ models/transmission_reel/*.json, meilleur_modele.pkl
+        │  charger_base.py         ← lancé automatiquement au démarrage de l'API
+        ▼
+ base de données (tables transmission_*)  ──►  API /api/v1/...  ──►  pages React
+```
+
+Chaque fichier Python commence par un bloc **`# [RÔLE DU FICHIER]`** (à quoi sert le fichier), et chaque
+fonction ou classe porte un commentaire **`# [EN BREF]`** juste au-dessus (rôle, entrée, sortie, en français
+simple). Pour les retrouver : chercher `RÔLE DU FICHIER` ou `EN BREF` dans l'éditeur.
+
+### `backend/scripts/` — l'étude Machine Learning
+
+| Fichier | À quoi il sert | Fonctions clés |
+| --- | --- | --- |
+| `build_dataset.py` | Lit les traces brutes TON_IoT, les nettoie ; construit aussi une année simulée et le flux de démo. | `load_normal_traces`, `generate_year`, `inject_attacks`, `main` |
+| `transmission_real.py` | **Les données de l'étude** : fusionne les 3 capteurs toutes les 5 s, découpe en train / validation / test par blocs d'une heure, ajoute la zone de garde, injecte les 9 scénarios d'attaque. Ne contient aucun modèle. | `fuse_real`, `block_split`, `build_schedule`, `inject`, `replay_flags` |
+| `transmission_models.py` | **Le cœur ML** : calcule les features, entraîne les 6 modèles sur 20 répétitions, choisit le réglage d'alerte, classe les modèles, diagnostic, courbe d'apprentissage, validation croisée, SHAP ; sauvegarde le meilleur modèle. | `engineer`, `make_model`, `fit_model`, `prepare_run`, `one_run`, `operating_point`, `summarize_model`, `rank_models`, `shap_summary`, `main` |
+| `transmission_alertes.py` | **La règle d'alerte** : « alarme si au moins *k* des *n* dernières mesures dépassent le seuil », comptage des vraies / fausses alertes, choix du seuil (précision ≥ 90 %, ≤ 0,5 fausse alerte/h). | `debounce`, `count`, `pool`, `grid`, `choose`, `apply` |
+| `transmission_recherche.py` | Cherche les meilleurs hyperparamètres de chaque modèle (petite grille, validation croisée groupée par bloc, train seulement). | `main` |
+| `comparer_supervises.py` | Affiche le tableau comparatif des 6 modèles dans le terminal. | `main` |
+| `transmission_biais_long.py` | Étude complémentaire : à partir de quelle durée les petits biais (−0,5 / −1 °C) deviennent détectables. | `main`, `one_run` |
+| `charger_base.py` | Copie les résultats JSON de l'étude dans la base de données (tables lues par le site). | `load` |
+
+**Le parcours d'une répétition** (`one_run` dans `transmission_models.py`) :
+`build_schedule` place les attaques → `inject` falsifie les mesures → `engineer` calcule les features →
+`block_split` répartit les lignes en train / val / test → `fit_model` entraîne chaque modèle sur le train →
+`scores_of` donne une probabilité d'attaque par ligne. Après les 20 répétitions : `operating_point`
+choisit le seuil sur la validation, `rank_models` classe les modèles, le test confirme.
+
+### `backend/app/` — l'application web (API)
+
+| Fichier | À quoi il sert |
+| --- | --- |
+| `main.py` | Point d'entrée. Au démarrage : crée les tables, crée le compte admin, lance MQTT si activé, charge l'étude en base. Branche toutes les routes `/api/v1/...` et sert le dashboard compilé. |
+| `core/config.py` | Les réglages lus dans `backend/.env` (base de données, secret JWT, compte admin, MQTT, CORS). |
+| `core/paths.py` | Tous les chemins de fichiers (data/, models/…) au même endroit. |
+| `db/session.py` | Connexion à la base : PostgreSQL si disponible, sinon repli automatique sur SQLite. |
+| `db/seed.py` | Données de départ : compte administrateur et paramètres par défaut. |
+| `db/base_repository.py` | Opérations de base réutilisables (lire, créer, modifier, supprimer une ligne). |
+| `api/deps.py` | Fabrique les services injectés dans les routes (FastAPI `Depends`). |
+
+**Les routes (`app/api/v1/`)** — chaque fichier = un groupe d'URL :
+
+| Fichier | URL | Rôle |
+| --- | --- | --- |
+| `auth.py` | `/api/v1/auth/...` (dont `auth/users`, `auth/audit-logs`) | Inscription, connexion (jeton JWT), profil, gestion des comptes et journal d'audit (admin). |
+| `etude.py` | `/api/v1/etude/...` | Données des pages Jeu de données, Résultats, SHAP, Détection vs réalité, et **Temps réel** (`live/start`, `live/{id}/next`, `live/{id}`). |
+| `transmission.py` | `/api/v1/transmission/...` | Lancer un entraînement (admin), suivre sa progression (`training-status`), historique, rapport opérateur, chiffres de la page d'accueil. |
+| `overview.py` | `/api/v1/overview` | Indicateurs de la page Vue d'ensemble. |
+| `parametres.py` | `/api/v1/parametres` | Lire / modifier les paramètres (précision minimale, fausses alertes tolérées, vitesse du temps réel). |
+| `devices.py`, `risks.py` | `/api/v1/devices`, `/api/v1/risks/...` | Liste des équipements IoT et score de risque. |
+
+**La logique métier (`app/domains/`)** — les routes appellent ces fichiers :
+
+| Dossier / fichier | À quoi il sert |
+| --- | --- |
+| `transmission/service.py` | Réutilise les scripts d'étude pour l'API : **entraînement web** (`train`), SHAP, rapport pour l'opérateur, résumé de l'étude. |
+| `transmission/live.py` | **Temps réel** : `Streamer` fait passer les mesures une par une dans le modèle sauvegardé et suit les alertes. |
+| `transmission/models.py` | Les **tables** de l'étude en base (`TransmissionRun`, `TransmissionMetric`, `TransmissionShap`, …). |
+| `transmission/repository.py` | Lecture / écriture de ces tables (enregistrer un entraînement, historique, étude de référence). |
+| `ml/features.py` | Les 21 features de base des capteurs (réutilisées par les scripts). |
+| `ml/progress.py` | Garde les messages de progression de l'entraînement, lus par la page toutes les secondes. |
+| `auth/` | Utilisateurs, mots de passe chiffrés (bcrypt), jetons JWT, rôles admin / opérateur, journal d'audit. |
+| `devices/` | Équipements IoT et leurs mesures (télémétrie). |
+| `intelligence/` | Score de risque des équipements (criticité, tendance). |
+| `parametres.py` | Table et validation des paramètres modifiables par l'administrateur. |
+
+**Les services (`app/services/`)** :
+
+| Fichier | À quoi il sert |
+| --- | --- |
+| `mqtt_service.py` | Écoute les capteurs sur le broker MQTT et regroupe les 3 mesures d'un même instant (si `ENABLE_MQTT=true`). |
+| `mqtt_simulator.py` | Simule des capteurs : publie le flux de démo sur MQTT (si `ENABLE_EDGE_SIMULATOR=true`). |
+
+**Les tests (`backend/tests/`)** vérifient le protocole (pas de fuite entre train / val / test, zone de
+garde, règle k sur n), les droits (un opérateur ne peut pas gérer les comptes), l'enregistrement en base
+et le temps réel. Lancer : `backend/.venv/bin/python -m pytest`.
+
 ## Lancement rapide
 
 Linux / macOS :
 
 ```bash
-./setup.sh              # venv, dépendances, dataset, entraînement des 4 modèles (~2 min)
+./setup.sh              # venv, dépendances, dataset, entraînement des 6 modèles supervisés
 cp backend/.env.example backend/.env   # puis définir JWT_SECRET_KEY et ADMIN_PASSWORD
 ./start_backend.sh      # http://localhost:8000  (PORT=8010 ./start_backend.sh si 8000 est pris)
 ./start_frontend.sh     # http://localhost:5173  (BACKEND_URL=http://localhost:8010 si besoin)
 ```
 
 Windows : créer `backend\.venv`, `pip install -r backend\requirements-train.txt`, lancer
-`scripts\build_dataset.py` puis `scripts\train_models.py` depuis `backend\`, puis
+`scripts\build_dataset.py` puis `scripts\transmission_models.py` depuis `backend\`, puis
 `start_backend.bat` et `start_frontend.bat`.
 
 Le compte administrateur est créé au premier démarrage à partir de `ADMIN_USERNAME` /
 `ADMIN_PASSWORD` ; l'inscription publique ne crée que des opérateurs.
 
 Services optionnels (tous désactivables dans `.env`) : PostgreSQL (sinon SQLite),
-broker Mosquitto (`ENABLE_MQTT`, `ENABLE_EDGE_SIMULATOR`), automate Modbus
-(`ENABLE_MODBUS`), Ollama pour l'analyste IA (sinon rapports par templates),
-OpenSearch/Wazuh.
+broker Mosquitto (`ENABLE_MQTT`, `ENABLE_EDGE_SIMULATOR`), OpenSearch/Wazuh.
 
 ## Avec Docker
 
@@ -77,8 +172,7 @@ docker compose exec app python -m pytest tests -q
 docker compose logs -f app
 ```
 
-Le port n'écoute que sur `127.0.0.1` : en production, un proxy (Caddy, nginx) le publie et doit
-laisser passer les WebSockets. Les volumes `data`, `models` et `pgdata` gardent le jeu de données,
+Le port n'écoute que sur `127.0.0.1` : en production, un proxy (Caddy, nginx) le publie. Les volumes `data`, `models` et `pgdata` gardent le jeu de données,
 les modèles réentraînés et la base entre deux reconstructions.
 
 ## Attaques de transmission (traces réelles) — version 3
@@ -127,8 +221,8 @@ nice -n 10 .venv/bin/python scripts/transmission_biais_long.py  # étude complé
 .venv/bin/python scripts/charger_base.py                         # charge l'étude dans PostgreSQL
 ```
 
-`transmission_real.py` (détecteurs non supervisés et statistiques, version précédente) reste disponible
-mais n'est plus dans le comparatif.
+Seuls les 6 modèles supervisés sont étudiés : Random Forest, Extra Trees, XGBoost,
+HistGradientBoosting, Régression Logistique et MLP.
 
 ## Site : pages et rôles
 
@@ -137,13 +231,13 @@ Toutes les pages de l'étude lisent **PostgreSQL** (`/api/v1/etude/*`), jamais u
 | Section | Page | Contenu | Rôles |
 | --- | --- | --- | --- |
 | Surveillance | Vue d'ensemble | indicateurs clés lus en base | admin, opérateur |
-| | Temps réel | les mesures passent une à une dans le modèle sauvegardé (WebSocket `/api/v1/etude/live`) | admin, opérateur |
+| | Temps réel | les mesures passent une à une dans le modèle sauvegardé (polling REST `/api/v1/etude/live/*`) | admin, opérateur |
 | | Détection vs réalité | alertes du modèle face aux épisodes réels, par rôle ; ajustement train / val / test | admin, opérateur |
 | | Rapport d'alerte | consignes pour l'opérateur par type d'attaque | admin, opérateur |
 | Modèle | Résultats | métriques train / val / test, classement, persistance, courbe d'apprentissage, validation croisée | admin, opérateur |
 | | Explicabilité SHAP | importances globales et par scénario | admin, opérateur |
 | | Jeu de données | KPI du jeu réel avec attaques | admin, opérateur |
-| Administration | Entraînement | lance un entraînement (6 modèles, répétition 0), progression en direct | admin |
+| Administration | Entraînement | réentraîne le modèle retenu (répétition 0), progression mise à jour chaque seconde | admin |
 | | Paramètres | précision minimale, fausses alertes tolérées, vitesse du temps réel | admin |
 | | Comptes, Journal d'audit | gestion des utilisateurs, traçabilité | admin |
 
@@ -180,4 +274,4 @@ cd frontend && npx tsc -b && npm run build
 
 - **Backend** : FastAPI, SQLModel, PostgreSQL / SQLite, scikit-learn, PyTorch, SHAP
 - **Frontend** : React 19, Vite 8, TypeScript, Tailwind 4, Radix UI, Recharts
-- **IoT** : MQTT (gmqtt), Modbus (pymodbus)
+- **IoT** : MQTT (gmqtt)

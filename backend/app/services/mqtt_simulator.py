@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/services/mqtt_simulator.py
+#   SIMULATEUR DE CAPTEURS : publie le flux de démo sur MQTT comme de vrais capteurs (option
+#   ENABLE_EDGE_SIMULATOR).
+# ══════════════════════════════════════════════════════════════════════════
 """
 Simulateur de capteurs edge (Industrie 4.0) — publication MQTT
 ===============================================================
@@ -47,6 +52,12 @@ EDGE_SENSORS = [
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _num
+#   Rôle   : Convertit une valeur en nombre (valeur par défaut si vide).
+#   Entrée : val ; default
+#   Sortie : float
+# ──────────────────────────────────────────────────────────────────────
 def _num(val, default=None):
     try:
         if val is None or str(val).strip() in ("", "nan"):
@@ -56,13 +67,29 @@ def _num(val, default=None):
         return default
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _season_of
+#   Rôle   : Nom de la saison d'un mois.
+#   Entrée : month
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
 def _season_of(month):
     return SEASON_NAMES.get(_SEASON_OF_MONTH.get(month, 1), "Inconnu")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] MqttSimulator
+#   Rôle   : SIMULATEUR DE CAPTEURS : publie le flux de démo sur MQTT, comme de vrais capteurs.
+# ──────────────────────────────────────────────────────────────────────
 class MqttSimulator:
     """Publie le flux saisonnier multi-capteurs vers le broker Mosquitto."""
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttSimulator.__init__
+    #   Rôle   : Retient l'adresse du broker et le fichier CSV à rejouer.
+    #   Entrée : host, port, csv_path…
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self, host: str, port: int, csv_path: Path, username: str = "", password: str = ""):
         self.host = host
         self.port = port
@@ -72,6 +99,12 @@ class MqttSimulator:
         self.client: MQTTClient | None = None
         self.running = False
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttSimulator.connect
+    #   Rôle   : Se connecte au broker.
+    #   Entrée : rien
+    #   Sortie : vrai si connecté
+    # ──────────────────────────────────────────────────────────────────────
     async def connect(self) -> bool:
         """Se connecte au broker. Retourne True si la connexion aboutit."""
         self.client = MQTTClient("edge-simulator")
@@ -88,9 +121,21 @@ class MqttSimulator:
             logger.warning("Edge simulator: MQTT connection failed: %s", e)
             return False
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttSimulator._topic
+    #   Rôle   : Topic MQTT d'un capteur.
+    #   Entrée : device
+    #   Sortie : factory/<capteur>/telemetry
+    # ──────────────────────────────────────────────────────────────────────
     def _topic(self, device: str):
         return f"factory/{device}/telemetry"
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttSimulator.stream
+    #   Rôle   : Lit le CSV et publie les 3 capteurs, une ligne par pas de temps.
+    #   Entrée : step_delay : pause entre deux pas
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     async def stream(self, step_delay: float = 0.35) -> None:
         """Lit le CSV et publie chaque ligne (3 capteurs) sur MQTT, une fois par pas."""
         if self.client is None:
@@ -137,6 +182,12 @@ class MqttSimulator:
                 logger.error("Edge simulator: erreur de lecture CSV: %s", e)
                 return
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttSimulator.start
+    #   Rôle   : Se connecte puis lance la publication en arrière-plan.
+    #   Entrée : step_delay
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     async def start(self, step_delay: float = 0.35) -> None:
         if not await self.connect():
             return
@@ -144,6 +195,12 @@ class MqttSimulator:
         # Démarrer le flux en arrière-plan
         asyncio.create_task(self.stream(step_delay))
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttSimulator.stop
+    #   Rôle   : Arrête la publication et se déconnecte.
+    #   Entrée : rien
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     async def stop(self) -> None:
         self.running = False
         if self.client is not None:

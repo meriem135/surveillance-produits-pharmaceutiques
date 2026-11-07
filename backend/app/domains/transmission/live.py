@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/transmission/live.py
+#   TEMPS RÉEL : fait passer les mesures enregistrées une par une dans le modèle sauvegardé et
+#   suit les alertes.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Temps réel : les mesures du jeu de données passent une à une dans le modèle sauvegardé
 =====================================================================================
@@ -28,6 +33,12 @@ CONFIG_PATH = service.OUT_DIR / "meilleur_modele.json"
 _cache: dict[str, Any] = {}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _load_model
+#   Rôle   : Charge le modèle sauvegardé (meilleur_modele.pkl) et son réglage (meilleur_modele.json).
+#   Entrée : rien
+#   Sortie : (modèle, réglage)
+# ──────────────────────────────────────────────────────────────────────
 def _load_model():
     import joblib  # noqa: PLC0415
     with open(CONFIG_PATH, encoding="utf-8") as f:
@@ -35,6 +46,13 @@ def _load_model():
     return joblib.load(MODEL_PATH), cfg
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] stream_source
+#   Rôle   : Prépare le TEMPS RÉEL : lit les mesures en base, calcule les features et charge le modèle. Le
+#            résultat est gardé en mémoire pour ne pas tout recalculer.
+#   Entrée : session : connexion à la base
+#   Sortie : dictionnaire (mesures, features, modèle, réglage) ou None
+# ──────────────────────────────────────────────────────────────────────
 async def stream_source(session: AsyncSession) -> dict | None:
     """Modèle, réglage et features du jeu de données en base (mis en cache par étude)."""
     run = await repository.reference_run(session)
@@ -61,6 +79,12 @@ async def stream_source(session: AsyncSession) -> dict | None:
     return _cache
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] info
+#   Rôle   : Résumé affiché sur la page Temps réel : modèle, seuil, règle k sur n, nombre de lignes par rôle.
+#   Entrée : src : sortie de stream_source
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 def info(src: dict) -> dict:
     df, cfg = src["df"], src["cfg"]
     return {"modele": cfg["modele"], "nom": cfg["nom"], "seuil": cfg["seuil"], "k": cfg["k"], "n": cfg["n"],
@@ -71,9 +95,20 @@ def info(src: dict) -> dict:
                       for r in ("train", "val", "test")}}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] Streamer
+#   Rôle   : LECTEUR TEMPS RÉEL : fait passer les mesures une par une dans le modèle, comme un vrai flux de
+#            capteurs, et suit les alertes (début, fin, vraie ou fausse).
+# ──────────────────────────────────────────────────────────────────────
 class Streamer:
     """Fait passer les lignes d'un rôle dans le modèle, paquet par paquet, avec l'état de persistance."""
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] Streamer.__init__
+    #   Rôle   : Prépare la lecture des lignes d'un rôle (train, val ou test).
+    #   Entrée : src : données et modèle ; role : rôle ; start : ligne de départ
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self, src: dict, role: str, start: int = 0):
         self.src = src
         df = src["df"]
@@ -89,9 +124,22 @@ class Streamer:
         self.stats = {"mesures": 0, "alertes": 0, "vraies": 0, "fausses": 0, "attaque_lignes": 0}
         self.alert_true = False
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] Streamer.done
+    #   Rôle   : Vrai quand toutes les lignes ont été lues.
+    #   Entrée : rien
+    #   Sortie : vrai/faux
+    # ──────────────────────────────────────────────────────────────────────
     def done(self) -> bool:
         return self.pos >= len(self.rows)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] Streamer.next_batch
+    #   Rôle   : LIT LE PAQUET SUIVANT de mesures : calcule le score du modèle, applique le seuil et la règle
+    #            k sur n, détecte le début/la fin des alertes et met à jour les compteurs.
+    #   Entrée : size : nombre de mesures du paquet
+    #   Sortie : points pour le graphique, événements, statistiques, progression
+    # ──────────────────────────────────────────────────────────────────────
     def next_batch(self, size: int) -> dict:
         df = self.src["df"]
         batch = self.rows[self.pos:self.pos + size]
@@ -128,6 +176,12 @@ class Streamer:
         return {"type": "mesures", "points": points, "evenements": events, "stats": dict(self.stats),
                 "progression": round(self.pos / max(1, len(self.rows)), 4), "fini": self.done()}
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] Streamer._end
+    #   Rôle   : Clôt une alerte et dit si elle était vraie (elle touchait une attaque) ou fausse.
+    #   Entrée : i : ligne de fin
+    #   Sortie : événement « fin »
+    # ──────────────────────────────────────────────────────────────────────
     def _end(self, i: int) -> dict:
         vraie = self.alert_true
         self.stats["vraies" if vraie else "fausses"] += 1

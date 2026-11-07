@@ -49,7 +49,7 @@ export default function ShapPage() {
         <Note>Une valeur SHAP mesure de combien une feature pousse le score vers « attaque » pour une mesure donnée ; la moyenne de sa
           valeur absolue classe les features par influence. Ce n'est pas une causalité : deux features corrélées se partagent l'effet.</Note>
       </Section>
-      <Section title="Par scénario" subtitle="Les features les plus influentes changent avec le mécanisme de l'attaque." source={data.sources.shap}>
+      <Section title="Par scénario" subtitle="SHAP calculé sur les mesures falsifiées de chaque scénario injecté. Le modèle ne connaît pas le scénario (il répond seulement « attaque ») : ce sont les signaux qui pèsent différemment selon le mécanisme de l'attaque." source={data.sources.shap}>
         <div className="mb-4">
           <Segmented label="Scénario d’attaque" value={current} onChange={setSc}
             options={scenarios.map(s => ({ value: s, label: SCENARIO_FR[s] ?? s }))} />

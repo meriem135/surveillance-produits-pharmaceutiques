@@ -1,8 +1,17 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/auth/models.py
+#   TABLE DES UTILISATEURS (users) : email, nom, mot de passe chiffré, rôle admin / opérateur.
+# ══════════════════════════════════════════════════════════════════════════
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] User
+#   Rôle   : TABLE users : un compte (email, nom, mot de passe chiffré, rôle admin / opérateur, actif ou
+#            non).
+# ──────────────────────────────────────────────────────────────────────
 class User(SQLModel, table=True):
     __tablename__ = "users"
 

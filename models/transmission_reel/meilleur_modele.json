@@ -56,10 +56,8 @@
     "fridge_cond_enc",
     "thermo_status"
   ],
-  "seuil": 0.7,
+  "seuil": 0.77,
   "k": 3,
   "n": 6,
-  "critere": "seuil unique et règle de persistance (k sur n lignes) choisis sur la validation : rappel maximal sous les contraintes précision ≥ 0.90 et fausses alertes ≤ 0.5 par heure",
-  "repetition": 0,
-  "generated_at": "2026-11-04T12:38:19"
+  "critere": "seuil unique et règle de persistance (k sur n lignes) choisis sur la validation : rappel maximal sous les contraintes précision ≥ 0,90 et fausses alertes ≤ 0,5 par heure"
 }

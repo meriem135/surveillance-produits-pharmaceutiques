@@ -24,7 +24,7 @@ frontend/src/
 
 ```bash
 npm ci
-npm run dev                                   # http://localhost:5173, proxy /api et /ws → :8000
+npm run dev                                   # http://localhost:5173, proxy /api → :8000
 BACKEND_URL=http://localhost:8010 npm run dev # backend sur un autre port
 ```
 

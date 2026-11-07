@@ -1,30 +1,24 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/api/v1/risks.py
+#   ROUTES SCORE DE RISQUE (/api/v1/risks/...). Score d'un équipement, historique, « et si »,
+#   anomalie, prévision, corrélation.
+# ══════════════════════════════════════════════════════════════════════════
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
 from app.api.deps import get_device_service
 from app.domains.devices.service import DeviceService
 from app.domains.intelligence.risk_service import risk_engine
-from app.domains.intelligence.nvd_service import nvd_service
 from app.domains.auth.service import require_any_role
 
 router = APIRouter()
 
 
-@router.get("/cves/{device_type}")
-async def get_device_cves(
-    device_type: str,
-    firmware: Optional[str] = Query(None, description="Version du firmware"),
-):
-    """Recupere les CVE pertinentes pour un type de device."""
-    cves = await nvd_service.get_cves_for_device(device_type, firmware, max_results=20)
-    summary = await nvd_service.get_device_vulnerability_summary(device_type, firmware)
-    return {
-        "device_type": device_type,
-        "firmware_version": firmware,
-        "summary": summary,
-        "cves": cves,
-    }
-
-
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_risk_correlation
+#   Rôle   : route API POST /risks/correlation : les risques de plusieurs équipements évoluent-ils ensemble ?
+#   Entrée : liste d'identifiants
+#   Sortie : corrélations
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/risks/correlation")
 async def get_risk_correlation(payload: dict):
     """Correlation de risque entre plusieurs devices."""
@@ -42,6 +36,12 @@ async def get_risk_correlation(payload: dict):
     }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_device_risk
+#   Rôle   : route API GET /risks/{id} : calcule le score de risque d'un équipement et ses causes.
+#   Entrée : device_id
+#   Sortie : score + décomposition
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/risks/{device_id}")
 async def get_device_risk(
     device_id: str,
@@ -55,14 +55,18 @@ async def get_device_risk(
     risk = await risk_engine.compute_risk(
         device_id=device.id,
         device_type=device.device_type,
-        firmware_version=device.firmware_version,
         location=device.location,
-        ml_telemetry=device.digital_twin_state,
     )
 
     return risk.to_dict()
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_device_risk_history
+#   Rôle   : route API GET /risks/{id}/history : historique du score de risque.
+#   Entrée : device_id ; n ; dates
+#   Sortie : liste de points
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/risks/{device_id}/history")
 async def get_device_risk_history(
     device_id: str,
@@ -79,6 +83,12 @@ async def get_device_risk_history(
     return risk_engine.get_risk_history(device_id, n, start_date, end_date)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] what_if_analysis
+#   Rôle   : route API POST /risks/{id}/what-if : comment le risque baisserait avec des actions correctives.
+#   Entrée : device_id
+#   Sortie : scénarios
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/risks/{device_id}/what-if")
 async def what_if_analysis(
     device_id: str,
@@ -93,7 +103,6 @@ async def what_if_analysis(
     scenarios = await risk_engine.what_if_analysis(
         device_id=device.id,
         device_type=device.device_type,
-        firmware_version=device.firmware_version,
         location=device.location,
         current_risk=device.risk_score,
     )
@@ -106,6 +115,12 @@ async def what_if_analysis(
     }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_risk_anomaly
+#   Rôle   : route API GET /risks/{id}/anomaly : le risque change-t-il anormalement vite ?
+#   Entrée : device_id ; seuil
+#   Sortie : résultat
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/risks/{device_id}/anomaly")
 async def get_risk_anomaly(
     device_id: str,
@@ -120,6 +135,12 @@ async def get_risk_anomaly(
     return risk_engine.detect_risk_anomaly(device_id, z_threshold=threshold)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_risk_forecast
+#   Rôle   : route API GET /risks/{id}/forecast : prévision du risque futur avec intervalle de confiance.
+#   Entrée : device_id ; steps
+#   Sortie : prévision
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/risks/{device_id}/forecast")
 async def get_risk_forecast(
     device_id: str,

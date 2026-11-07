@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/db/seed.py
+#   DONNÉES DE DÉPART. Au premier démarrage : crée les équipements de l'usine et le compte
+#   administrateur.
+# ══════════════════════════════════════════════════════════════════════════
 """Données de départ idempotentes : équipements de l'usine + compte admin."""
 
 import logging
@@ -16,7 +21,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_DEVICES = [
     {"id": "weather-01", "name": "Station météo extérieure", "device_type": "weather",
      "location": "outdoor"},
-    {"id": "fridge-01", "name": "Chambre froide 2–8 °C", "device_type": "fridge",
+    {"id": "fridge-01", "name": "Chambre froide (frigo)", "device_type": "fridge",
      "location": "storage"},
     {"id": "thermostat-01", "name": "Thermostat salle de production", "device_type": "thermostat",
      "location": "production"},
@@ -25,6 +30,13 @@ DEFAULT_DEVICES = [
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] seed_defaults
+#   Rôle   : DONNÉES DE DÉPART : ajoute les équipements de l'usine et crée le compte administrateur s'ils
+#            n'existent pas encore.
+#   Entrée : rien
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def seed_defaults() -> None:
     async with AsyncSessionLocal() as session:
         existing = set((await session.execute(select(Device.id))).scalars().all())

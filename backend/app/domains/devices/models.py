@@ -1,8 +1,16 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/devices/models.py
+#   TABLES DES ÉQUIPEMENTS (devices) ET DES MESURES (telemetry).
+# ══════════════════════════════════════════════════════════════════════════
 from typing import Optional, List
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Column, JSON
 from sqlalchemy import Index
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] Device
+#   Rôle   : TABLE devices : un équipement IoT (nom, type, IP, firmware, emplacement, état, scores).
+# ──────────────────────────────────────────────────────────────────────
 class Device(SQLModel, table=True):
     """IoT Device model with persistence"""
     __tablename__ = "devices"
@@ -28,6 +36,10 @@ Index('idx_device_type_status', Device.device_type, Device.status)
 Index('idx_location_status', Device.location, Device.status)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] Telemetry
+#   Rôle   : TABLE telemetry : une mesure d'un équipement à un instant.
+# ──────────────────────────────────────────────────────────────────────
 class Telemetry(SQLModel, table=True):
     """Time-series telemetry data for devices"""
     __tablename__ = "telemetry"

@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/charger_base.py
+#   SCRIPT 4 — CHARGEMENT EN BASE. Copie les résultats de l'étude (JSON) dans les tables lues
+#   par le site ; lancé automatiquement au démarrage de l'API.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Charge l'étude de référence dans PostgreSQL (tables lues par les pages du site)
 ===============================================================================
@@ -32,6 +37,14 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] load
+#   Rôle   : CHARGE L'ÉTUDE DE RÉFÉRENCE EN BASE : lit les JSON produits par transmission_models.py et
+#            remplit les tables transmission_* lues par les pages du site. Ne recharge rien si la version en
+#            base est déjà la bonne.
+#   Entrée : only_if_needed : ne charger que si nécessaire ; log : fonction d'affichage
+#   Sortie : résumé du chargement ou None
+# ──────────────────────────────────────────────────────────────────────
 async def load(only_if_needed: bool = False, log=print) -> dict | None:
     import numpy as np
     import pandas as pd

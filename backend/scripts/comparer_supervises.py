@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/comparer_supervises.py
+#   TABLEAU DE COMPARAISON des 6 modèles dans le terminal (validation / test / train).
+# ══════════════════════════════════════════════════════════════════════════
 """Compare les modèles SUPERVISÉS et désigne le meilleur (version 3 : point de fonctionnement unique).
 
 Le choix se fait sur la VALIDATION, jamais sur le test : le test ne sert qu'à CONFIRMER.
@@ -33,6 +37,12 @@ COURT = {"RandomForest": "Random Forest", "ExtraTrees": "Extra Trees", "XGBoost"
          "RF_v1": "RF anciennes features"}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] cle_tri
+#   Rôle   : Clé de tri d'un modèle (contrainte tenue, rappel, fausses alertes, délai).
+#   Entrée : k, res
+#   Sortie : tuple
+# ──────────────────────────────────────────────────────────────────────
 def cle_tri(k, res):
     r = res[k]
     delai = r.get("val_delai_median_min")
@@ -40,10 +50,22 @@ def cle_tri(k, res):
             r.get("val_fausses_alarmes_par_heure") or 0.0, delai if delai is not None else 99.0)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] classer
+#   Rôle   : Classe les modèles avec cle_tri.
+#   Entrée : res : résultats
+#   Sortie : liste ordonnée
+# ──────────────────────────────────────────────────────────────────────
 def classer(res):
     return sorted([k for k in SUPERVISES if k in res], key=lambda k: cle_tri(k, res))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] ligne
+#   Rôle   : Formate une ligne du tableau affiché.
+#   Entrée : i, k, r, role
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
 def ligne(i, k, r, role):
     v = r["par_role"]["alarme"][role]
     op = r["point_fonctionnement"]
@@ -54,12 +76,24 @@ def ligne(i, k, r, role):
             f"{v['f1']:>7.3f}  {'oui' if op['contrainte_tenue'] else 'NON'}")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] entete
+#   Rôle   : En-tête du tableau affiché.
+#   Entrée : rien
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
 def entete():
     print(f"{'rang':<5}{'modele':<24}{'seuil':>6}{'k/n':>7}{'RAPPEL':>8}{'PREC':>8}{'FA/h':>7}{'delai':>7}"
           f"{'episodes':>9}{'F1':>7}  contrainte")
     print("-" * 100)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] main
+#   Rôle   : Affiche la comparaison des modèles supervisés et désigne le meilleur (choisi sur la validation).
+#   Entrée : rien
+#   Sortie : rien (affichage)
+# ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     j = json.load(open(JSON_P, encoding="utf-8"))
     res = j["resultats"]

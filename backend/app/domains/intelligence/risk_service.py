@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/intelligence/risk_service.py
+#   MOTEUR DE SCORE DE RISQUE des équipements : importance de l'équipement, vitesse d'évolution,
+#   historique lissé ; historique, « et si », anomalie, prévision.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Predictive Risk Scoring Engine (Phase 3 — Risk Intelligence)
 =============================================================
@@ -6,17 +11,10 @@ Combines multiple signals into a unified 0-100 risk score.
 Architecture:
   Risk = Σ(w_i * f_i)  where f_i are risk factors and w_i are learned weights
 
-Risk Factors (f_i) — weights aligned with the anomaly model & SHAP:
-  1. ML_Anomaly_Risk  (30%) — normalized One-Class SVM anomaly score
-                               + local causes explaining WHY the anomaly
-  2. CVE_Risk         (25%) — CVSS + EPSS from NVD matched to firmware
-  3. Criticality      (10%) — device type / location importance
-  4. Risk_Velocity    (10%) — first derivative of risk over time (trend)
-  5. Temporal_Decay   (10%) — recency weighting (recent events matter more)
-
-The ML factor consumes the SAME One-Class SVM model and the SAME local
-explanations served by the anomaly service, so the risk decomposition
-and the SHAP explanations tell a single coherent story.
+Risk Factors (f_i):
+  1. Criticality      (34%) — device type / location importance
+  2. Risk_Velocity    (33%) — first derivative of risk over time (trend)
+  3. Temporal_Decay   (33%) — recency weighting (recent events matter more)
 
 Data Science innovations:
   - Bayesian updating: prior risk is updated with new evidence
@@ -27,15 +25,12 @@ Data Science innovations:
 """
 
 import json
-import os
 import math
 import numpy as np
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from pathlib import Path
 
-from app.domains.intelligence.nvd_service import nvd_service, _cvss_score_to_risk
-from app.domains.intelligence.ml_service import ml_anomaly
 
 HISTORY_DIR = Path(__file__).parent.parent.parent / "models" / "risk_history"
 HISTORY_DIR.mkdir(parents=True, exist_ok=True)
@@ -58,62 +53,31 @@ LOCATION_CRITICALITY = {
     "unassigned": 50,
 }
 
-# Default weights for risk factors (sum = 1.0) — reference model: 5 factors
+# Default weights for risk factors (sum = 1.0) — 3 factors
 DEFAULT_WEIGHTS = {
-    "ml_anomaly": 0.35,   # Anomalie IA (One-Class SVM + explications locales)
-    "cve":        0.29,   # Vulnerabilites CVE (NVD + EPSS)
-    "criticality": 0.12,  # Criticite de l'equipement
-    "velocity":   0.12,   # Vitesse d'evolution du risque
-    "temporal":   0.12,   # Score historique lisse (EWMA)
+    "criticality": 0.34,  # Criticite de l'equipement
+    "velocity":    0.33,  # Vitesse d'evolution du risque
+    "temporal":    0.33,  # Score historique lisse (EWMA)
 }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _sigmoid
+#   Rôle   : Courbe en S qui lisse un score.
+#   Entrée : x, center, slope
+#   Sortie : valeur 0–1
+# ──────────────────────────────────────────────────────────────────────
 def _sigmoid(x: float, center: float = 0.0, slope: float = 1.0) -> float:
     """Sigmoid transformation for smooth risk scoring."""
     return 1.0 / (1.0 + math.exp(-slope * (x - center)))
 
 
-def _load_ocsvm_calibration() -> tuple[float, float]:
-    """Lit le seuil et le centre normal du modele OCSVM calibres a l'entrainement.
-
-    Seuil  -> threshold_ocsvm.json (max F1 precision/recall, anomalie >= seuil)
-    Centre -> hyperparams_ocsvm.json (score_mean sur le train, converti dans
-             l'unite anomaly_score = -decision_function).
-    """
-    from app.domains.intelligence.ml_service import _find_model
-    threshold, norm_center = 20.0, -30.0
-    try:
-        thr_path = _find_model("threshold_ocsvm.json")
-        if os.path.exists(thr_path):
-            with open(thr_path, "r", encoding="utf-8") as f:
-                threshold = float(json.load(f).get("threshold", threshold))
-    except Exception:
-        pass
-    try:
-        hp_path = _find_model("hyperparams_ocsvm.json")
-        if os.path.exists(hp_path):
-            with open(hp_path, "r", encoding="utf-8") as f:
-                norm_center = -float(json.load(f).get("score_mean", -norm_center))
-    except Exception:
-        pass
-    return threshold, norm_center
-
-
-_ML_THRESHOLD, _ML_NORM_CENTER = _load_ocsvm_calibration()
-
-
-def _normalize_ml_score(anomaly_score: float) -> float:
-    """Convert OCSVM anomaly score (-decision_function, positif=anomalie) to 0-100 risk.
-
-    Calibration post-entrainement : les points normaux se centrent vers
-    _ML_NORM_CENTER (< 0) et les anomalies depassent _ML_THRESHOLD (> 0).
-    On applique un sigmoide centre entre les deux pour un gradient lisse.
-    """
-    center = (_ML_NORM_CENTER + _ML_THRESHOLD) / 2.0
-    scale = round(max((_ML_THRESHOLD - _ML_NORM_CENTER) / 6.0, 1.0), 4)
-    return round(100.0 / (1.0 + math.exp(-(anomaly_score - center) / scale)), 1)
-
-
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _compute_criticality
+#   Rôle   : Importance d'un équipement selon son type et son emplacement.
+#   Entrée : device_type ; location
+#   Sortie : score 0–100
+# ──────────────────────────────────────────────────────────────────────
 def _compute_criticality(device_type: str, location: str) -> float:
     """Compute static criticality score for a device."""
     type_score = DEVICE_CRITICALITY.get(device_type.lower(), 50)
@@ -121,14 +85,30 @@ def _compute_criticality(device_type: str, location: str) -> float:
     return type_score * 0.6 + loc_score * 0.4
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] RiskHistory
+#   Rôle   : HISTORIQUE DU RISQUE d'un équipement, sauvegardé en JSON (500 derniers points).
+# ──────────────────────────────────────────────────────────────────────
 class RiskHistory:
     """Persistent risk score history for a device with EWMA smoothing."""
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory.__init__
+    #   Rôle   : Charge l'historique de l'équipement.
+    #   Entrée : device_id
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self, device_id: str):
         self.device_id = device_id
         self.path = HISTORY_DIR / f"risk_{device_id}.json"
         self.history: list[dict] = self._load()
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory._load
+    #   Rôle   : Lit le fichier d'historique.
+    #   Entrée : rien
+    #   Sortie : liste
+    # ──────────────────────────────────────────────────────────────────────
     def _load(self) -> list[dict]:
         if self.path.exists():
             try:
@@ -138,6 +118,12 @@ class RiskHistory:
                 return []
         return []
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory._save
+    #   Rôle   : Écrit le fichier d'historique.
+    #   Entrée : rien
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def _save(self):
         try:
             with open(self.path, "w") as f:
@@ -145,6 +131,12 @@ class RiskHistory:
         except OSError:
             pass
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory.add
+    #   Rôle   : Ajoute un nouveau score à l'historique.
+    #   Entrée : score ; decomposition
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def add(self, score: float, decomposition: dict):
         self.history.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -153,9 +145,21 @@ class RiskHistory:
         })
         self._save()
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory.get_recent
+    #   Rôle   : Les n derniers points.
+    #   Entrée : n
+    #   Sortie : liste
+    # ──────────────────────────────────────────────────────────────────────
     def get_recent(self, n: int = 10) -> list[dict]:
         return self.history[-n:]
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory.get_smoothed
+    #   Rôle   : Score lissé (moyenne mobile exponentielle).
+    #   Entrée : alpha
+    #   Sortie : score ou None
+    # ──────────────────────────────────────────────────────────────────────
     def get_smoothed(self, alpha: float = 0.3) -> Optional[float]:
         """EWMA-smoothed risk score."""
         if not self.history:
@@ -166,6 +170,12 @@ class RiskHistory:
             ema = alpha * s + (1 - alpha) * ema
         return round(ema, 1)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory.compute_velocity
+    #   Rôle   : Vitesse d'évolution du risque (positif = monte).
+    #   Entrée : rien
+    #   Sortie : valeur -100 à +100
+    # ──────────────────────────────────────────────────────────────────────
     def compute_velocity(self) -> float:
         """Compute risk velocity: rate of change over last N points.
         
@@ -182,6 +192,12 @@ class RiskHistory:
         slope = np.polyfit(xs, scores, 1)[0] if len(scores) > 1 else 0
         return round(float(np.clip(slope * 10, -100, 100)), 1)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskHistory.get_status
+    #   Rôle   : Tendance : monte vite, monte, stable, baisse…
+    #   Entrée : rien
+    #   Sortie : texte
+    # ──────────────────────────────────────────────────────────────────────
     def get_status(self) -> str:
         """Categorize current trend."""
         vel = self.compute_velocity()
@@ -196,9 +212,19 @@ class RiskHistory:
         return "stable"
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] RiskScore
+#   Rôle   : UN SCORE DE RISQUE calculé, avec ses causes et son intervalle de confiance.
+# ──────────────────────────────────────────────────────────────────────
 class RiskScore:
     """A single computed risk score with full decomposition."""
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScore.__init__
+    #   Rôle   : Remplit le score et ses détails.
+    #   Entrée : score, facteurs, poids…
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self, score: float, factors: dict[str, float],
                  weights: dict[str, float], decomposition: list[dict],
                  confidence_interval: tuple[float, float],
@@ -211,6 +237,12 @@ class RiskScore:
         self.trend = trend
         self.velocity = velocity
         self.status = status
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScore.to_dict
+    #   Rôle   : Le score en dictionnaire (pour l'API).
+    #   Entrée : rien
+    #   Sortie : dictionnaire
+    # ──────────────────────────────────────────────────────────────────────
     def to_dict(self) -> dict:
         return {
             "risk_score": round(self.score, 1),
@@ -227,6 +259,12 @@ class RiskScore:
             "status": self.status,
         }
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScore._severity_label
+    #   Rôle   : Niveau : CRITICAL ≥ 80, HIGH ≥ 60, MEDIUM ≥ 40, sinon LOW.
+    #   Entrée : rien
+    #   Sortie : texte
+    # ──────────────────────────────────────────────────────────────────────
     def _severity_label(self) -> str:
         if self.score >= 80:
             return "CRITICAL"
@@ -239,70 +277,64 @@ class RiskScore:
         return "NONE"
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] RiskScoringEngine
+#   Rôle   : MOTEUR DE SCORE DE RISQUE : combine l'importance de l'équipement, la vitesse d'évolution du
+#            risque et son historique lissé (3 facteurs pondérés).
+# ──────────────────────────────────────────────────────────────────────
 class RiskScoringEngine:
     """Main predictive risk scoring engine.
 
-    Combines ML anomaly detection, CVE intelligence and device context
+    Combines device context and risk history
     into a unified risk score with full explainability.
     """
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.__init__
+    #   Rôle   : Prépare les poids des facteurs et les historiques.
+    #   Entrée : weights
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self, weights: Optional[dict[str, float]] = None):
         self.weights = weights or DEFAULT_WEIGHTS.copy()
         self._histories: dict[str, RiskHistory] = {}
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine._get_history
+    #   Rôle   : Historique d'un équipement (créé au besoin).
+    #   Entrée : device_id
+    #   Sortie : RiskHistory
+    # ──────────────────────────────────────────────────────────────────────
     def _get_history(self, device_id: str) -> RiskHistory:
         if device_id not in self._histories:
             self._histories[device_id] = RiskHistory(device_id)
         return self._histories[device_id]
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.compute_risk
+    #   Rôle   : CALCULE LE SCORE DE RISQUE d'un équipement : chaque facteur pondéré, puis enregistré dans
+    #            l'historique.
+    #   Entrée : device_id, device_type, location…
+    #   Sortie : RiskScore
+    # ──────────────────────────────────────────────────────────────────────
     async def compute_risk(self, device_id: str, device_type: str,
-                            firmware_version: Optional[str] = None,
-                            location: str = "Unassigned",
-                            ml_telemetry: Optional[dict] = None) -> RiskScore:
+                            location: str = "Unassigned") -> RiskScore:
         """Compute full risk score with all factors."""
         history = self._get_history(device_id)
 
-        # 1. ML Anomaly Risk (+ SHAP explanations)
-        ml_risk = 0.0
-        ml_raw_score = 0.0
-        ml_shap_causes: list = []
-        if ml_telemetry:
-            try:
-                analysis = ml_anomaly.analyze(ml_telemetry)
-                ml_raw_score = analysis["anomaly_score"]
-                ml_risk = _normalize_ml_score(ml_raw_score)
-                # top_causes = SHAP explanations of the anomaly model
-                ml_shap_causes = analysis.get("top_causes", [])
-            except Exception as e:
-                print(f"ML analysis failed for {device_id}: {e}")
-
-        # 2. CVE Risk
-        cve_risk = 0.0
-        cve_count = 0
-        try:
-            cve_summary = await nvd_service.get_device_vulnerability_summary(
-                device_type, firmware_version
-            )
-            cve_risk = cve_summary["overall_vulnerability_score"]
-            cve_count = cve_summary["total_cves"]
-        except Exception as e:
-            print(f"CVE fetch failed for {device_type}: {e}")
-
-        # 3. Criticality
+        # 1. Criticality
         criticality = _compute_criticality(device_type, location)
 
-        # 4. Risk Velocity (from history)
+        # 2. Risk Velocity (from history)
         velocity = history.compute_velocity()
         velocity_risk = _sigmoid(velocity, center=0, slope=0.05) * 100
 
-        # 5. Temporal decay (recent history weighted more)
+        # 3. Temporal decay (recent history weighted more)
         prev_risk = history.get_smoothed()
         temporal_risk = prev_risk if prev_risk is not None else 50
 
         # ── Calcul du score pondere ──────────────────────────────────────────
         factors = {
-            "ml_anomaly":    round(ml_risk, 1),
-            "cve":           round(cve_risk, 1),
             "criticality":   round(criticality, 1),
             "velocity":      round(velocity_risk, 1),
             "temporal":      round(temporal_risk, 1),
@@ -339,9 +371,6 @@ class RiskScoringEngine:
                 "contribution": round(contribution, 1),
                 "contribution_pct": round(contribution / max(final_score, 1) * 100, 1),
             }
-            # SHAP bridge: attach the anomaly explanations to the ML factor
-            if factor_name == "ml_anomaly" and ml_shap_causes:
-                entry["shap_causes"] = ml_shap_causes
             decomposition.append(entry)
         decomposition.sort(key=lambda x: x["contribution"], reverse=True)
 
@@ -350,10 +379,6 @@ class RiskScoringEngine:
 
         # Build domain-specific labels
         status_parts = []
-        if ml_risk > 70:
-            status_parts.append("comportement anormal detecte par IA")
-        if cve_risk > 70:
-            status_parts.append(f"{cve_count} vulnerabilites critiques")
         if velocity > 10:
             status_parts.append("risque en augmentation rapide")
         status = ", ".join(status_parts) if status_parts else "aucun risque majeur detecte"
@@ -374,48 +399,34 @@ class RiskScoringEngine:
 
         return risk
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine._factor_label
+    #   Rôle   : Nom lisible d'un facteur de risque.
+    #   Entrée : key
+    #   Sortie : texte
+    # ──────────────────────────────────────────────────────────────────────
     def _factor_label(self, key: str) -> str:
         labels = {
-            "ml_anomaly":    "Score d'anomalie IA (One-Class SVM + explications locales)",
-            "cve":           "Vulnerabilites CVE (NVD + EPSS)",
             "criticality":   "Criticite de l'equipement",
             "velocity":      "Vitesse d'evolution du risque",
             "temporal":      "Historique du risque (EWMA)",
         }
         return labels.get(key, key)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.what_if_analysis
+    #   Rôle   : « Et si… » : risque estimé après un redémarrage de l'équipement, une isolation réseau, etc.
+    #   Entrée : device_id, device_type, location…
+    #   Sortie : liste de scénarios
+    # ──────────────────────────────────────────────────────────────────────
     async def what_if_analysis(self, device_id: str, device_type: str,
-                                firmware_version: Optional[str] = None,
                                 location: str = "Unassigned",
                                 current_risk: int = 0) -> list[dict]:
         """What-if scenarios: how risk changes with different actions."""
         history = self._get_history(device_id)
         scenarios = []
 
-        # Scenario 1: Patch firmware
-        if firmware_version:
-            try:
-                cve_summary = await nvd_service.get_device_vulnerability_summary(
-                    device_type, "99.99.99"  # pretend fully patched
-                )
-                patched_cve_risk = cve_summary["overall_vulnerability_score"]
-                current_cve_risk = (await nvd_service.get_device_vulnerability_summary(
-                    device_type, firmware_version
-                ))["overall_vulnerability_score"]
-                cve_reduction = max(0, current_cve_risk - patched_cve_risk)
-                new_risk = max(0, current_risk - cve_reduction * self.weights.get("cve", 0.25))
-                scenarios.append({
-                    "scenario": "Mise a jour du firmware",
-                    "description": f"Passage de {firmware_version} a la version recente",
-                    "current_risk": current_risk,
-                    "predicted_risk": round(new_risk, 1),
-                    "risk_reduction": round(current_risk - new_risk, 1),
-                    "confidence": "haute" if cve_reduction > 20 else "moyenne",
-                })
-            except Exception:
-                pass
-
-        # Scenario 2: Reboot / reset device
+        # Scenario 1: Reboot / reset device
         prev_smoothed = history.get_smoothed()
         if prev_smoothed:
             reset_risk = prev_smoothed * 0.7
@@ -428,7 +439,7 @@ class RiskScoringEngine:
                 "confidence": "basse",
             })
 
-        # Scenario 3: Isolation / network disconnect
+        # Scenario 2: Isolation / network disconnect
         is_risk = current_risk * 0.3
         scenarios.append({
             "scenario": "Isolement reseau",
@@ -442,6 +453,12 @@ class RiskScoringEngine:
         scenarios.sort(key=lambda x: x["risk_reduction"], reverse=True)
         return scenarios
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.get_risk_history
+    #   Rôle   : Historique du risque, filtrable par dates.
+    #   Entrée : device_id ; n ; start_date ; end_date
+    #   Sortie : liste
+    # ──────────────────────────────────────────────────────────────────────
     def get_risk_history(self, device_id: str, n: int = 20,
                          start_date: Optional[str] = None,
                          end_date: Optional[str] = None) -> list[dict]:
@@ -461,6 +478,12 @@ class RiskScoringEngine:
             points = [p for p in points if p.get("timestamp", "") <= end_date]
         return points[-n:]
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.update_weights
+    #   Rôle   : Change les poids des facteurs (la somme reste 1).
+    #   Entrée : new_weights
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def update_weights(self, new_weights: dict[str, float]):
         """Update risk factor weights dynamically."""
         total = sum(new_weights.values())
@@ -468,6 +491,12 @@ class RiskScoringEngine:
             new_weights = {k: v / total for k, v in new_weights.items()}
         self.weights.update(new_weights)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.detect_risk_anomaly
+    #   Rôle   : Le risque change-t-il anormalement vite ? (Z-score sur la vitesse).
+    #   Entrée : device_id ; z_threshold
+    #   Sortie : dictionnaire
+    # ──────────────────────────────────────────────────────────────────────
     def detect_risk_anomaly(self, device_id: str, z_threshold: float = 2.0) -> dict:
         """Detect when the risk score itself behaves anomalously (risk-on-risk).
 
@@ -509,6 +538,12 @@ class RiskScoringEngine:
             ),
         }
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.decompose_trend
+    #   Rôle   : Sépare l'historique en tendance de fond et en variations courtes.
+    #   Entrée : device_id
+    #   Sortie : dictionnaire
+    # ──────────────────────────────────────────────────────────────────────
     def decompose_trend(self, device_id: str) -> dict:
         """Simple trend decomposition of risk history.
 
@@ -545,6 +580,12 @@ class RiskScoringEngine:
             "signal_to_noise": round(float(np.std(trend) / max(np.std(residual), 0.01)), 1),
         }
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.forecast_risk
+    #   Rôle   : Prévision du risque futur (prolongement de la tendance + marge d'erreur).
+    #   Entrée : device_id ; steps
+    #   Sortie : liste de points
+    # ──────────────────────────────────────────────────────────────────────
     def forecast_risk(self, device_id: str, steps: int = 12) -> list[dict]:
         """Simple risk forecast using linear extrapolation with confidence bounds.
 
@@ -576,6 +617,12 @@ class RiskScoringEngine:
 
         return forecasts
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] RiskScoringEngine.compute_correlation
+    #   Rôle   : Corrélation entre les risques de plusieurs équipements.
+    #   Entrée : device_ids
+    #   Sortie : liste de paires
+    # ──────────────────────────────────────────────────────────────────────
     def compute_correlation(self, device_ids: list[str]) -> list[dict]:
         """Compute pairwise risk correlation between devices.
 

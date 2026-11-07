@@ -1,7 +1,15 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/devices/schemas.py
+#   FORMATS DES DONNÉES ÉCHANGÉES (Pydantic) pour les équipements et les mesures.
+# ══════════════════════════════════════════════════════════════════════════
 from typing import Optional, List, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] DeviceBase
+#   Rôle   : Champs communs d'un équipement.
+# ──────────────────────────────────────────────────────────────────────
 class DeviceBase(BaseModel):
     name: str = Field(..., description="Device name")
     device_type: str = Field(..., description="Device type (e.g., sensor, camera, gateway)")
@@ -11,10 +19,18 @@ class DeviceBase(BaseModel):
     firmware_version: Optional[str] = Field(None, description="Firmware version")
     location: Optional[str] = Field("Unassigned", description="Physical location")
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] DeviceCreate
+#   Rôle   : Données pour créer un équipement.
+# ──────────────────────────────────────────────────────────────────────
 class DeviceCreate(DeviceBase):
     """Model for creating a new device"""
     pass
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] DeviceUpdate
+#   Rôle   : Champs modifiables d'un équipement.
+# ──────────────────────────────────────────────────────────────────────
 class DeviceUpdate(BaseModel):
     """Model for updating device information"""
     name: Optional[str] = None
@@ -26,6 +42,10 @@ class DeviceUpdate(BaseModel):
     location: Optional[str] = None
     status: Optional[str] = None
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] DeviceRead
+#   Rôle   : Ce que l'API renvoie d'un équipement.
+# ──────────────────────────────────────────────────────────────────────
 class DeviceRead(DeviceBase):
     """Response model for a device"""
     id: str
@@ -40,6 +60,10 @@ class DeviceRead(DeviceBase):
     class Config:
         from_attributes = True
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TelemetryRead
+#   Rôle   : Ce que l'API renvoie d'une mesure.
+# ──────────────────────────────────────────────────────────────────────
 class TelemetryRead(BaseModel):
     """Response model for telemetry"""
     id: int
@@ -51,6 +75,10 @@ class TelemetryRead(BaseModel):
     class Config:
         from_attributes = True
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] StatsSummary
+#   Rôle   : Statistiques globales des équipements.
+# ──────────────────────────────────────────────────────────────────────
 class StatsSummary(BaseModel):
     total_devices: int
     online_devices: int

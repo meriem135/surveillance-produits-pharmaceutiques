@@ -1,6 +1,16 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/core/config.py
+#   CONFIGURATION. Tous les réglages de l'application (base de données, secret JWT, compte
+#   admin, MQTT, CORS), lus dans backend/.env.
+# ══════════════════════════════════════════════════════════════════════════
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] Settings
+#   Rôle   : TOUS LES RÉGLAGES de l'application, lus dans backend/.env ou les variables d'environnement :
+#            base de données, secret JWT, compte admin, MQTT, CORS…
+# ──────────────────────────────────────────────────────────────────────
 class Settings(BaseSettings):
     """
     Application settings powered by Pydantic Settings
@@ -33,9 +43,8 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@peaksoft.local"
     ADMIN_PASSWORD: str = ""
 
-    # Services d'ingestion (désactivables quand le matériel n'est pas présent)
+    # Service d'ingestion (désactivable quand le broker n'est pas présent)
     ENABLE_MQTT: bool = True
-    ENABLE_MODBUS: bool = False
     # Simulateur edge : publie le flux saisonnier sur le broker MQTT (démo Industrie 4.0)
     ENABLE_EDGE_SIMULATOR: bool = False
 
@@ -44,17 +53,6 @@ class Settings(BaseSettings):
     MQTT_BROKER_PORT: int = int(os.getenv("MQTT_BROKER_PORT", 1883))
     MQTT_USERNAME: str = os.getenv("MQTT_USERNAME", "admin")
     MQTT_PASSWORD: str = os.getenv("MQTT_PASSWORD", "public")
-
-    # Modbus Configuration
-    MODBUS_HOST: str = os.getenv("MODBUS_HOST", "localhost")
-    MODBUS_PORT: int = int(os.getenv("MODBUS_PORT", 5020))
-    MODBUS_POLLING_INTERVAL: int = int(os.getenv("MODBUS_POLLING_INTERVAL", 30))
-
-    # Ollama LLM Configuration
-    OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "phi:2.7b")
-    # Modèle utilisé pour le rapport simple par ligne de dataset (option B)
-    POINT_REPORT_MODEL: str = os.getenv("POINT_REPORT_MODEL", "qwen2.5:3b")
 
     # API base URL (for internal self-calls)
     API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")

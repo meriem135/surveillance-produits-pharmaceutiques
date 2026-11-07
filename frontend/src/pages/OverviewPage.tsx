@@ -1,7 +1,7 @@
 /**
  * Vue d'ensemble — chaque chiffre de cette page vient de GET /api/v1/overview, qui ne lit que
  * la base de données (transmission_runs, transmission_model_results, devices, telemetry,
- * ml_models, model_metrics, users, audit_logs). Aucun chiffre écrit en dur.
+ * users, audit_logs). Aucun chiffre écrit en dur.
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -169,7 +169,7 @@ export default function OverviewPage() {
 
       {/* ── Détection par scénario : registre par type d'attaque ────────── */}
       <Section title={best ? `Détection par scénario, ${best.nom}` : 'Détection par scénario'}
-        subtitle="Chaque ligne : les épisodes de ce scénario dans le test, le délai médian et la part des mesures falsifiées signalées."
+        subtitle="Évaluation par scénario d’attaque injecté (le modèle répond seulement « attaque » ou « normal » : il ne reconnaît pas le type). Chaque ligne : les épisodes de ce scénario dans le test, le délai médian et la part des mesures falsifiées signalées."
         source="transmission_model_results.per_attack, per_episode (meilleur modèle)" flush>
         {scen.length ? (
           <div data-testid="table-scenarios">
@@ -295,7 +295,7 @@ export default function OverviewPage() {
 
       {/* ── Historique ─────────────────────────────────────────────────── */}
       <Section title="Historique des entraînements"
-        subtitle="Entraînements lancés depuis le site. Chacun est UNE seule répétition (découpage n° 0) mesurée sur son propre petit jeu de test : ce ne sont pas les chiffres de l’étude de référence ci-dessus (20 répétitions). Depuis le n° 6, seul le modèle retenu est réentraîné, avec le réglage de l’étude."
+        subtitle="Entraînements lancés depuis le site. Chacun réentraîne le seul modèle retenu, avec le réglage de l’étude, sur 20 répétitions (comme l’étude de référence ci-dessus) ; les chiffres cumulent les 20 répétitions."
         source="transmission_runs JOIN transmission_model_results (is_best) WHERE status = 'termine'"
         action={<Link to="/dashboard/resultats" className="text-[13.5px] font-semibold underline underline-offset-2" style={{ color: 'var(--accent-primary)' }}>Voir les résultats de référence</Link>}>
         {histo.length ? (
@@ -359,7 +359,7 @@ export default function OverviewPage() {
       </Section>
 
       {/* ── Plateforme : capteurs, données, comptes ─────────────────────── */}
-      <Section title="Capteurs et plateforme" source="devices, telemetry, ml_models, model_metrics, users, audit_logs" flush>
+      <Section title="Capteurs et plateforme" source="devices, telemetry, users, audit_logs" flush>
         <Readouts className="!border-0 !border-b !rounded-none" cols={4}>
           <Stat label="Entraînements enregistrés" value={nf(e.total)}
             sub={e.total ? <>{Object.entries(e.par_statut).map(([s, n]) => `${n} ${(STATUT[s]?.label ?? s).toLowerCase()}${n > 1 && s !== 'en_cours' ? 's' : ''}`).join(', ')} ; dernier le {dateFr(e.dernier)}</> : 'Aucun entraînement en base'} />

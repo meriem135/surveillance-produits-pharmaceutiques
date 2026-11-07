@@ -1,12 +1,17 @@
-/** Logo VigiloChain : un thermomètre d'enregistreur dont la plage 2–8 °C est marquée en bleu froid. */
+/** Logo VigiloChain : un thermomètre d'enregistreur dont la plage de mesure est marquée en bleu froid. */
 export default function BandMark({ size = 28, inverted = false }: { size?: number; inverted?: boolean }) {
-  const ink = inverted ? 'var(--bg-panel)' : 'var(--text-primary)';
+  void inverted;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden focusable="false" className="shrink-0">
-      <rect x="10.5" y="3" width="11" height="26" rx="5.5" fill="none" stroke={ink} strokeWidth="2" />
-      <rect x="11.5" y="12" width="9" height="8.5" fill="var(--accent-primary)" />
-      <path d="M23.5 12h5M23.5 20.5h5" stroke="var(--accent-primary)" strokeWidth="2" />
-      <path d="M4 8h4M5.5 16h2.5M4 24h4" stroke={ink} strokeWidth="1.5" opacity="0.55" />
+      <defs>
+        <linearGradient id="vc-logo-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--accent-primary)" />
+          <stop offset="1" stopColor="var(--accent-purple)" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="30" height="30" rx="9" fill="url(#vc-logo-g)" />
+      <rect x="12.5" y="7" width="7" height="18" rx="3.5" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <rect x="13.7" y="15" width="4.6" height="8" rx="2.3" fill="#fff" />
     </svg>
   );
 }

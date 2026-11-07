@@ -32,17 +32,9 @@ const STEPS = [
 
 const ZONES = [
   { title: 'Météo extérieure', where: 'Logistique', desc: 'Conditions climatiques pendant le transport des produits pharmaceutiques.' },
-  { title: 'Chambre froide', where: 'Stockage, 2 à 8 °C', desc: 'Vaccins, médicaments et matières premières en entrepôt réfrigéré.', band: true },
+  { title: 'Chambre froide', where: 'Stockage, 1 à 14 °C', desc: 'Vaccins, médicaments et matières premières en entrepôt réfrigéré.', band: true },
   { title: 'Thermostat', where: 'Production', desc: 'Lignes de fabrication, salles blanches et conditionnement.' },
 ];
-
-const TECH: [string, string][] = [
-  ['Données et modèles', 'Python, pandas, scikit-learn, XGBoost, SHAP'],
-  ['Plateforme', 'FastAPI, PostgreSQL, WebSocket, Docker'],
-  ['Interface', 'React, TypeScript, Tailwind CSS, Recharts'],
-];
-
-const SENSOR_FR: Record<string, string> = { fridge: 'frigo', thermostat: 'thermostat', weather: 'météo' };
 
 const nf = (v: number | null | undefined, d = 0) =>
   v == null ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -87,7 +79,7 @@ export default function HomePage() {
   const ctaTo = user ? '/dashboard' : '/login';
   const ctaLabel = user ? 'Ouvrir le tableau de bord' : 'Se connecter';
 
-  const links = [['#resultats', 'Résultats'], ['#demarche', 'Démarche'], ['#capteurs', 'Capteurs surveillés'], ['#technologies', 'Technologies']];
+  const links = [['#demarche', 'Démarche'], ['#attaques', 'Attaques'], ['#fonctionnement', 'Fonctionnement'], ['#capteurs', 'Capteurs'], ['#rapport', 'Rapport']];
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
@@ -95,10 +87,10 @@ export default function HomePage() {
       <header className="sticky top-0 z-40" style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-8">
           <Link to="/" className="no-underline" aria-label="VigiloChain, accueil"><Wordmark /></Link>
-          <nav className="hidden md:flex items-center gap-6 text-[15px]" aria-label="Sections">
+          <nav className="hidden lg:flex items-center gap-6 text-[15px]" aria-label="Sections">
             {links.map(([href, label]) => (
               <a key={href} href={href} onClick={(e) => scrollTo(e, href)}
-                className="no-underline hover:underline underline-offset-4" style={{ color: 'var(--text-secondary)' }}>{label}</a>
+                className="no-underline hover:underline underline-offset-4 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{label}</a>
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
@@ -108,14 +100,14 @@ export default function HomePage() {
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <Link to={ctaTo} className="vc-btn vc-btn-primary no-underline hidden sm:inline-flex">{ctaLabel}</Link>
-            <button className="md:hidden h-9 w-9 flex items-center justify-center rounded-[4px] border" aria-label={menu ? 'Fermer le menu' : 'Ouvrir le menu'}
+            <button className="lg:hidden h-9 w-9 flex items-center justify-center rounded-[4px] border" aria-label={menu ? 'Fermer le menu' : 'Ouvrir le menu'}
               aria-expanded={menu} onClick={() => setMenu(v => !v)} style={{ borderColor: 'var(--border-strong)', color: 'var(--text-primary)' }}>
               {menu ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
         {menu && (
-          <nav className="md:hidden px-4 pb-4 flex flex-col gap-1" aria-label="Sections">
+          <nav className="lg:hidden px-4 pb-4 flex flex-col gap-1" aria-label="Sections">
             {links.map(([href, label]) => (
               <a key={href} href={href} onClick={(e) => { setMenu(false); scrollTo(e, href); }}
                 className="py-2 text-[15px] no-underline" style={{ color: 'var(--text-secondary)' }}>{label}</a>
@@ -139,7 +131,6 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to={ctaTo} className="vc-btn vc-btn-primary no-underline h-11 px-5 text-[15px]">{user ? 'Ouvrir le tableau de bord' : 'Accéder au tableau de bord'}</Link>
-              <a href="#resultats" onClick={(e) => scrollTo(e, '#resultats')} className="vc-btn no-underline h-11 px-5 text-[15px]">Voir les résultats</a>
             </div>
           </div>
 
@@ -187,83 +178,70 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Résultats ───────────────────────────────────────────────────── */}
-      <section id="resultats" className="py-14 sm:py-20" style={{ background: 'var(--bg-panel)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <SectionHead title="Ce que détecte le modèle, attaque par attaque">
-            {kpi
-              ? <>Sur {nf(kpi.traces.mesures)} mesures réelles ({nf(kpi.traces.heures, 1)} h au pas de {kpi.traces.pas.replace('s', ' s')}, du {day(kpi.traces.debut)} au {day(kpi.traces.fin)}), {kpi.scenarios} scénarios d’attaque ont été injectés sur les capteurs {kpi.capteurs.map(c => SENSOR_FR[c] ?? c).join(', ')}.</>
-              : 'Les chiffres sont lus dans les résultats de référence au chargement de la page.'}
-          </SectionHead>
-          {kpi ? (
-            <div className="grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-10">
-              <div>
-                <div className="flex flex-wrap items-baseline justify-between gap-2 pb-2" style={{ borderBottom: '1.5px solid var(--border-strong)' }}>
-                  <span className="text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>Scénario et épisodes du test</span>
-                  <TallyLegend />
-                </div>
-                <ul>
-                  {kpi.detection_par_scenario.map(s => (
-                    <li key={s.scenario} className="py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-                        <span className="font-semibold text-[15.5px]" style={{ color: 'var(--text-primary)' }}>{SCENARIO_FR[s.scenario] ?? s.scenario}</span>
-                        {s.episodes != null && s.detectes != null ? (
-                          <span className="inline-flex items-center gap-2">
-                            <Tally detected={s.detectes} total={s.episodes} label={`${s.detectes} épisodes détectés sur ${s.episodes}`} />
-                            <span className="tabular-nums text-[14px] w-10 text-right" style={{ color: s.detectes < s.episodes ? 'var(--accent-danger)' : 'var(--text-secondary)' }}>{s.detectes}/{s.episodes}</span>
-                          </span>
-                        ) : <span className="tabular-nums">{nf(s.taux, 1)}&#8239;%</span>}
-                      </div>
-                      <div className="mt-1 text-[14px]" style={{ color: 'var(--text-muted)' }}>
-                        {s.description}{s.lignes_signalees != null ? `. ${nf(s.lignes_signalees, 0)}\u202f% des mesures falsifiées signalées.` : ''}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <div className="text-[13px] font-semibold pb-2" style={{ color: 'var(--text-secondary)', borderBottom: '1.5px solid var(--border-strong)' }}>
-                  Modèles comparés : F1 au réglage retenu, sur le test
-                </div>
-                <ol>
-                  {[...kpi.modeles].sort((a, b) => b.f1 - a.f1).map(md => {
-                    const best = md.id === m?.id;
-                    return (
-                      <li key={md.id} className="py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
-                        <div className="flex justify-between gap-3 text-[15px]">
-                          <span style={{ color: 'var(--text-primary)', fontWeight: best ? 600 : 400 }}>{md.nom.replace(' — ', ', ')}{best ? ' (retenu)' : ''}</span>
-                          <span className="tabular-nums" style={{ fontWeight: best ? 600 : 400 }}>{nf(md.f1, 3)}</span>
-                        </div>
-                        <div className="mt-1.5 vc-meter"><span style={{ width: `${md.f1 * 100}%`, background: best ? 'var(--accent-primary)' : 'var(--border-strong)' }} /></div>
-                      </li>
-                    );
-                  })}
-                </ol>
-                <p className="mt-4 text-[14px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  Priorité à la précision : l’opérateur ne doit pas être noyé de fausses alertes. En contrepartie,
-                  {m ? ` ${pct(m.recall)}` : ' une partie'} des mesures falsifiées sont signalées.{' '}
-                  {(() => {
-                    const hard = kpi.detection_par_scenario.filter(s => s.lignes_signalees != null)
-                      .sort((a, b) => (a.lignes_signalees ?? 0) - (b.lignes_signalees ?? 0)).slice(0, 2);
-                    return hard.length === 2 ? <>Les plus difficiles : « {SCENARIO_FR[hard[0].scenario] ?? hard[0].scenario} » et « {SCENARIO_FR[hard[1].scenario] ?? hard[1].scenario} »,
-                      dont l’écart reste proche des variations naturelles du capteur.</> : null;
-                  })()}
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </section>
-
       {/* ── Démarche ────────────────────────────────────────────────────── */}
       <section id="demarche" className="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
         <SectionHead title="De la donnée brute à la plateforme déployée" />
-        <ol className="grid md:grid-cols-3 gap-px" style={{ background: 'var(--border)', border: '1px solid var(--border)' }}>
+        <ol className="grid md:grid-cols-3 gap-5">
           {STEPS.map((s, i) => (
-            <li key={s.title} className="p-6" style={{ background: 'var(--bg-base)' }}>
+            <li key={s.title} className="vc-card p-6">
               <span className="vc-readout-value" style={{ fontSize: 40, color: 'var(--accent-primary)' }} aria-hidden>{i + 1}</span>
               <h3 className="mt-2 text-[22px] leading-tight" style={{ color: 'var(--text-primary)' }}>{s.title}</h3>
               <p className="mt-2 text-[15px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{s.desc}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* ── Attaques simulées ──────────────────────────────────────────── */}
+      <section id="attaques" className="py-14 sm:py-20" style={{ background: 'var(--bg-panel)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <SectionHead title="Comment un attaquant falsifie une mesure">
+            Un attaquant placé entre le capteur et le serveur peut altérer ce que le serveur reçoit, sans toucher au capteur.
+            Voici les {kpi ? kpi.scenarios : 9} scénarios simulés dans l’étude : le modèle doit repérer que la valeur reçue n’est pas la vraie.
+          </SectionHead>
+          {kpi ? (
+            <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {kpi.detection_par_scenario.map(sc => {
+                const mitm = sc.scenario.startsWith('MITM');
+                const capteur = sc.scenario.includes('thermostat') ? 'thermostat' : 'frigo';
+                return (
+                  <li key={sc.scenario} className="vc-card p-5">
+                    <div className="text-[12.5px] font-semibold" style={{ color: 'var(--accent-primary)' }}>
+                      {mitm ? 'Interception (MITM)' : 'Injection de valeurs'} · {capteur}
+                    </div>
+                    <h3 className="mt-1.5 text-[19px] leading-snug" style={{ color: 'var(--text-primary)' }}>{SCENARIO_FR[sc.scenario] ?? sc.scenario}</h3>
+                    <p className="mt-2 text-[14.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{sc.description}.</p>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-[15px]" style={{ color: 'var(--text-secondary)' }}>
+              {failed ? 'La liste des scénarios n’est pas disponible : l’API ne répond pas.' : 'Chargement des scénarios…'}
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* ── Fonctionnement du modèle ───────────────────────────────────── */}
+      <section id="fonctionnement" className="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+        <SectionHead title="Comment le modèle décide">
+          À chaque mesure, le modèle calcule un score de risque. Une alerte n’est levée que si ce score reste élevé assez longtemps :
+          un pic isolé ne suffit pas.
+        </SectionHead>
+        <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {[
+            ['Une mesure arrive', `Les mesures des trois capteurs arrivent${kpi ? ` au pas de ${kpi.traces.pas.replace('s', ' s')}` : ''}.`],
+            ['Variables sur le passé', 'Moyennes, écarts-types et quantiles sur 1 à 15 minutes. Le modèle ne regarde jamais le futur.'],
+            ['Score de risque', `${m ? m.nom : 'Le modèle'} donne un score de 0 à 100 % : plus il est haut, plus la mesure est suspecte.`],
+            ['Règle d’alerte', m && m.seuil != null && m.k != null && m.n != null
+              ? `Alerte si au moins ${m.k} mesures sur ${m.n} (${m.n * (parseInt(kpi!.traces.pas) || 5)} s) ont un score d’au moins ${nf(m.seuil * 100, 0)} %.`
+              : 'Alerte si le score dépasse le seuil sur assez de mesures consécutives.'],
+          ].map(([t, d], i) => (
+            <li key={t} className="vc-card p-5">
+              <span className="vc-readout-value" style={{ fontSize: 32, color: 'var(--accent-primary)' }} aria-hidden>{i + 1}</span>
+              <h3 className="mt-2 text-[19px] leading-tight" style={{ color: 'var(--text-primary)' }}>{t}</h3>
+              <p className="mt-2 text-[14.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{d}</p>
             </li>
           ))}
         </ol>
@@ -283,7 +261,7 @@ export default function HomePage() {
                 <h3 className="mt-1 text-[26px] leading-tight" style={{ color: 'var(--text-primary)' }}>{z.title}</h3>
                 {z.band && (
                   <div className="mt-2 inline-flex items-center gap-2 text-[13px]" style={{ color: 'var(--accent-primary)' }}>
-                    <span className="vc-band inline-block w-10 h-3" aria-hidden /> plage de conservation 2 à 8 °C
+                    <span className="vc-band inline-block w-10 h-3" aria-hidden /> plage des mesures 1 à 14 °C
                   </div>
                 )}
                 <p className="mt-2 text-[15px] leading-relaxed max-w-[36ch]" style={{ color: 'var(--text-secondary)' }}>{z.desc}</p>
@@ -293,18 +271,35 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Technologies ────────────────────────────────────────────────── */}
-      <section id="technologies" className="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
-        <SectionHead title="Technologies" />
-        <dl className="grid sm:grid-cols-3 gap-6">
-          {TECH.map(([k, v]) => (
-            <div key={k} className="pt-3" style={{ borderTop: '2px solid var(--text-primary)' }}>
-              <dt className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>{k}</dt>
-              <dd className="mt-1 text-[15px]" style={{ color: 'var(--text-secondary)' }}>{v}</dd>
-            </div>
+      {/* ── Rapport de recommandations ─────────────────────────────────── */}
+      <section id="rapport" className="max-w-6xl mx-auto px-4 sm:px-6 pt-14 sm:pt-20">
+        <SectionHead title="Que faire quand une alerte tombe : le rapport pour l’opérateur">
+          Détecter ne suffit pas : l’opérateur doit savoir quoi faire. La plateforme génère un rapport de recommandations à partir des
+          résultats de l’étude.
+        </SectionHead>
+        <ol className="grid md:grid-cols-3 gap-5">
+          {[
+            ['À chaque alerte', 'Des règles valables pour toute alerte : vérifier d’abord sur place avec un thermomètre de contrôle, ne jamais libérer un lot sur une mesure contestée, isoler le capteur et vérifier le broker, journaliser la décision.'],
+            ['Une fois la cause identifiée', 'Une fiche par type d’attaque (mesure figée, rejeu, valeurs plausibles injectées, décalage, dérive) : le risque pour les produits, les signes à repérer et les actions à mener.'],
+            ['Ce que mesure le modèle', 'Pour chaque scénario : le niveau de détection (bien, partiellement ou mal détecté), les variables les plus influentes (SHAP) et les limites connues. Le rapport se télécharge en Markdown.'],
+          ].map(([t, d], i) => (
+            <li key={t} className="vc-card p-6">
+              <span className="vc-readout-value" style={{ fontSize: 32, color: 'var(--accent-primary)' }} aria-hidden>{i + 1}</span>
+              <h3 className="mt-2 text-[20px] leading-tight" style={{ color: 'var(--text-primary)' }}>{t}</h3>
+              <p className="mt-2 text-[14.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{d}</p>
+            </li>
           ))}
-        </dl>
-        <div className="mt-14 vc-fiche p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        </ol>
+        <div className="mt-6 flex">
+          <Link to={user ? '/dashboard/rapport' : '/login'} className="vc-btn no-underline h-11 px-5 text-[15px] shrink-0 justify-center">
+            {user ? 'Ouvrir le rapport' : 'Se connecter pour voir le rapport'}
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Accès au tableau de bord ────────────────────────────────────── */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+        <div className="vc-fiche p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <div>
             <h3 className="text-[26px] leading-tight" style={{ color: 'var(--text-primary)' }}>Explorer le tableau de bord</h3>
             <p className="text-[15px] mt-1" style={{ color: 'var(--text-secondary)' }}>Rejeu temps réel, détection face à la réalité, résultats des modèles, explications SHAP et rapport pour l’opérateur.</p>

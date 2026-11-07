@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/intelligence/service.py
+#   LIEN AVEC OPENSEARCH / WAZUH (facultatif) : score de risque et de conformité d'un équipement
+#   d'après ses alertes de sécurité.
+# ══════════════════════════════════════════════════════════════════════════
 import logging
 import socket
 from opensearchpy import OpenSearch
@@ -6,7 +11,18 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] IntelligenceService
+#   Rôle   : Interroge OpenSearch / Wazuh (s'il est disponible) pour le risque et la conformité d'un
+#            équipement.
+# ──────────────────────────────────────────────────────────────────────
 class IntelligenceService:
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] IntelligenceService.__init__
+    #   Rôle   : Se connecte à OpenSearch si le serveur répond, sinon reste désactivé.
+    #   Entrée : rien
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self):
         self.client = None
         try:
@@ -27,6 +43,12 @@ class IntelligenceService:
             logger.warning(f"OpenSearch indisponible: {e}")
             self.client = None
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] IntelligenceService.get_risk_score
+    #   Rôle   : Score de risque d'une adresse IP d'après les alertes Wazuh (0 si indisponible).
+    #   Entrée : ip_address
+    #   Sortie : score 0–100
+    # ──────────────────────────────────────────────────────────────────────
     async def get_risk_score(self, ip_address: str) -> int:
         if not ip_address or not self.client:
             return 0
@@ -57,6 +79,12 @@ class IntelligenceService:
             logger.warning(f"Erreur risque OpenSearch: {e}")
             return 0
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] IntelligenceService.get_compliance_data
+    #   Rôle   : Score de conformité d'une adresse IP (100 / conforme si indisponible).
+    #   Entrée : ip_address
+    #   Sortie : (score, statut)
+    # ──────────────────────────────────────────────────────────────────────
     async def get_compliance_data(self, ip_address: str) -> tuple:
         if not ip_address or not self.client:
             return 100, "compliant"

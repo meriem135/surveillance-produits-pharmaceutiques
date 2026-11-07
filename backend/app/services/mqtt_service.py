@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/services/mqtt_service.py
+#   CLIENT MQTT : écoute les 3 capteurs sur le broker, regroupe leurs mesures d'un même instant
+#   et les enregistre.
+# ══════════════════════════════════════════════════════════════════════════
 import asyncio
 import json
 import logging
@@ -26,6 +31,11 @@ _EDGE_FIELDS = {
 }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] StepAggregator
+#   Rôle   : REGROUPE LES 3 CAPTEURS : attend la mesure météo, frigo et thermostat d'un même instant, puis
+#            construit une seule ligne.
+# ──────────────────────────────────────────────────────────────────────
 class StepAggregator:
     """Regroupe les 3 mesures publiées séparément (un topic par capteur) pour
     un même pas de temps, puis construit la payload multi-capteurs
@@ -35,17 +45,35 @@ class StepAggregator:
     (message perdu), pour ne pas fuir de mémoire.
     """
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] StepAggregator.__init__
+    #   Rôle   : Prépare les files d'attente.
+    #   Entrée : max_pending ; window
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self, max_pending: int = 50, window: int = 10):
         self._pending: "OrderedDict[str, dict]" = OrderedDict()
         self._max_pending = max_pending
         self._prev: dict | None = None
         self._weather_window: deque = deque(maxlen=window)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] StepAggregator.sensor_of
+    #   Rôle   : Quel capteur a envoyé ce message ?
+    #   Entrée : device : nom
+    #   Sortie : "weather", "fridge", "thermostat" ou None
+    # ──────────────────────────────────────────────────────────────────────
     @staticmethod
     def sensor_of(device: str) -> str | None:
         name = str(device).lower()
         return next((s for s in _EDGE_FIELDS if name.startswith(s)), None)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] StepAggregator.add
+    #   Rôle   : Ajoute une mesure ; renvoie la ligne complète dès que les 3 capteurs sont arrivés.
+    #   Entrée : message
+    #   Sortie : ligne complète ou None
+    # ──────────────────────────────────────────────────────────────────────
     def add(self, message: dict) -> dict | None:
         sensor = self.sensor_of(message.get("device", ""))
         if sensor is None or message.get("value") is None:
@@ -63,6 +91,12 @@ class StepAggregator:
         del self._pending[key]
         return self._build(step)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] StepAggregator._build
+    #   Rôle   : Construit la ligne multi-capteurs (avec les variations depuis l'instant précédent).
+    #   Entrée : step
+    #   Sortie : dictionnaire
+    # ──────────────────────────────────────────────────────────────────────
     def _build(self, step: dict) -> dict:
         meta = step["meta"]
         self._weather_window.append(step["weather"])
@@ -82,7 +116,18 @@ class StepAggregator:
         return payload
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] MqttService
+#   Rôle   : CLIENT MQTT : écoute les capteurs sur le broker (topics factory/<capteur>/telemetry) et
+#            enregistre les mesures.
+# ──────────────────────────────────────────────────────────────────────
 class MqttService:
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService.__init__
+    #   Rôle   : Lit l'adresse du broker dans la configuration.
+    #   Entrée : rien
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def __init__(self):
         self.client = None
         # Configuration centralisée (core/config.py) — mêmes variables
@@ -96,6 +141,12 @@ class MqttService:
         self.aggregator = StepAggregator()
         self.connected = False
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService._extract_device_id
+    #   Rôle   : Lit l'identifiant du capteur dans le topic factory/<id>/telemetry.
+    #   Entrée : topic
+    #   Sortie : id ou None
+    # ──────────────────────────────────────────────────────────────────────
     @staticmethod
     def _extract_device_id(topic: str) -> Optional[str]:
         """
@@ -108,6 +159,12 @@ class MqttService:
             return None
         return parts[1]
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService._extract_metrics
+    #   Rôle   : Transforme le message JSON en liste de mesures.
+    #   Entrée : payload
+    #   Sortie : liste
+    # ──────────────────────────────────────────────────────────────────────
     @staticmethod
     def _extract_metrics(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -143,6 +200,12 @@ class MqttService:
 
         return metrics
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService.on_connect
+    #   Rôle   : Appelé à la connexion au broker : s'abonne aux topics des capteurs.
+    #   Entrée : client…
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def on_connect(self, client, flags, rc, properties):
         self.connected = True
         logger.info(f"✅ Connected to MQTT broker at {self.host}:{self.port}")
@@ -150,6 +213,12 @@ class MqttService:
         client.subscribe("factory/+/telemetry", qos=1)
         logger.info("📡 Subscribed to factory/+/telemetry")
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService.on_message
+    #   Rôle   : Appelé à chaque message reçu : le lit et lance son traitement.
+    #   Entrée : client, topic, payload…
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def on_message(self, client, topic, payload, qos, properties):
         logger.debug(f"📩 Received MQTT message on {topic}")
         try:
@@ -168,6 +237,12 @@ class MqttService:
         except Exception as e:
             logger.error(f"❌ Failed to parse MQTT payload: {e}")
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService._process_telemetry_message
+    #   Rôle   : Traite une mesure : enregistre en base et met à jour l'équipement.
+    #   Entrée : topic ; data
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     async def _process_telemetry_message(self, topic: str, data: Dict[str, Any]) -> None:
         """
         Async handler for parsed MQTT telemetry messages.
@@ -259,13 +334,31 @@ class MqttService:
                 await session.rollback()
                 logger.error(f"❌ Failed to process telemetry for device '{device_id}': {e}")
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService.on_disconnect
+    #   Rôle   : Appelé à la déconnexion du broker.
+    #   Entrée : client…
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def on_disconnect(self, client, packet, exc=None):
         self.connected = False
         logger.warning("⚠️ Disconnected from MQTT broker")
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService.on_subscribe
+    #   Rôle   : Appelé quand l'abonnement est confirmé.
+    #   Entrée : client…
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     def on_subscribe(self, client, mid, qos, properties):
         logger.info("✅ Successfully subscribed to topic")
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService.start
+    #   Rôle   : DÉMARRE le client MQTT et se connecte au broker.
+    #   Entrée : rien
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     async def start(self):
         """Initialize and start the MQTT client"""
         self.client = MQTTClient("iot-backend-subscriber")
@@ -297,6 +390,12 @@ class MqttService:
             # but gmqtt handles base reconnections if connected once.
             return
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] MqttService.stop
+    #   Rôle   : Arrête proprement le client MQTT.
+    #   Entrée : rien
+    #   Sortie : rien
+    # ──────────────────────────────────────────────────────────────────────
     async def stop(self):
         """Gracefully stop the MQTT client"""
         if self.client and self.connected:

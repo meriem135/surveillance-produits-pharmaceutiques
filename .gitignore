@@ -67,6 +67,12 @@ docker_config_bypass/
 /.env
 /docker-compose.override.yml
 
+# ===== SECRETS / ENV LOCAUX =====
+.env.bak
+**/.env.bak
+.env.local
+.env.*.local
+
 # ===== BACKEND =====
 /backend/static/
 /backend/shap_cache.npz
@@ -85,6 +91,11 @@ docker_config_bypass/
 # ===== TEMP / BUILD ARTIFACTS =====
 output.txt
 _DELETE_LATER/
+
+# ===== ARCHIVES / SCRATCH LOCAUX =====
+/_sauvegarde_avant_suppression/
+/_extract*.json
+/_rapport.txt
 
 # ===== JUPYTER =====
 .ipynb_checkpoints/

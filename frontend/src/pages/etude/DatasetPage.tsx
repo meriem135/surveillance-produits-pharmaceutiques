@@ -1,14 +1,15 @@
 /** Jeu de données — KPI lus dans transmission_dataset et transmission_episodes (GET /api/v1/etude/dataset). */
 import { Area, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  BandLegend, Empty, Loading, Note, PageHeader, Paper, Readouts, ROLE_FR, SCENARIO_FR, Section, Stat, Table, heure, nf, pct, tooltipStyle, useApi, usePalette,
+  BandLegend, Empty, Loading, Meter, Note, PageHeader, Paper, Readouts, ROLE_FR, SCENARIO_FR, Section, Stat, Table, heure, nf, pct, tooltipStyle, useApi, usePalette,
 } from '../../components/etude/kit';
+import { countBy, featureKind, featureSensor, featureWindows } from '../../lib/features';
 
 interface RoleRow { lignes: number; evaluees: number; attaques: number; attaques_evaluees: number; part_attaques: number | null; heures: number }
 interface Sensor { min: number; max: number; moyenne: number; ecart_type: number | null }
 interface Scen { scenario: string; capteur: string | null; duree_moy_min: number | null; lignes: Record<string, number>; episodes: Record<string, number> }
 interface DatasetResp {
-  run: { id: number; source: string; date: string; repetitions: number; zone_de_garde_min: number | null; features: number };
+  run: { id: number; source: string; date: string; repetitions: number; zone_de_garde_min: number | null; features: number; liste_features?: string[] | null };
   total: { lignes: number; debut: string; fin: string; heures: number; attaques: number; evaluees: number; exclues_zone_de_garde: number;
     episodes_rep0: number; episodes_toutes_repetitions: number; repetitions: number; pas_s: number };
   par_role: Record<string, RoleRow>;
@@ -31,6 +32,12 @@ export default function DatasetPage() {
   if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
   const t = data.total;
   const serie = data.serie.map(p => ({ ...p, zone: p.attaque ? 16 : null }));
+  // Variables du modèle : le nombre vient de transmission_runs.n_features, la liste de result_json.features
+  const noms = data.run.liste_features ?? [];
+  const nbVar = data.run.features || noms.length;
+  const parCapteur = countBy(noms, featureSensor);
+  const parType = countBy(noms, featureKind);
+  const fenetres = featureWindows(noms);
   return (
     <div className="space-y-6">
       {header}
@@ -42,6 +49,39 @@ export default function DatasetPage() {
         <Stat label="Zone de garde (exclue)" value={nf(t.exclues_zone_de_garde)}
           sub={`${nf(data.run.zone_de_garde_min ?? 0)} min après chaque épisode et en début de bloc qui change de rôle`} />
       </Readouts>
+
+      <Section title="Variables du modèle"
+        subtitle={<>Le modèle ne lit pas les mesures brutes : il calcule <strong>{nf(nbVar)} variables</strong> à partir des trois capteurs, uniquement sur le passé
+          {fenetres.length ? ` (fenêtres de ${fenetres.join(', ')} min)` : ''}.</>}
+        source="SELECT n_features, result_json -> 'features' FROM transmission_runs WHERE id = :run">
+        {noms.length ? (
+          <>
+            <div className="grid lg:grid-cols-2 gap-6">
+              {([['Par capteur', parCapteur], ['Par type de calcul', parType]] as const).map(([titre, groupes]) => (
+                <div key={titre}>
+                  <div className="text-[13px] font-semibold pb-2" style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>{titre}</div>
+                  <ul>
+                    {groupes.map(g => (
+                      <li key={g.label} className="py-2 border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                        <div className="flex justify-between gap-3 text-[14px]">
+                          <span style={{ color: 'var(--text-primary)' }}>{g.label}</span>
+                          <span className="tabular-nums" style={{ color: 'var(--text-secondary)' }}>{g.count}</span>
+                        </div>
+                        <div className="mt-1.5"><Meter value={(g.count / noms.length) * 100} /></div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <details className="mt-5 text-[13.5px]" style={{ color: 'var(--text-secondary)' }}>
+              <summary className="cursor-pointer font-semibold" style={{ color: 'var(--text-primary)' }}>Voir les {noms.length} noms de variables</summary>
+              <p className="mt-3 flex flex-wrap gap-1.5">{noms.map(n => <code key={n}>{n}</code>)}</p>
+            </details>
+            <Note>Chaque variable ne regarde que le passé : le score d’une mesure ne dépend d’aucune mesure future, ce qui est aussi le cas d’un flux réel.</Note>
+          </>
+        ) : <Empty>La liste des variables n’est pas enregistrée en base pour cette étude ({nf(nbVar)} variables déclarées).</Empty>}
+      </Section>
 
       <Section title="Frigo : valeur transmise et mesure réelle" subtitle="Moyenne par tranche de 2 minutes. Pendant une attaque, la valeur transmise s’écarte de la mesure réelle." source={data.sources.serie}>
         <BandLegend items={[

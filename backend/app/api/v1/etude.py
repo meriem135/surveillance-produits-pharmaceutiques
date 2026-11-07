@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/api/v1/etude.py
+#   ROUTES DE L'ÉTUDE (/api/v1/etude/...). Données des pages Jeu de données, Résultats, SHAP,
+#   Détection vs réalité et Temps réel, lues en base.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Étude « attaques de transmission » lue en base : une route par page du site
 ===========================================================================
@@ -10,7 +15,9 @@
   GET /api/v1/etude/timeline     détection vs réalité dans le temps (transmission_dataset ⋈
                                  transmission_predictions, transmission_alerts, transmission_episodes)
   GET /api/v1/etude/live/info    modèle en service et réglage d'alerte
-  WS  /api/v1/etude/live?token=… temps réel : les mesures passent dans le modèle sauvegardé
+  POST   /api/v1/etude/live/start      temps réel : démarre une lecture (rôle, point de départ)
+  GET    /api/v1/etude/live/{id}/next  paquet de mesures suivant, passé dans le modèle sauvegardé (polling)
+  DELETE /api/v1/etude/live/{id}       arrête la lecture
 
 Toutes les routes : opérateur ou administrateur. Chaque réponse liste dans `sources` les tables
 et requêtes d'où viennent les chiffres. Aucun chiffre lu dans un fichier JSON ni écrit en dur.
@@ -19,17 +26,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+import time
+import uuid
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import and_, case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.db.session import AsyncSessionLocal, get_session
+from app.db.session import get_session
 from app.domains import parametres
 from app.domains.auth.models import User
-from app.domains.auth.service import decode_access_token, require_any_role
+from app.domains.auth.service import require_any_role
 from app.domains.transmission import live, repository
 from app.domains.transmission.models import (
     TransmissionAlert, TransmissionDatasetRow as D, TransmissionEpisode as E, TransmissionLearningPoint,
@@ -41,6 +51,12 @@ router = APIRouter()
 ROLES = ("train", "val", "test")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _run
+#   Rôle   : Trouve l'étude à afficher (référence, sinon dernier entraînement web) ; erreur 404 si aucune.
+#   Entrée : session
+#   Sortie : TransmissionRun
+# ──────────────────────────────────────────────────────────────────────
 async def _run(session: AsyncSession) -> TransmissionRun:
     run = await repository.reference_run(session)
     if run is None:
@@ -49,12 +65,32 @@ async def _run(session: AsyncSession) -> TransmissionRun:
     return run
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _run_detection
+#   Rôle   : Entraînement affiché par la page Détection : le DERNIER entraînement lancé depuis le site (celui
+#            de l'utilisateur), sinon l'étude de référence ; erreur 404 si aucun.
+#   Entrée : session
+#   Sortie : TransmissionRun
+# ──────────────────────────────────────────────────────────────────────
+async def _run_detection(session: AsyncSession) -> TransmissionRun:
+    run = (await session.execute(
+        select(TransmissionRun).where(TransmissionRun.status == "termine", TransmissionRun.source == "web")
+        .order_by(TransmissionRun.finished_at.desc(), TransmissionRun.id.desc()).limit(1))).scalars().first()
+    return run if run is not None else await _run(session)
+
+
 # Les réponses ci-dessous ne dépendent que de l'étude affichée (lignes figées une fois l'étude
 # chargée) : cache mémoire par (route, run, fin du run, paramètres). Un nouveau run change la clé.
 _CACHE: dict[tuple, dict] = {}
 _CACHE_MAX = 32
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _cached
+#   Rôle   : Garde en mémoire les réponses déjà calculées pour aller plus vite.
+#   Entrée : key : clé ; compute : calcul
+#   Sortie : réponse
+# ──────────────────────────────────────────────────────────────────────
 async def _cached(key: tuple, compute) -> dict:
     hit = _CACHE.get(key)
     if hit is not None:
@@ -66,17 +102,29 @@ async def _cached(key: tuple, compute) -> dict:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _run_info
+#   Rôle   : Résumé d'une étude : date, meilleur modèle, classement, protocole.
+#   Entrée : run
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 def _run_info(run: TransmissionRun) -> dict[str, Any]:
     rj = run.result_json or {}
     etude = rj.get("etude") or {}
     return {"id": run.id, "source": run.source, "date": run.started_at.isoformat(timespec="seconds") + "Z",
             "meilleur_modele": run.best_model, "classement_validation": run.ranking, "critere": rj.get("critere"),
             "protocole": etude.get("protocole"), "prevalence": etude.get("prevalence") or (run.dataset or {}).get("prevalence"),
-            "repetitions": (etude.get("protocole") or {}).get("repetitions", 1),
+            "repetitions": (etude.get("protocole") or {}).get("repetitions") or rj.get("repetitions") or 1,
             "lignes": run.n_rows, "features": run.n_features, "liste_features": etude.get("features") or rj.get("features"),
             "zone_de_garde_min": (run.dataset or {}).get("zone_de_garde_min")}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_run
+#   Rôle   : route API GET /etude/run : l'étude affichée (protocole, classement).
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/etude/run")
 async def etude_run(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     run = await _run(session)
@@ -86,12 +134,24 @@ async def etude_run(_u=Depends(require_any_role("operator")), session: AsyncSess
 
 # ── Jeu de données ───────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_dataset
+#   Rôle   : route API GET /etude/dataset : chiffres de la page Jeu de données.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/etude/dataset")
 async def etude_dataset(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     run = await _run(session)
     return await _cached(("dataset", run.id, run.finished_at), lambda: _etude_dataset(session, run))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _etude_dataset
+#   Rôle   : Calcule les chiffres du jeu de données depuis les tables.
+#   Entrée : session, run
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 async def _etude_dataset(session: AsyncSession, run: TransmissionRun) -> dict:
     rid = run.id
     ev = func.sum(case((D.evaluee, 1), else_=0))
@@ -162,6 +222,12 @@ async def _etude_dataset(session: AsyncSession, run: TransmissionRun) -> dict:
 
 # ── Métriques ────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _metric
+#   Rôle   : Transforme une ligne de métriques en dictionnaire.
+#   Entrée : m : ligne TransmissionMetric
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 def _metric(m: M) -> dict:
     return {"seuil": m.seuil, "k": m.k, "n": m.n, "recall": m.recall, "precision": m.precision, "f1": m.f1,
             "fpr": m.fpr, "roc_auc": m.roc_auc, "avg_precision": m.avg_precision, "tp": m.tp, "fp": m.fp,
@@ -172,12 +238,49 @@ def _metric(m: M) -> dict:
             "delai_p90_min": m.delai_p90_min, "per_attack": m.per_attack, "per_episode": m.per_episode}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_metrics
+#   Rôle   : route API GET /etude/metrics : page Résultats (métriques train / val / test de chaque modèle).
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/etude/metrics")
-async def etude_metrics(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
-    run = await _run(session)
+async def etude_metrics(run_id: Optional[int] = Query(None, ge=1), _u=Depends(require_any_role("operator")),
+                        session: AsyncSession = Depends(get_session)):
+    if run_id is None:
+        run = await _run(session)
+    else:
+        run = await session.get(TransmissionRun, run_id)
+        if run is None or run.status != "termine":
+            raise HTTPException(status_code=404, detail=f"Entraînement n° {run_id} introuvable ou non terminé")
     return await _cached(("metrics", run.id, run.finished_at), lambda: _etude_metrics(session, run))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_runs
+#   Rôle   : route API GET /etude/runs : études et entraînements terminés (pour choisir lequel afficher
+#            sur la page Résultats).
+#   Sortie : {runs: [{id, source, date, meilleur_modele, jeu_de_donnees, importe}], defaut}
+# ──────────────────────────────────────────────────────────────────────
+@router.get("/etude/runs")
+async def etude_runs(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
+    runs = (await session.execute(select(TransmissionRun).where(TransmissionRun.status == "termine")
+                                  .order_by(TransmissionRun.finished_at.desc(), TransmissionRun.id.desc())
+                                  .limit(30))).scalars().all()
+    default = await repository.reference_run(session)
+    return {"defaut": default.id if default else None,
+            "runs": [{"id": r.id, "source": r.source, "date": r.started_at.isoformat(timespec="seconds") + "Z",
+                      "meilleur_modele": r.best_model, "lance_par": r.launched_by,
+                      "jeu_de_donnees": (r.dataset or {}).get("fichier"),
+                      "importe": bool((r.dataset or {}).get("importe"))} for r in runs]}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _etude_metrics
+#   Rôle   : Calcule la réponse de la page Résultats.
+#   Entrée : session, run
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 async def _etude_metrics(session: AsyncSession, run: TransmissionRun) -> dict:
     rows = (await session.execute(select(M).where(M.run_id == run.id).order_by(M.model_key, M.niveau, M.role))).scalars().all()
     res = (await session.execute(select(TransmissionModelResult).where(TransmissionModelResult.run_id == run.id))).scalars().all()
@@ -214,12 +317,24 @@ async def _etude_metrics(session: AsyncSession, run: TransmissionRun) -> dict:
 
 # ── SHAP ─────────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_shap
+#   Rôle   : route API GET /etude/shap : page Explicabilité SHAP.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/etude/shap")
 async def etude_shap(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     run = await _run(session)
     return await _cached(("shap", run.id, run.finished_at), lambda: _etude_shap(session, run))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _etude_shap
+#   Rôle   : Lit les importances SHAP en base.
+#   Entrée : session, run
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 async def _etude_shap(session: AsyncSession, run: TransmissionRun) -> dict:
     rows = (await session.execute(select(TransmissionShap).where(TransmissionShap.run_id == run.id)
                                   .order_by(TransmissionShap.portee, TransmissionShap.rang))).scalars().all()
@@ -236,14 +351,27 @@ async def _etude_shap(session: AsyncSession, run: TransmissionRun) -> dict:
 
 # ── Détection vs réalité ─────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_timeline
+#   Rôle   : route API GET /etude/timeline : page Détection vs réalité (alertes du modèle face aux vraies
+#            attaques).
+#   Entrée : role ; minutes
+#   Sortie : séries temporelles
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/etude/timeline")
 async def etude_timeline(role: str = Query("test", pattern="^(train|val|test|all)$"), minutes: int = Query(1, ge=1, le=10),
                          _u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
-    run = await _run(session)
+    run = await _run_detection(session)
     return await _cached(("timeline", run.id, run.finished_at, role, minutes),
                          lambda: _etude_timeline(session, run, role, minutes))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _etude_timeline
+#   Rôle   : Calcule la frise temporelle (mesures, scores, alertes, épisodes).
+#   Entrée : session, run, role, minutes
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str, minutes: int) -> dict:
     rid = run.id
     step = 12 * minutes
@@ -270,8 +398,14 @@ async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str
                                  "fausses_alertes_par_heure": m.fausses_alertes_par_heure,
                                  "episodes": m.episodes, "episodes_detectes": m.episodes_detectes,
                                  "delai_median_min": m.delai_median_min, "per_episode": m.per_episode}
+    # Toutes les répétitions (la détection n'est connue que pour celles d'un entraînement web) : liste et
+    # tableau « par scénario » ; la frise et les alertes restent celles de la répétition 0.
+    allq = select(E).where(E.run_id == rid, E.detecte.is_not(None))
+    if role != "all":
+        allq = allq.where(E.role == role)
+    episodes_all = (await session.execute(allq.order_by(E.repetition, E.start_idx))).scalars().all()
     par_sc: dict[str, dict] = {}
-    for e in episodes:
+    for e in episodes_all:
         d = par_sc.setdefault(e.scenario, {"scenario": e.scenario, "episodes": 0, "detectes": 0, "delais": []})
         d["episodes"] += 1
         if e.detecte:
@@ -289,6 +423,10 @@ async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str
         "episodes": [{"scenario": e.scenario, "capteur": e.capteur, "role": e.role, "debut": e.start_ts.isoformat(),
                       "fin": e.end_ts.isoformat(), "duree_min": round((e.end_idx - e.start_idx) * 5 / 60, 1),
                       "detecte": e.detecte, "delai_min": e.delai_min} for e in episodes],
+        "episodes_toutes": [{"repetition": e.repetition, "scenario": e.scenario, "capteur": e.capteur, "role": e.role,
+                             "debut": e.start_ts.isoformat(), "fin": e.end_ts.isoformat(),
+                             "duree_min": round((e.end_idx - e.start_idx) * 5 / 60, 1), "detecte": e.detecte,
+                             "delai_min": e.delai_min} for e in episodes_all],
         "alertes": [{"role": a.role, "debut": a.start_ts.isoformat(), "fin": a.end_ts.isoformat(),
                      "duree_min": a.duree_min, "score_max": a.score_max, "vraie": a.vraie, "scenario": a.scenario}
                     for a in alerts],
@@ -306,6 +444,12 @@ async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str
 
 # ── Temps réel ───────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_live_info
+#   Rôle   : route API GET /etude/live/info : modèle et réglage utilisés par la page Temps réel.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/etude/live/info")
 async def etude_live_info(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     src = await live.stream_source(session)
@@ -317,63 +461,99 @@ async def etude_live_info(_u=Depends(require_any_role("operator")), session: Asy
                         "modele": "models/transmission_reel/meilleur_modele.pkl (modèle entraîné sauvegardé)"}}
 
 
-async def _ws_user(token: str | None) -> User | None:
-    payload = decode_access_token(token or "")
-    if not payload or not payload.get("sub"):
-        return None
-    async with AsyncSessionLocal() as session:
-        user = await session.get(User, int(payload["sub"]))
-    return user if user is not None and user.is_active and user.role in ("admin", "operator") else None
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] LiveStart
+#   Rôle   : Corps de la requête « démarrer le temps réel » : rôle à rejouer et ligne de départ.
+# ──────────────────────────────────────────────────────────────────────
+class LiveStart(BaseModel):
+    role: str = "test"
+    depuis: int = 0
 
 
-@router.websocket("/etude/live")
-async def etude_live(websocket: WebSocket, token: str | None = None):
-    """Messages du client : {"action": "start", "role": "test", "vitesse": 24, "depuis": idx}, {"action": "pause"},
-    {"action": "reprendre"}, {"action": "vitesse", "vitesse": 60}, {"action": "stop"}."""
-    await websocket.accept()
-    if await _ws_user(token) is None:
-        await websocket.send_json({"type": "erreur", "message": "Session invalide"})
-        await websocket.close(code=4401)
-        return
-    async with AsyncSessionLocal() as session:
-        src = await live.stream_source(session)
+# Lectures en cours (une par onglet ouvert) : le client les fait avancer par polling.
+_LIVE: dict[str, dict] = {}
+_LIVE_TTL_S = 600
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _live_prune
+#   Rôle   : Supprime les lectures Temps réel abandonnées depuis plus de 10 min.
+#   Entrée : rien
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
+def _live_prune() -> None:
+    now = time.monotonic()
+    for sid in [k for k, v in _LIVE.items() if now - v["vu"] > _LIVE_TTL_S]:
+        _LIVE.pop(sid, None)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _live_get
+#   Rôle   : Retrouve une lecture Temps réel (et vérifie qu'elle appartient à l'utilisateur).
+#   Entrée : sid ; user
+#   Sortie : lecture ou 404
+# ──────────────────────────────────────────────────────────────────────
+def _live_get(sid: str, user: User) -> dict:
+    lecture = _LIVE.get(sid)
+    if lecture is None or lecture["user_id"] != user.id:
+        raise HTTPException(status_code=404, detail="Lecture introuvable ou expirée")
+    lecture["vu"] = time.monotonic()
+    return lecture
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_live_start
+#   Rôle   : route API POST /etude/live/start : DÉMARRE le temps réel et renvoie un identifiant de lecture.
+#   Entrée : body : rôle, départ ; utilisateur
+#   Sortie : {session, infos du modèle}
+# ──────────────────────────────────────────────────────────────────────
+@router.post("/etude/live/start")
+async def etude_live_start(body: LiveStart, user: User = Depends(require_any_role("operator")),
+                           session: AsyncSession = Depends(get_session)):
+    """Démarre une lecture : les mesures du rôle choisi passeront dans le modèle sauvegardé."""
+    _live_prune()
+    src = await live.stream_source(session)
     if src is None:
-        await websocket.send_json({"type": "erreur", "message": "Modèle ou jeu de données introuvable"})
-        await websocket.close()
-        return
-    await websocket.send_json({"type": "info", **live.info(src)})
-    streamer, paused, speed = None, False, 24
-    try:
-        while True:
-            try:
-                msg = await asyncio.wait_for(websocket.receive_json(), timeout=0.05 if streamer and not paused else None)
-            except asyncio.TimeoutError:
-                msg = None
-            if msg:
-                act = msg.get("action")
-                if act == "start":
-                    role = msg.get("role") if msg.get("role") in ROLES else "test"
-                    speed = max(1, min(200, int(msg.get("vitesse") or speed)))
-                    streamer, paused = live.Streamer(src, role, int(msg.get("depuis") or 0)), False
-                elif act == "pause":
-                    paused = True
-                elif act == "reprendre":
-                    paused = False
-                elif act == "vitesse":
-                    speed = max(1, min(200, int(msg.get("vitesse") or speed)))
-                elif act == "stop":
-                    streamer = None
-                    await websocket.send_json({"type": "arret"})
-                continue
-            if streamer is None or paused:
-                continue
-            payload = await asyncio.to_thread(streamer.next_batch, speed)
-            await websocket.send_json(payload)
-            if streamer.done():
-                streamer = None
-                continue
-            await asyncio.sleep(1.0)
-    except WebSocketDisconnect:
-        return
-    except Exception:  # noqa: BLE001
-        logger.exception("Flux temps réel interrompu")
+        raise HTTPException(status_code=404, detail="Modèle ou jeu de données introuvable")
+    role = body.role if body.role in ROLES else "test"
+    sid = uuid.uuid4().hex
+    _LIVE[sid] = {"streamer": live.Streamer(src, role, max(0, body.depuis)), "user_id": user.id,
+                  "vu": time.monotonic(), "lock": asyncio.Lock()}
+    return {"session": sid, **live.info(src)}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_live_next
+#   Rôle   : route API GET /etude/live/{id}/next : PAQUET SUIVANT de mesures passées dans le modèle (appelé
+#            chaque seconde par la page).
+#   Entrée : sid ; taille ; utilisateur
+#   Sortie : points, alertes, statistiques
+# ──────────────────────────────────────────────────────────────────────
+@router.get("/etude/live/{sid}/next")
+async def etude_live_next(sid: str, taille: int = Query(24, ge=1, le=200),
+                          user: User = Depends(require_any_role("operator"))):
+    """Paquet suivant de `taille` mesures (appelé chaque seconde par la page Temps réel)."""
+    lecture = _live_get(sid, user)
+    async with lecture["lock"]:
+        streamer = lecture["streamer"]
+        if streamer.done():
+            return {"type": "mesures", "points": [], "evenements": [], "stats": dict(streamer.stats),
+                    "progression": 1.0, "fini": True}
+        payload = await asyncio.to_thread(streamer.next_batch, taille)
+    if payload["fini"]:
+        _LIVE.pop(sid, None)
+    return payload
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] etude_live_stop
+#   Rôle   : route API DELETE /etude/live/{id} : ARRÊTE la lecture.
+#   Entrée : sid ; utilisateur
+#   Sortie : {type: arret}
+# ──────────────────────────────────────────────────────────────────────
+@router.delete("/etude/live/{sid}")
+async def etude_live_stop(sid: str, user: User = Depends(require_any_role("operator"))):
+    lecture = _LIVE.get(sid)
+    if lecture is not None and lecture["user_id"] == user.id:
+        _LIVE.pop(sid, None)
+    return {"type": "arret"}

@@ -1,6 +1,0 @@
-{
-  "threshold": 5.970136700504159,
-  "metric": "max_f1_precision_recall",
-  "model_type": "OneClassSVM",
-  "trained_at": "2026-09-24T22:06:22.395851"
-}

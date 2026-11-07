@@ -41,15 +41,15 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
     items: [
       { label: "Vue d'ensemble", path: '/dashboard/overview', icon: Gauge, roles: ALL, hint: 'Indicateurs lus en base de données' },
       { label: 'Temps réel', path: '/dashboard/temps-reel', icon: Radio, roles: ALL, hint: 'Le meilleur modèle analyse le flux de mesures' },
-      { label: 'Détection vs réalité', path: '/dashboard/detection', icon: Crosshair, roles: ALL, hint: 'Alertes du modèle face aux attaques réelles' },
       { label: "Rapport d'alerte", path: '/dashboard/rapport', icon: FileText, roles: ALL, hint: 'Consignes pour l’opérateur' },
     ],
   },
   {
-    title: 'Modèle',
+    title: 'Analyse du modèle',
     items: [
       { label: 'Résultats', path: '/dashboard/resultats', icon: Brain, roles: ALL, hint: 'Métriques train / validation / test' },
-      { label: 'Explicabilité SHAP', path: '/dashboard/explicabilite', icon: Sparkles, roles: ALL },
+      { label: 'Détection vs réalité', path: '/dashboard/detection', icon: Crosshair, roles: ALL, hint: 'Alertes du modèle face aux attaques réelles' },
+      { label: 'Explicabilité SHAP', path: '/dashboard/explicabilite', icon: Sparkles, roles: ALL, hint: 'Ce qui influence le score du modèle' },
       { label: 'Jeu de données', path: '/dashboard/donnees', icon: Database, roles: ALL, hint: 'KPI des traces réelles avec attaques' },
     ],
   },
@@ -60,12 +60,16 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
       { label: 'Paramètres', path: '/dashboard/parametres', icon: Settings, roles: ADMIN },
       { label: 'Comptes', path: '/dashboard/admin-users', icon: Users, roles: ADMIN },
       { label: "Journal d'audit", path: '/dashboard/audit', icon: ScrollText, roles: ADMIN },
-      { label: 'Mon profil', path: '/dashboard/profile', icon: User, roles: ALL },
     ],
   },
 ];
 
-const ALL_ITEMS = NAV_GROUPS.flatMap(g => g.items);
+// Pages accessibles sans entrée dans la barre latérale (« Mon profil » est dans le menu du compte, en haut à droite)
+const HIDDEN_ITEMS: Item[] = [
+  { label: 'Mon profil', path: '/dashboard/profile', icon: User, roles: ALL },
+];
+
+const ALL_ITEMS = [...NAV_GROUPS.flatMap(g => g.items), ...HIDDEN_ITEMS];
 const PAGE_ROLES: Record<string, string[]> = Object.fromEntries(ALL_ITEMS.map(i => [i.path, i.roles]));
 
 export default function DashboardLayout() {
@@ -102,22 +106,20 @@ export default function DashboardLayout() {
           if (!items.length) return null;
           return (
             <div key={group.title}>
-              <div className="px-3 mb-1 text-[12.5px] font-semibold" style={{ color: 'var(--text-muted)' }}>{group.title}</div>
-              <div className="space-y-px">
+              <div className="px-3 mb-1.5 text-[12.5px] font-semibold" style={{ color: 'var(--text-muted)' }}>{group.title}</div>
+              <div className="space-y-0.5">
                 {items.map(item => {
                   const active = location.pathname.startsWith(item.path);
                   const Icon = item.icon;
                   return (
                     <NavLink key={item.path} to={item.path} title={item.hint} aria-current={active ? 'page' : undefined}
-                      className="flex items-center gap-2.5 pl-3 pr-2 h-9 rounded-[3px] text-[14px] no-underline relative"
+                      className="flex items-center gap-3 px-3 h-10 rounded-[10px] text-[14px] no-underline relative transition-colors hover:bg-[var(--bg-subtle)]"
                       style={{
-                        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        fontWeight: active ? 600 : 400,
-                        background: active ? 'var(--bg-panel)' : 'transparent',
-                        boxShadow: active ? 'inset 0 0 0 1px var(--border)' : undefined,
+                        color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                        fontWeight: active ? 600 : 500,
+                        background: active ? 'color-mix(in srgb, var(--accent-primary) 11%, transparent)' : undefined,
                       }}>
-                      {active && <span className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-[3px]" style={{ background: 'var(--accent-primary)' }} />}
-                      <Icon className="w-4 h-4 shrink-0" style={{ color: active ? 'var(--accent-primary)' : undefined }} />
+                      <Icon className="w-[18px] h-[18px] shrink-0" style={{ color: active ? 'var(--accent-primary)' : 'var(--text-muted)' }} />
                       <span className="truncate">{item.label}</span>
                     </NavLink>
                   );
@@ -126,9 +128,6 @@ export default function DashboardLayout() {
             </div>
           );
         })}
-      </div>
-      <div className="px-5 py-3 text-[12px] leading-snug" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-        Projet de fin d’études : détection d’intrusions IoT sur la chaîne du froid pharmaceutique
       </div>
     </nav>
   );
@@ -157,7 +156,7 @@ export default function DashboardLayout() {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="flex items-center gap-3 px-4 sm:px-6 h-[60px] shrink-0"
+        <header className="flex items-center gap-3 px-4 sm:px-6 h-[60px] shrink-0 z-10"
           style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
           <button className="lg:hidden p-1.5 -ml-1.5 rounded-[3px]" onClick={() => setDrawer(true)} aria-label="Ouvrir le menu"
             style={{ color: 'var(--text-primary)' }}>
@@ -170,7 +169,7 @@ export default function DashboardLayout() {
           </div>
 
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="h-9 px-2.5 inline-flex items-center gap-1.5 rounded-[4px] border text-[13px]"
+            className="h-9 px-3 inline-flex items-center gap-1.5 rounded-full border text-[13px] hover:bg-[var(--bg-subtle)] transition-colors"
             style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
             aria-label={theme === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'}
             title={theme === 'dark' ? 'Thème clair' : 'Thème sombre'}>
@@ -180,10 +179,10 @@ export default function DashboardLayout() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 h-9 pl-1 pr-2 rounded-[4px] border" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-primary)' }}
+              <button className="flex items-center gap-2 h-10 pl-1 pr-3 rounded-full border hover:bg-[var(--bg-subtle)] transition-colors" style={{ borderColor: 'var(--border-strong)', color: 'var(--text-primary)' }}
                 aria-label={`Compte ${user?.username ?? ''}`}>
-                <span className="w-7 h-7 rounded-[3px] flex items-center justify-center text-[13px] font-semibold"
-                  style={{ background: 'var(--text-primary)', color: 'var(--bg-panel)', fontFamily: 'var(--display)' }}>
+                <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12.5px] font-semibold"
+                  style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-purple))', color: '#fff', fontFamily: 'var(--display)' }}>
                   {(user?.username ?? '?').slice(0, 2).toUpperCase()}
                 </span>
                 <span className="hidden sm:flex flex-col items-start leading-tight">

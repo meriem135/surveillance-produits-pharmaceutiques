@@ -14,7 +14,7 @@ traces réseau TON_IoT (DDoS, scanning, ransomware…) sont hors périmètre.
 2. Découpage par semaines entrelacées (3 semaines train, 1 val, 1 test, en boucle) :
    chaque saison et chaque scénario figurent dans la validation ET dans le test.
 3. Comparaison, avec le même protocole (seuil = max F1 sur la validation) :
-   les 4 détecteurs non supervisés et un détecteur
+   les 4 modèles de la phase 2 et un détecteur
    résiduel à deux canaux (A : variance effondrée = gel ; B : désaccord salle↔frigo,
    ajusté par régression orthogonale et lissé par EWMA = injection / rejeu / masquage).
    Le capteur falsifié est désigné par le canal A (capteur figé) ou, pour un
@@ -52,7 +52,7 @@ sys.path.insert(0, str(HERE))
 
 import build_dataset as bd  # noqa: E402
 import train_models as tm  # noqa: E402
-from app.domains.ml import pipeline  # noqa: E402
+from app.api.v1 import phase2  # noqa: E402
 from app.core import paths  # noqa: E402
 
 SEED = 2019
@@ -60,7 +60,7 @@ STEPS_DAY = 288                 # pas de 5 min
 STEP_MINUTES = 5                # durée d'un pas, pour les délais de détection
 GUARD = 12                      # 1 h après chaque épisode exclue de l'évaluation (traîne des fenêtres glissantes)
 EP_MIN, EP_MAX = 24, 48         # durée d'un épisode : 2 h à 4 h
-FEATURES = pipeline.FEATURE_COLS
+FEATURES = phase2.FEATURE_COLS
 OUT_DIR = paths.MODELS_DIR / "transmission"
 DATASET_PATH = paths.PROCESSED_DIR / "dataset_transmission.csv"
 
@@ -220,7 +220,7 @@ def build_dataset(year: pd.DataFrame, rng: np.random.Generator,
     })
     df["fridge_cond"] = np.where(df["fridge_temp"] > 8.0, "high", "low")
     df["thermo_status"] = (np.abs(df["thermostat_temp"] - T_SET) > 1.5).astype(int)
-    df = pipeline._engineer_features(df)
+    df = phase2._engineer_features(df)
     return df, episodes, incidents
 
 
@@ -405,7 +405,7 @@ def summarize(pred: np.ndarray, df: pd.DataFrame, idx: np.ndarray, episodes: lis
 def evaluate_scores(scores: np.ndarray, df: pd.DataFrame, y: np.ndarray, val_idx: np.ndarray,
                     test_idx: np.ndarray, episodes: list[dict]) -> tuple[dict, np.ndarray]:
     s = np.nan_to_num(np.asarray(scores, dtype=float), nan=0.0)
-    thr = pipeline._best_f1_threshold(y[val_idx], s[val_idx])
+    thr = phase2._best_f1_threshold(y[val_idx], s[val_idx])
     pred = s >= thr
     res = summarize(pred, df, test_idx, episodes, "test")
     res["roc_auc"] = round(float(roc_auc_score(y[test_idx], s[test_idx])), 4)

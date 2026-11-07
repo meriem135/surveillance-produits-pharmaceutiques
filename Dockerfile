@@ -21,13 +21,12 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends libgomp1 curl \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-# Dépendances d'abord (couche mise en cache tant que les requirements ne changent pas) ; torch en version CPU
+# Dépendances d'abord (couche mise en cache tant que les requirements ne changent pas)
 COPY backend/requirements.txt backend/requirements-train.txt backend/requirements-dev.txt backend/
 # xgboost 3 dépend de NCCL (305 Mo, multi-GPU uniquement) : inutile sur CPU, retiré puis vérifié.
 RUN pip install -r backend/requirements-train.txt -r backend/requirements-dev.txt \
-      --extra-index-url https://download.pytorch.org/whl/cpu \
  && pip uninstall -y nvidia-nccl-cu13 nvidia-nccl-cu12 \
- && python -c "import numpy as np, torch, xgboost; xgboost.XGBClassifier(n_estimators=2).fit(np.random.rand(20, 3), np.arange(20) % 2); print('torch', torch.__version__, 'xgboost', xgboost.__version__)"
+ && python -c "import numpy as np, xgboost; xgboost.XGBClassifier(n_estimators=2).fit(np.random.rand(20, 3), np.arange(20) % 2); print('xgboost', xgboost.__version__)"
 COPY backend/ backend/
 COPY notebook/Raw/ notebook/Raw/
 COPY models/ models/

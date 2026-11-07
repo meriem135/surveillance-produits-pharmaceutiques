@@ -107,3 +107,4 @@ def test_web_training_uses_the_reference_model_and_its_alert_setting():
     assert service.reference_choice({"modeles": {}}) is None
     mlp = {"meilleur": "MLP", "modeles": {"MLP": {**_model("MLP", 0.5), "hyperparameters": {"sample_weight": "équilibré"}}}}
     assert "sample_weight" not in service.reference_choice(mlp)["hyperparameters"]
+

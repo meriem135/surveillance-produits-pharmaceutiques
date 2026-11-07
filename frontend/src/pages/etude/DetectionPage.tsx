@@ -1,20 +1,21 @@
 /** Détection vs réalité — alertes du meilleur modèle face aux épisodes d'attaque réels, dans le temps.
  *  GET /api/v1/etude/timeline : transmission_dataset ⋈ transmission_predictions, transmission_alerts,
  *  transmission_episodes, transmission_metrics. */
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  BandLegend, Empty, Loading, MODEL_FR, Note, PageHeader, Paper, ROLE_FR, SCENARIO_FR, Section, Segmented, State, Table, Tally, TallyLegend,
-  heure, minutes, nf, pct, tooltipStyle, useApi, usePalette,
+  Empty, Loading, Meter, MODEL_FR, Note, PageHeader, ROLE_FR, SCENARIO_FR, Section, Segmented, State, Table, Tally,
+  dateFr, minutes, nf, pct, useApi,
 } from '../../components/etude/kit';
 
 interface Fit { tp: number; fp: number; fn: number; tn: number; recall: number; precision: number; f1: number; avg_precision: number | null;
   fausses_alertes_par_heure: number; episodes: number; episodes_detectes: number; delai_median_min: number | null }
 interface TimelineResp {
+  run?: { id: number; source: string; date: string; repetitions?: number };
   role: string; modele: string; seuil: number | null; pas_minutes: number;
   serie: { ts: string; score_max: number; alarme: number; attaque: number; frigo: number; thermostat: number; role: string; evaluee: boolean }[];
   episodes: { scenario: string; capteur: string; role: string; debut: string; fin: string; duree_min: number; detecte: boolean | null; delai_min: number | null }[];
+  episodes_toutes?: { repetition: number; scenario: string; capteur: string; role: string; debut: string; fin: string; duree_min: number; detecte: boolean | null; delai_min: number | null }[];
   alertes: { role: string; debut: string; fin: string; duree_min: number; score_max: number; vraie: boolean; scenario: string | null }[];
   par_scenario: { scenario: string; episodes: number; detectes: number; delai_median_min: number | null }[];
   ajustement: Record<string, { alarme?: Fit; ligne?: Fit }>;
@@ -22,8 +23,13 @@ interface TimelineResp {
 }
 
 const ROLES = ['test', 'val', 'train'] as const;
-/** Deux pistes d'événements au-dessus de la courbe, comme les plumes d'un enregistreur. */
-const laneTick = (v: number) => (v > 1.2 ? 'attaque' : v > 1.1 ? 'alerte' : String(v).replace('.', ','));
+type Filtre = 'attaques' | 'alertes' | 'erreurs' | 'tout';
+type Niveau = 'Normal' | 'À surveiller' | 'Alerte';
+const PAGE = 15;
+/** Alerte = règle d'alerte du modèle déclenchée ; à surveiller = score au-dessus du seuil sans alerte ; sinon normal. */
+const niveauDe = (alarme: boolean, score: number, seuil: number | null): Niveau =>
+  alarme ? 'Alerte' : seuil != null && score >= seuil ? 'À surveiller' : 'Normal';
+const NIVEAU_COULEUR: Record<Niveau, string> = { Normal: 'var(--border-strong)', 'À surveiller': 'var(--alarm-amber-fill)', Alerte: 'var(--accent-danger)' };
 
 function Confusion({ f }: { f: Fit }) {
   const cell = (label: string, v: number, good: boolean) => (
@@ -50,12 +56,19 @@ function Confusion({ f }: { f: Fit }) {
 export default function DetectionPage() {
   const [role, setRole] = useState<string>('test');
   const { data, error, loading, reload } = useApi<TimelineResp>(`/api/v1/etude/timeline?role=${role}&minutes=1`);
-  const pal = usePalette();
-  const serie = useMemo(() => (data?.serie ?? []).map(p => ({ ...p, reel: p.attaque ? [1.2, 1.29] : null, detecte: p.alarme ? [1.08, 1.17] : null })), [data]);
+  const [filtre, setFiltre] = useState<Filtre>('attaques');
+  const [shown, setShown] = useState(PAGE);
+  const changeFiltre = (f: Filtre) => { setFiltre(f); setShown(PAGE); };
+  const changeRole = (r: string) => { setRole(r); setShown(PAGE); };
   const header = (
     <PageHeader title="Détection vs réalité" loading={loading} onRefresh={reload}
-      subtitle="Le modèle apprend-il vraiment les attaques ? Ses alertes, minute par minute, face aux épisodes réellement injectés (répétition 0).">
-      <Segmented label="Données affichées" value={role as typeof ROLES[number]} onChange={setRole}
+      subtitle={`Le modèle apprend-il vraiment les attaques ? Ses alertes, minute par minute, face aux épisodes réellement injectés${data?.run
+        ? ` — ${data.run.source === 'web' ? `votre entraînement n° ${data.run.id} du ${dateFr(data.run.date)}` : 'étude de référence'}. ${
+          data.run.repetitions && data.run.repetitions > 1
+            ? `Résultats cumulés sur ${data.run.repetitions} répétitions ; la frise minute par minute montre la répétition 0.`
+            : 'Une seule répétition (la 0).'}`
+        : ' (répétition 0).'}`}>
+      <Segmented label="Données affichées" value={role as typeof ROLES[number]} onChange={changeRole}
         options={ROLES.map(r => ({ value: r, label: ROLE_FR[r] }))} />
     </PageHeader>
   );
@@ -63,48 +76,76 @@ export default function DetectionPage() {
   const fit = data.ajustement;
   const fa = data.alertes.filter(a => !a.vraie);
   const eps = [...data.episodes].sort((a, b) => a.debut.localeCompare(b.debut));
+  const toutes = data.episodes_toutes && data.episodes_toutes.length ? data.episodes_toutes : data.episodes.map(e => ({ ...e, repetition: 0 }));
   const det = eps.filter(e => e.detecte).length;
+  const plages = eps.map(e => ({ a: new Date(e.debut).getTime() - 60_000, b: new Date(e.fin).getTime(), nom: SCENARIO_FR[e.scenario] ?? e.scenario }));
+  const lignes = data.serie.filter(p => p.evaluee).map(p => {
+    const t = new Date(p.ts).getTime();
+    const attaque = p.attaque === 1;
+    const niveau = niveauDe(p.alarme === 1, p.score_max, data.seuil);
+    const resultat: 'correct' | 'manquee' | 'fausse' = attaque && niveau !== 'Alerte' ? 'manquee' : !attaque && niveau === 'Alerte' ? 'fausse' : 'correct';
+    const nom = plages.find(r => t >= r.a && t <= r.b)?.nom ?? 'Attaque';
+    return { ts: p.ts, frigo: p.frigo, thermostat: p.thermostat, attaque, nom, score: p.score_max, niveau, resultat };
+  });
+  const visibles = lignes.filter(l => filtre === 'tout' ? true : filtre === 'attaques' ? l.attaque : filtre === 'alertes' ? l.niveau === 'Alerte' : l.resultat !== 'correct');
   return (
     <div className="space-y-6">
       {header}
       <Section title={`${ROLE_FR[data.role]} : score du modèle et attaques réelles`}
         subtitle={`${MODEL_FR[data.modele] ?? data.modele}, score maximal par minute. Les blocs d’une heure d’un même rôle sont mis bout à bout.`}
         source={data.sources.serie}>
-        <BandLegend items={[
-          { label: 'Score maximal', color: pal.ink, kind: 'line' },
-          { label: 'Attaque réelle (piste du haut)', color: pal.attackLine },
-          { label: 'Alerte levée après persistance (piste du dessous)', color: pal.alert },
-          ...(data.seuil != null ? [{ label: `Seuil ${nf(data.seuil, 2)}`, color: pal.alert, kind: 'dash' as const }] : []),
-        ]} />
-        <Paper height={300}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={serie} margin={{ top: 6, right: 8, left: -14, bottom: 0 }}>
-              <XAxis dataKey="ts" tickFormatter={heure} minTickGap={48} tick={{ fill: pal.axis, fontSize: 12 }} />
-              <YAxis domain={[0, 1.3]} ticks={[0, 0.25, 0.5, 0.75, 1, 1.125, 1.245]} interval={0} width={64} tickFormatter={laneTick} tick={{ fill: pal.axis, fontSize: 12 }} />
-              <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')}
-                formatter={(v, n) => (n === 'Score max' ? [nf(Number(v), 3), n] : ['oui', n])} />
-              <Area dataKey="reel" name="Attaque réelle" fill={pal.attackLine} fillOpacity={1} stroke="none" isAnimationActive={false} />
-              <Area dataKey="detecte" name="Alerte levée" fill={pal.alert} fillOpacity={1} stroke="none" isAnimationActive={false} />
-              <Line dataKey="score_max" name="Score max" stroke={pal.ink} dot={false} strokeWidth={1.1} isAnimationActive={false} />
-              {data.seuil != null && <ReferenceLine y={data.seuil} stroke={pal.alert} strokeWidth={1.5} strokeDasharray="5 4" />}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </Paper>
-        <div className="mt-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-            <div className="text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
-              Épisodes dans l’ordre chronologique : {det} détectés sur {eps.length}
-            </div>
-            <TallyLegend />
-          </div>
-          <div className="vc-tally" role="list" aria-label="Épisodes d’attaque dans l’ordre chronologique">
-            {eps.map(e => (
-              <i key={e.debut} role="listitem" data-miss={e.detecte ? undefined : ''}
-                title={`${new Date(e.debut).toLocaleString('fr-FR')} : ${SCENARIO_FR[e.scenario] ?? e.scenario}, ${e.detecte ? `détecté en ${minutes(e.delai_min)}` : 'manqué'}`}
-                aria-label={`${SCENARIO_FR[e.scenario] ?? e.scenario}, ${e.detecte ? 'détecté' : 'manqué'}`} />
-            ))}
-          </div>
+        <div className="rounded-[12px] p-4 mb-4 text-[13.5px]" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+          <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
+            <div className="flex items-start gap-2.5"><dt className="shrink-0 w-[128px]"><State kind="manque">Alerte</State></dt><dd>La règle d’alerte du modèle est déclenchée.</dd></div>
+            <div className="flex items-start gap-2.5"><dt className="shrink-0 w-[128px]"><State kind="manque">Attaque manquée</State></dt><dd>Une attaque réelle sans alerte.</dd></div>
+            <div className="flex items-start gap-2.5"><dt className="shrink-0 w-[128px]"><State kind="alerte">À surveiller</State></dt><dd>Le score dépasse le seuil sans déclencher d’alerte.</dd></div>
+            <div className="flex items-start gap-2.5"><dt className="shrink-0 w-[128px]"><State kind="alerte">Fausse alerte</State></dt><dd>Une alerte sans attaque.</dd></div>
+          </dl>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="text-[13.5px]" style={{ color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--text-primary)' }}>{det}</strong> épisodes détectés sur <strong style={{ color: 'var(--text-primary)' }}>{eps.length}</strong>
+            {data.seuil != null && <> · seuil de risque <strong style={{ color: 'var(--text-primary)' }}>{pct(data.seuil, 0)}</strong></>}
+          </div>
+          <Segmented<Filtre> label="Filtrer les lignes" value={filtre} onChange={changeFiltre} options={[
+            { value: 'attaques', label: `Attaques (${lignes.filter(l => l.attaque).length})` },
+            { value: 'alertes', label: `Alertes (${lignes.filter(l => l.niveau === 'Alerte').length})` },
+            { value: 'erreurs', label: `Erreurs (${lignes.filter(l => l.resultat !== 'correct').length})` },
+            { value: 'tout', label: `Tout (${lignes.length})` },
+          ]} />
+        </div>
+        {visibles.length ? (
+          <Table min={820}>
+            <thead><tr>
+              <th>Heure</th><th className="vc-num">Frigo</th><th className="vc-num">Thermostat</th><th>Attaque réelle</th>
+              <th style={{ minWidth: 160 }}>Score du modèle</th><th>Niveau</th><th>Résultat</th>
+            </tr></thead>
+            <tbody data-testid="table-score-attaques">
+              {visibles.slice(0, shown).map(l => (
+                <tr key={l.ts}>
+                  <td className="whitespace-nowrap tabular-nums">{dateFr(l.ts)}</td>
+                  <td className="vc-num">{nf(l.frigo, 1)}&nbsp;°C</td>
+                  <td className="vc-num">{nf(l.thermostat, 1)}&nbsp;°C</td>
+                  <td>{l.attaque ? <span className="font-semibold" style={{ color: 'var(--accent-danger)' }}>{l.nom}</span> : <span style={{ color: 'var(--text-muted)' }}>Aucune</span>}</td>
+                  <td>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-24 shrink-0"><Meter value={l.score * 100} color={NIVEAU_COULEUR[l.niveau]} /></div>
+                      <span className="tabular-nums text-[13px] w-11 text-right">{nf(l.score, 2)}</span>
+                    </div>
+                  </td>
+                  <td>{l.niveau === 'Alerte' ? <State kind="manque">Alerte</State> : l.niveau === 'À surveiller' ? <State kind="alerte">À surveiller</State> : <State kind="neutre">Normal</State>}</td>
+                  <td>{l.resultat === 'correct' ? <State kind="ok">Correct</State> : l.resultat === 'manquee' ? <State kind="manque">Attaque manquée</State> : <State kind="alerte">Fausse alerte</State>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        ) : <Empty>Aucune ligne pour ce filtre.</Empty>}
+        {visibles.length > shown && (
+          <div className="mt-3 flex items-center justify-between gap-3 text-[13px]" style={{ color: 'var(--text-muted)' }}>
+            <span>{shown} lignes sur {visibles.length}</span>
+            <button className="vc-btn" onClick={() => setShown(s => s + PAGE * 2)}>Afficher plus</button>
+          </div>
+        )}
       </Section>
 
       <div>
@@ -140,12 +181,14 @@ export default function DetectionPage() {
       <Note>Voir aussi la courbe d’apprentissage dans « Résultats ».</Note>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <Section title="Épisodes réels et détection" subtitle={`${data.episodes.length} épisodes en ${ROLE_FR[data.role].toLowerCase()} (répétition 0).`} source={data.sources.episodes} flush>
+        <Section title="Épisodes réels et détection" subtitle={toutes.length > data.episodes.length
+          ? `${toutes.length} épisodes en ${ROLE_FR[data.role].toLowerCase()}, toutes répétitions confondues (${new Set(toutes.map(e => e.repetition)).size} répétitions).`
+          : `${data.episodes.length} épisodes en ${ROLE_FR[data.role].toLowerCase()} (répétition 0).`} source={data.sources.episodes} flush>
           <Table>
-            <thead><tr><th className="sm:pl-5">Début</th><th>Scénario</th><th className="vc-num">Durée</th><th>Détection</th><th className="vc-num sm:pr-5">Délai</th></tr></thead>
+            <thead><tr><th className="sm:pl-5">Rép.</th><th>Début</th><th>Scénario</th><th className="vc-num">Durée</th><th>Détection</th><th className="vc-num sm:pr-5">Délai</th></tr></thead>
             <tbody>
-              {data.episodes.map(e => (
-                <tr key={e.debut}><td className="whitespace-nowrap tabular-nums sm:pl-5">{new Date(e.debut).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+              {toutes.map(e => (
+                <tr key={`${e.repetition}-${e.debut}`}><td className="sm:pl-5 tabular-nums">{e.repetition}</td><td className="whitespace-nowrap tabular-nums">{new Date(e.debut).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                   <td>{SCENARIO_FR[e.scenario] ?? e.scenario}</td><td className="vc-num">{minutes(e.duree_min)}</td>
                   <td>{e.detecte ? <State kind="ok">détecté</State> : <State kind="manque">manqué</State>}</td>
                   <td className="vc-num sm:pr-5">{minutes(e.delai_min)}</td></tr>
@@ -153,7 +196,7 @@ export default function DetectionPage() {
             </tbody>
           </Table>
         </Section>
-        <Section title="Par scénario" subtitle="Répétition 0, rôle choisi." source={data.sources.episodes} flush>
+        <Section title="Par scénario" subtitle={`${toutes.length > data.episodes.length ? 'Toutes répétitions confondues' : 'Répétition 0'}, rôle choisi. Le scénario est connu parce qu’il a été injecté : il sert à évaluer la détection, le modèle ne le reconnaît pas (il répond seulement « attaque » ou « normal »).`} source={data.sources.episodes} flush>
           <Table min={420}>
             <thead><tr><th className="sm:pl-5">Scénario</th><th>Épisodes détectés</th><th className="vc-num sm:pr-5">Délai médian</th></tr></thead>
             <tbody>

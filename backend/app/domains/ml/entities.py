@@ -43,7 +43,8 @@ class MLModel(SQLModel, table=True):
     scaler_path: Optional[str] = Field(default=None, description="Path to .joblib scaler file")
 
     # Snapshot complet de l'entraînement (training_info, monthly/seasonal breakdown,
-    # timeline, feature_importance, shap) persisté en JSON.
+    # timeline, feature_importance, shap) persisté en JSON pour restituer la page
+    # /dashboard/results depuis PostgreSQL uniquement.
     result_json: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
 

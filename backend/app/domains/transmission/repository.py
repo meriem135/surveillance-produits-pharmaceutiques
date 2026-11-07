@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/transmission/repository.py
+#   LECTURE / ÉCRITURE DES TABLES transmission_* : enregistrer un entraînement, historique,
+#   étude de référence.
+# ══════════════════════════════════════════════════════════════════════════
 """Persistance des entraînements « attaques de transmission » (PostgreSQL, repli SQLite)."""
 from datetime import datetime
 from typing import Any, Optional
@@ -15,6 +20,12 @@ DETAIL_TABLES = (TransmissionMetric, TransmissionShap, TransmissionDatasetRow, T
                  TransmissionPrediction, TransmissionAlert, TransmissionLearningPoint)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] start_run
+#   Rôle   : Crée la ligne d'un nouvel entraînement (statut « en cours »).
+#   Entrée : session ; username ; user_id
+#   Sortie : id de l'entraînement
+# ──────────────────────────────────────────────────────────────────────
 async def start_run(session: AsyncSession, username: Optional[str] = None, user_id: Optional[int] = None,
                     source: str = "web") -> int:
     """Crée la ligne de l'entraînement. Un seul entraînement tourne à la fois : une ligne restée
@@ -30,6 +41,12 @@ async def start_run(session: AsyncSession, username: Optional[str] = None, user_
     return run.id
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] finish_run
+#   Rôle   : Enregistre le résultat d'un entraînement terminé (une ligne par modèle).
+#   Entrée : session ; run_id ; out
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def finish_run(session: AsyncSession, run_id: int, out: dict) -> None:
     """Enregistre le résultat de service.train() : l'entraînement et un résultat par modèle."""
     run = await session.get(TransmissionRun, run_id)
@@ -61,6 +78,12 @@ async def finish_run(session: AsyncSession, run_id: int, out: dict) -> None:
     await session.commit()
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] fail_run
+#   Rôle   : Marque un entraînement en erreur.
+#   Entrée : session ; run_id ; error
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def fail_run(session: AsyncSession, run_id: int, error: str) -> None:
     run = await session.get(TransmissionRun, run_id)
     if run is None:
@@ -72,6 +95,12 @@ async def fail_run(session: AsyncSession, run_id: int, error: str) -> None:
     await session.commit()
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] latest_result
+#   Rôle   : Résultat du dernier entraînement terminé.
+#   Entrée : session ; source
+#   Sortie : dictionnaire ou None
+# ──────────────────────────────────────────────────────────────────────
 async def latest_result(session: AsyncSession, source: str = "web") -> Optional[dict]:
     """Résultat du dernier entraînement terminé (même forme que entrainement_web.json), ou None."""
     run = (await session.execute(
@@ -83,11 +112,23 @@ async def latest_result(session: AsyncSession, source: str = "web") -> Optional[
     return {**run.result_json, "run_id": run.id, "source": "postgresql"}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _iso
+#   Rôle   : Date en texte avec « Z ».
+#   Entrée : d
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
 def _iso(d: Optional[datetime]) -> Optional[str]:
     """UTC naïf en base : suffixe Z pour un affichage correct en heure locale."""
     return d.isoformat(timespec="seconds") + "Z" if d else None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] history
+#   Rôle   : Liste des entraînements, du plus récent au plus ancien.
+#   Entrée : session ; limit
+#   Sortie : liste
+# ──────────────────────────────────────────────────────────────────────
 async def history(session: AsyncSession, limit: int = 20) -> list[dict[str, Any]]:
     """Entraînements, du plus récent au plus ancien, avec les métriques de chaque modèle."""
     runs = (await session.execute(
@@ -114,20 +155,39 @@ async def history(session: AsyncSession, limit: int = 20) -> list[dict[str, Any]
         "lance_par": r.launched_by, "duree_s": r.duration_s, "lignes": r.n_rows, "features": r.n_features,
         "episodes": r.n_episodes, "scenarios": r.scenarios, "meilleur_modele": r.best_model, "meilleur_f1": r.best_f1,
         "classement_validation": r.ranking, "erreur": r.error, "modeles": by_run.get(r.id, []),
+        "jeu_de_donnees": (r.dataset or {}).get("fichier"), "importe": bool((r.dataset or {}).get("importe")),
     } for r in runs]
 
 
 # ── Détails de l'étude : métriques par rôle, SHAP, jeu de données, prédictions, alertes ──
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _f
+#   Rôle   : Convertit en nombre décimal (ou None).
+#   Entrée : v
+#   Sortie : float ou None
+# ──────────────────────────────────────────────────────────────────────
 def _f(v):
     return None if v is None else float(v)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] delete_details
+#   Rôle   : Supprime les détails (métriques, SHAP…) d'un entraînement.
+#   Entrée : session ; run_id
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def delete_details(session: AsyncSession, run_id: int) -> None:
     for table in DETAIL_TABLES:
         await session.execute(delete(table).where(table.run_id == run_id))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] delete_runs
+#   Rôle   : Supprime tous les entraînements d'une source.
+#   Entrée : session ; source
+#   Sortie : nombre supprimé
+# ──────────────────────────────────────────────────────────────────────
 async def delete_runs(session: AsyncSession, source: str) -> int:
     """Supprime les entraînements d'une source (ex. l'étude de référence avant rechargement)."""
     ids = (await session.execute(select(TransmissionRun.id).where(TransmissionRun.source == source))).scalars().all()
@@ -139,11 +199,43 @@ async def delete_runs(session: AsyncSession, source: str) -> int:
     return len(ids)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] delete_run
+#   Rôle   : Supprime UN entraînement web de la base (détails, résultats par modèle, ligne du run).
+#   Entrée : session ; run_id
+#   Sortie : True si supprimé, False si introuvable
+# ──────────────────────────────────────────────────────────────────────
+async def delete_run(session: AsyncSession, run_id: int) -> bool:
+    found = (await session.execute(
+        select(TransmissionRun.id).where(TransmissionRun.id == run_id, TransmissionRun.source == "web")
+    )).scalars().first()
+    if found is None:
+        return False
+    await delete_details(session, run_id)
+    await session.execute(delete(TransmissionModelResult).where(TransmissionModelResult.run_id == run_id))
+    await session.execute(delete(TransmissionRun).where(TransmissionRun.id == run_id))
+    await session.commit()
+    return True
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _bulk
+#   Rôle   : Insère beaucoup de lignes d'un coup, par paquets de 5000.
+#   Entrée : session ; table ; rows
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def _bulk(session: AsyncSession, table, rows: list[dict], chunk: int = 5000) -> None:
     for i in range(0, len(rows), chunk):
         await session.execute(insert(table), rows[i:i + chunk])
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] store_details
+#   Rôle   : ÉCRIT EN BASE ce que lisent les pages : métriques, SHAP, et si fourni jeu de données, scores,
+#            alertes, épisodes.
+#   Entrée : session ; run_id ; out ; records…
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def store_details(session: AsyncSession, run_id: int, out: dict, records: Optional[dict] = None,
                         all_episodes: Optional[list[dict]] = None, feature_label=None) -> dict:
     """Écrit ce que les pages du site lisent : métriques train/val/test (niveaux ligne et alarme),
@@ -230,13 +322,20 @@ async def store_details(session: AsyncSession, run_id: int, out: dict, records: 
             eps.append(dict(run_id=run_id, repetition=int(e["run"]), scenario=e["name"], capteur=e["sensor"],
                             mecanisme=e["kind"], parametre=_f(e.get("param")), role=e["split"],
                             start_idx=int(e["start"]), end_idx=int(e["end"]),
-                            start_ts=ts[int(e["start"])], end_ts=ts[min(len(ts) - 1, int(e["end"]) - 1)]))
+                            start_ts=ts[int(e["start"])], end_ts=ts[min(len(ts) - 1, int(e["end"]) - 1)],
+                            detecte=e.get("detecte"), delai_min=_f(e.get("delai_min"))))
         await _bulk(session, TransmissionEpisode, eps)
         counts["transmission_episodes"] = len(eps)
     await session.commit()
     return counts
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] reference_run
+#   Rôle   : L'étude affichée par le site : la référence, sinon le dernier entraînement web.
+#   Entrée : session
+#   Sortie : TransmissionRun ou None
+# ──────────────────────────────────────────────────────────────────────
 async def reference_run(session: AsyncSession) -> Optional[TransmissionRun]:
     """L'étude de référence chargée en base (scripts/charger_base.py), sinon le dernier entraînement web."""
     for source in ("reference", "web"):
@@ -249,6 +348,12 @@ async def reference_run(session: AsyncSession) -> Optional[TransmissionRun]:
     return None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] prune_heavy_details
+#   Rôle   : Garde les lignes lourdes (jeu de données, scores) seulement pour le dernier entraînement.
+#   Entrée : session ; keep_run_id ; source
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def prune_heavy_details(session: AsyncSession, keep_run_id: int, source: str = "web") -> None:
     """Les lignes lourdes (jeu de données, scores, alertes, épisodes) ne sont gardées que pour le
     dernier entraînement d'une source ; les métriques et SHAP restent pour l'historique."""

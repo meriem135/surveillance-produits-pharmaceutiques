@@ -1,9 +1,12 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/transmission/models.py
+#   TABLES DE L'ÉTUDE (transmission_*) : entraînements, résultats par modèle, métriques, SHAP,
+#   jeu de données, épisodes, prédictions, alertes.
+# ══════════════════════════════════════════════════════════════════════════
 """Tables des entraînements « attaques de transmission » (PostgreSQL, repli SQLite).
 
 Une ligne par entraînement lancé depuis le dashboard (transmission_runs) et une ligne par
-modèle candidat de cet entraînement (transmission_model_results). Tables distinctes de
-ml_models / model_metrics : ces dernières sont propres aux archives d'entraînement et
-sont lues sans filtre.
+modèle candidat de cet entraînement (transmission_model_results).
 """
 from datetime import datetime, timezone
 from typing import Optional
@@ -12,11 +15,22 @@ from sqlalchemy import Index
 from sqlmodel import JSON, Column, Field, SQLModel
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] utcnow
+#   Rôle   : Date actuelle en UTC (sans fuseau, comme le reste de la base).
+#   Entrée : rien
+#   Sortie : date
+# ──────────────────────────────────────────────────────────────────────
 def utcnow() -> datetime:
     """UTC naïf, comme le reste du schéma."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionRun
+#   Rôle   : TABLE transmission_runs : UN ENTRAÎNEMENT ou une étude (date, statut, meilleur modèle,
+#            classement, résultat complet).
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionRun(SQLModel, table=True):
     __tablename__ = "transmission_runs"
 
@@ -45,6 +59,11 @@ class TransmissionRun(SQLModel, table=True):
     result_json: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionModelResult
+#   Rôle   : TABLE transmission_model_results : résultat d'UN modèle dans un entraînement (rappel, précision,
+#            F1, fausses alertes…).
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionModelResult(SQLModel, table=True):
     __tablename__ = "transmission_model_results"
 
@@ -81,6 +100,11 @@ Index("idx_transmission_result_run_model", TransmissionModelResult.run_id, Trans
 # pipeline) et par chaque entraînement lancé depuis le dashboard (repository.finish_run).
 # Toutes rattachées à une ligne de transmission_runs (source = « reference » ou « web »).
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionMetric
+#   Rôle   : TABLE transmission_metrics : métriques d'un modèle par rôle (train / val / test) et par niveau
+#            (mesure / alarme).
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionMetric(SQLModel, table=True):
     """Métriques d'un modèle sur un rôle (train / val / test), à un niveau donné :
     « ligne » (score ≥ seuil, sans persistance) ou « alarme » (après la règle k sur n)."""
@@ -118,6 +142,10 @@ class TransmissionMetric(SQLModel, table=True):
     per_episode: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionShap
+#   Rôle   : TABLE transmission_shap : importance SHAP de chaque feature (globale ou par scénario).
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionShap(SQLModel, table=True):
     """Importance SHAP moyenne |valeur| d'une feature pour le meilleur modèle, globale ou par scénario."""
     __tablename__ = "transmission_shap"
@@ -132,6 +160,10 @@ class TransmissionShap(SQLModel, table=True):
     importance: float
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionDatasetRow
+#   Rôle   : TABLE transmission_dataset : une mesure (5 s) du jeu de données avec son rôle et son étiquette.
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionDatasetRow(SQLModel, table=True):
     """Le jeu de données réel avec attaques (répétition 0) : une ligne par pas de 5 s."""
     __tablename__ = "transmission_dataset"
@@ -156,6 +188,10 @@ class TransmissionDatasetRow(SQLModel, table=True):
     cible: str = Field(default="")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionEpisode
+#   Rôle   : TABLE transmission_episodes : une attaque injectée (début, fin, scénario, détectée ou non).
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionEpisode(SQLModel, table=True):
     """Épisodes d'attaque injectés (toutes les répétitions de l'étude, ou celle de l'entraînement web)."""
     __tablename__ = "transmission_episodes"
@@ -176,6 +212,10 @@ class TransmissionEpisode(SQLModel, table=True):
     delai_min: Optional[float] = None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionPrediction
+#   Rôle   : TABLE transmission_predictions : score, signal et alarme du modèle pour chaque mesure.
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionPrediction(SQLModel, table=True):
     """Score du meilleur modèle sur chaque ligne du jeu de données (répétition 0)."""
     __tablename__ = "transmission_predictions"
@@ -189,6 +229,10 @@ class TransmissionPrediction(SQLModel, table=True):
     alarme: bool = Field(description="après la règle de persistance k sur n")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionAlert
+#   Rôle   : TABLE transmission_alerts : une alerte levée (début, fin, vraie ou fausse).
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionAlert(SQLModel, table=True):
     """Alertes levées par le meilleur modèle (suites continues de lignes en alarme)."""
     __tablename__ = "transmission_alerts"
@@ -208,6 +252,10 @@ class TransmissionAlert(SQLModel, table=True):
     capteur: Optional[str] = None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionLearningPoint
+#   Rôle   : TABLE transmission_learning_curve : un point de la courbe d'apprentissage.
+# ──────────────────────────────────────────────────────────────────────
 class TransmissionLearningPoint(SQLModel, table=True):
     """Courbe d'apprentissage du meilleur modèle : score selon la taille du train."""
     __tablename__ = "transmission_learning_curve"

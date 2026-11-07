@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/api/v1/overview.py
+#   ROUTE VUE D'ENSEMBLE (/api/v1/overview). Calcule tous les indicateurs de la première page du
+#   dashboard à partir de la base.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Vue d'ensemble du dashboard : chiffres lus uniquement dans la base de données
 ==============================================================================
@@ -7,8 +12,8 @@ Chaque bloc de la réponse porte, dans ``sources``, la table et la requête dont
 pour que chaque chiffre affiché soit vérifiable directement en SQL. Aucun chiffre n'est lu dans
 un fichier ni écrit en dur : une table vide donne un bloc vide (``None`` ou liste vide).
 
-Tables lues : transmission_runs, transmission_model_results, devices, telemetry, ml_models,
-model_metrics, users, audit_logs.
+Tables lues : transmission_runs, transmission_model_results, devices, telemetry,
+users, audit_logs.
 """
 from __future__ import annotations
 
@@ -48,15 +53,33 @@ SOURCES = {
 }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _utc
+#   Rôle   : Date en texte avec « Z » (UTC) pour un affichage correct dans le navigateur.
+#   Entrée : d : date
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
 def _utc(d: Optional[datetime]) -> Optional[str]:
     """Horodatage stocké en UTC naïf (utcnow) : suffixe Z pour que le navigateur l'affiche en heure locale."""
     return d.isoformat(timespec="seconds") + "Z" if d else None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _iso
+#   Rôle   : Date en texte ISO.
+#   Entrée : d : date
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
 def _iso(d: Optional[datetime]) -> Optional[str]:
     return d.isoformat(timespec="seconds") if d else None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _model_row
+#   Rôle   : Une ligne du tableau des modèles de la page Vue d'ensemble.
+#   Entrée : m : résultat du modèle ; detail
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 def _model_row(m: TransmissionModelResult, detail: dict) -> dict[str, Any]:
     """Une ligne de transmission_model_results, complétée par F2 / validation (result_json du même run)."""
     return {
@@ -70,6 +93,12 @@ def _model_row(m: TransmissionModelResult, detail: dict) -> dict[str, Any]:
     }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _target_points
+#   Rôle   : Le réglage d'alerte du modèle, mesuré en validation et en test, avec et sans persistance.
+#   Entrée : detail
+#   Sortie : liste
+# ──────────────────────────────────────────────────────────────────────
 def _target_points(detail: dict) -> list[dict[str, Any]]:
     """Point de fonctionnement unique du modèle (seuil + persistance) mesuré en validation et en test,
     avec et sans la règle de persistance (result_json -> modeles -> <modèle> -> par_role)."""
@@ -90,6 +119,13 @@ def _target_points(detail: dict) -> list[dict[str, Any]]:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] build_overview
+#   Rôle   : CALCULE TOUTE LA PAGE Vue d'ensemble à partir de la base : entraînements, modèles, équipements,
+#            utilisateurs, audit.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 async def build_overview(session: AsyncSession) -> dict[str, Any]:
     # ── Entraînements (transmission_runs) ─────────────────────────────────────
     web = TransmissionRun.source == "web"
@@ -213,6 +249,12 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
     }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] overview
+#   Rôle   : route API GET /overview : page Vue d'ensemble.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/overview")
 async def overview(_user=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     return await build_overview(session)

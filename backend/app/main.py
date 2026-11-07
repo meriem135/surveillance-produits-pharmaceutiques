@@ -1,3 +1,9 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/main.py
+#   POINT D'ENTRÉE DU SERVEUR. Crée l'application FastAPI, démarre la base, MQTT et le
+#   chargement de l'étude, branche toutes les routes /api/v1/... et sert le dashboard React
+#   compilé. Lancement : uvicorn app.main:app.
+# ══════════════════════════════════════════════════════════════════════════
 import asyncio
 import os
 from fastapi import FastAPI
@@ -10,11 +16,16 @@ from app.core.config import settings
 from app.core.paths import SEASONAL_STREAM_CSV, ensure_dirs
 from app.db.seed import seed_defaults
 from app.db.session import init_db, close_db
-from app.api.v1 import devices, risks, analyst, auth, transmission, overview, etude, parametres
+from app.api.v1 import devices, risks, auth, transmission, overview, etude, parametres
 from app.services.mqtt_service import mqtt_service
-from app.services.modbus_service import modbus_service
-from app.domains.intelligence import ml_service  # noqa: F401 – import for side-effects
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _charger_etude
+#   Rôle   : Au démarrage, charge l'étude de référence en base (charger_base.py) et prépare le flux Temps
+#            réel. Si ça échoue, l'application démarre quand même.
+#   Entrée : rien
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def _charger_etude():
     import sys
     from app.core import paths as _paths
@@ -34,6 +45,14 @@ async def _charger_etude():
         logging.getLogger(__name__).exception("Chargement de l'étude de référence en base impossible")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] lifespan
+#   Rôle   : CYCLE DE VIE DE L'APPLICATION : au démarrage, crée les dossiers et les tables, ajoute les
+#            données de départ, lance MQTT (si activé) et le chargement de l'étude ; à l'arrêt, ferme MQTT et
+#            la base.
+#   Entrée : app : l'application FastAPI
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
@@ -41,12 +60,9 @@ async def lifespan(app: FastAPI):
     await init_db()
     await seed_defaults()
 
-    # Ingestion terrain : chaque service est désactivable (.env) quand le
-    # broker ou l'automate n'existe pas sur le poste.
+    # Ingestion terrain : désactivable (.env) quand le broker n'existe pas sur le poste.
     if settings.ENABLE_MQTT:
         asyncio.create_task(mqtt_service.start())
-    if settings.ENABLE_MODBUS:
-        asyncio.create_task(modbus_service.start())
     edge_simulator = None
     if settings.ENABLE_MQTT and settings.ENABLE_EDGE_SIMULATOR:
         from app.services.mqtt_simulator import MqttSimulator
@@ -68,8 +84,6 @@ async def lifespan(app: FastAPI):
         await edge_simulator.stop()
     if settings.ENABLE_MQTT:
         await mqtt_service.stop()
-    if settings.ENABLE_MODBUS:
-        await modbus_service.stop()
     await close_db()
 
 app = FastAPI(
@@ -83,9 +97,20 @@ app = FastAPI(
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] ImmutableStaticFiles
+#   Rôle   : Sert les fichiers compilés du dashboard avec un long cache navigateur (leur nom change à chaque
+#            build).
+# ──────────────────────────────────────────────────────────────────────
 class ImmutableStaticFiles(StaticFiles):
     """Fichiers du build Vite : leur nom contient un hachage du contenu, ils peuvent être gardés un an."""
 
+    # ──────────────────────────────────────────────────────────────────────
+    # [EN BREF] ImmutableStaticFiles.get_response
+    #   Rôle   : Ajoute l'en-tête de cache aux fichiers servis.
+    #   Entrée : path, scope
+    #   Sortie : réponse HTTP
+    # ──────────────────────────────────────────────────────────────────────
     async def get_response(self, path, scope):
         response = await super().get_response(path, scope)
         if response.status_code == 200:
@@ -96,14 +121,32 @@ class ImmutableStaticFiles(StaticFiles):
 if os.path.exists(STATIC_DIR):
     app.mount("/assets", ImmutableStaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] serve_favicon
+#   Rôle   : Renvoie l'icône du site.
+#   Entrée : rien
+#   Sortie : fichier favicon.svg
+# ──────────────────────────────────────────────────────────────────────
 @app.get("/favicon.svg")
 def serve_favicon():
     return FileResponse(os.path.join(STATIC_DIR, "favicon.svg"))
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] serve_icons
+#   Rôle   : Renvoie le fichier d'icônes du site.
+#   Entrée : rien
+#   Sortie : fichier icons.svg
+# ──────────────────────────────────────────────────────────────────────
 @app.get("/icons.svg")
 def serve_icons():
     return FileResponse(os.path.join(STATIC_DIR, "icons.svg"))
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] serve_dashboard
+#   Rôle   : Renvoie la page du dashboard React (index.html) pour toute URL /dashboard/...
+#   Entrée : full_path : chemin demandé
+#   Sortie : index.html ou erreur 404
+# ──────────────────────────────────────────────────────────────────────
 @app.get("/dashboard/{full_path:path}")
 @app.get("/dashboard")
 def serve_dashboard(full_path: str = ""):
@@ -127,7 +170,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(analyst.router, prefix=f"{settings.API_V1_STR}/analyst", tags=["analyst-llm-rag"])
 app.include_router(devices.router, prefix=settings.API_V1_STR, tags=["devices"])
 app.include_router(risks.router, prefix=settings.API_V1_STR, tags=["risks"])
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
@@ -136,6 +178,12 @@ app.include_router(overview.router, prefix=settings.API_V1_STR, tags=["overview"
 app.include_router(etude.router, prefix=settings.API_V1_STR, tags=["etude"])
 app.include_router(parametres.router, prefix=settings.API_V1_STR, tags=["parametres"])
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] root
+#   Rôle   : Page d'accueil de l'API : nom, version, liens.
+#   Entrée : rien
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
     return {
@@ -145,6 +193,12 @@ def root():
         "dashboard": "/dashboard"
     }
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] health_check
+#   Rôle   : Vérifie que le serveur répond (utilisé par Docker).
+#   Entrée : rien
+#   Sortie : {"status": "healthy"}
+# ──────────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}

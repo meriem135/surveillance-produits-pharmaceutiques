@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/domains/parametres.py
+#   PARAMÈTRES MODIFIABLES PAR L'ADMIN (table app_settings) : valeurs par défaut, bornes,
+#   lecture et écriture.
+# ══════════════════════════════════════════════════════════════════════════
 """Paramètres de la plateforme (table app_settings), modifiables par l'administrateur seul.
 
 - precision_min : précision minimale exigée sur la validation pour régler le seuil d'alerte
@@ -21,6 +26,10 @@ LABELS = {"precision_min": "Précision minimale (validation) pour régler le seu
           "vitesse_temps_reel": "Vitesse du temps réel (mesures de 5 s envoyées par seconde)"}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] AppSetting
+#   Rôle   : TABLE app_settings : un paramètre (clé, valeur, date, auteur).
+# ──────────────────────────────────────────────────────────────────────
 class AppSetting(SQLModel, table=True):
     __tablename__ = "app_settings"
 
@@ -30,6 +39,12 @@ class AppSetting(SQLModel, table=True):
     updated_by: Optional[str] = Field(default=None)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_all
+#   Rôle   : Lit tous les paramètres (valeurs par défaut si absents).
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 async def get_all(session: AsyncSession) -> dict[str, Any]:
     rows = (await session.execute(select(AppSetting))).scalars().all()
     out = dict(DEFAULTS)
@@ -37,6 +52,12 @@ async def get_all(session: AsyncSession) -> dict[str, Any]:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] validate
+#   Rôle   : Vérifie que les valeurs sont connues et dans leurs bornes.
+#   Entrée : values
+#   Sortie : valeurs propres (sinon erreur)
+# ──────────────────────────────────────────────────────────────────────
 def validate(values: dict[str, Any]) -> dict[str, Any]:
     clean = {}
     for k, v in values.items():
@@ -50,6 +71,12 @@ def validate(values: dict[str, Any]) -> dict[str, Any]:
     return clean
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] update
+#   Rôle   : Enregistre de nouvelles valeurs de paramètres.
+#   Entrée : session ; values ; username
+#   Sortie : tous les paramètres
+# ──────────────────────────────────────────────────────────────────────
 async def update(session: AsyncSession, values: dict[str, Any], username: Optional[str]) -> dict[str, Any]:
     clean = validate(values)
     now = datetime.now(timezone.utc).replace(tzinfo=None)

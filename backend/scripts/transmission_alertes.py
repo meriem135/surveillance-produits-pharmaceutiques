@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/transmission_alertes.py
+#   RÈGLE D'ALERTE. Persistance « k mesures sur n », comptage des vraies / fausses alertes,
+#   choix du seuil (précision ≥ 90 %, ≤ 0,5 fausse alerte/h).
+# ══════════════════════════════════════════════════════════════════════════
 """
 Post-traitement temporel des alertes et choix du seuil unique
 =============================================================
@@ -51,6 +56,13 @@ THRESHOLD_GRID = tuple(sorted({round(float(t), 3) for t in np.linspace(0.05, 0.9
                               | {0.96, 0.97, 0.98, 0.985, 0.99, 0.993, 0.995, 0.997, 0.998, 0.999}))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] debounce
+#   Rôle   : RÈGLE DE PERSISTANCE (anti-rebond) : l'alarme ne sonne que si au moins k des n dernières mesures
+#            dépassent le seuil. Évite les fausses alertes isolées.
+#   Entrée : flags : vrai/faux « au-dessus du seuil » ; k, n : règle
+#   Sortie : vrai/faux « en alarme » par ligne
+# ──────────────────────────────────────────────────────────────────────
 def debounce(flags: np.ndarray, k: int, n: int) -> np.ndarray:
     """alarme(t) = au moins k lignes signalées parmi les n dernières (t inclus). Causal."""
     flags = np.asarray(flags, dtype=bool)
@@ -62,6 +74,12 @@ def debounce(flags: np.ndarray, k: int, n: int) -> np.ndarray:
     return (c[t + 1] - c[lo]) >= k
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] alert_events
+#   Rôle   : Regroupe les lignes en alarme consécutives en ALERTES (début, fin).
+#   Entrée : alarm : alarme par ligne ; evaluated : lignes comptées
+#   Sortie : liste de (début, fin)
+# ──────────────────────────────────────────────────────────────────────
 def alert_events(alarm: np.ndarray, evaluated: np.ndarray) -> list[tuple[int, int]]:
     """Alertes = suites continues de lignes en alarme parmi les lignes évaluées : [début, fin)."""
     a = np.asarray(alarm, dtype=bool) & np.asarray(evaluated, dtype=bool)
@@ -71,6 +89,14 @@ def alert_events(alarm: np.ndarray, evaluated: np.ndarray) -> list[tuple[int, in
     return list(zip(np.where(d == 1)[0].tolist(), np.where(d == -1)[0].tolist()))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] count
+#   Rôle   : COMPTE ce qui s'est passé dans une répétition : vrais/faux positifs, épisodes détectés, fausses
+#            alertes, délai de détection.
+#   Entrée : alarm, y, evaluated : alarme, vérité, lignes comptées ; episodes, role, types, names : infos des
+#            attaques
+#   Sortie : comptes bruts (à cumuler avec pool)
+# ──────────────────────────────────────────────────────────────────────
 def count(alarm: np.ndarray, y: np.ndarray, evaluated: np.ndarray, episodes: list[dict], role: str,
           types: np.ndarray | None = None, names: list[str] | None = None) -> dict:
     """Comptes bruts d'une répétition, sur les lignes évaluées d'un rôle (à cumuler par pool)."""
@@ -108,6 +134,13 @@ def count(alarm: np.ndarray, y: np.ndarray, evaluated: np.ndarray, episodes: lis
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] pool
+#   Rôle   : CUMULE les comptes de toutes les répétitions et calcule les métriques finales (rappel,
+#            précision, F1, fausses alertes/h, délai médian…).
+#   Entrée : runs : comptes de chaque répétition
+#   Sortie : dictionnaire de métriques
+# ──────────────────────────────────────────────────────────────────────
 def pool(runs: list[dict]) -> dict:
     """Cumule les comptes des répétitions et en tire les métriques."""
     tp = sum(r["tp"] for r in runs); fp = sum(r["fp"] for r in runs)
@@ -148,6 +181,12 @@ def pool(runs: list[dict]) -> dict:
     }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _fast_counts
+#   Rôle   : Version rapide du comptage, utilisée pour tester des milliers de réglages.
+#   Entrée : alarm, yy, ev
+#   Sortie : (vp, fp, fn, vn, fausses alertes/h)
+# ──────────────────────────────────────────────────────────────────────
 def _fast_counts(alarm, yy, ev) -> tuple[int, int, int, int, float]:
     a = alarm & ev
     tp = int((a & yy).sum()); fp = int((a & ~yy).sum()); fn = int((~a & yy & ev).sum())
@@ -158,6 +197,12 @@ def _fast_counts(alarm, yy, ev) -> tuple[int, int, int, int, float]:
     return tp, fp, fn, nfa, float((ev & ~yy).sum() / STEPS_HOUR)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] grid
+#   Rôle   : ESSAIE TOUS LES RÉGLAGES (seuil × règle k sur n) sur la validation et note leurs résultats.
+#   Entrée : scored : scores, étiquettes, masques ; role : rôle évalué
+#   Sortie : une ligne de résultats par réglage
+# ──────────────────────────────────────────────────────────────────────
 def grid(scored: list[dict], role: str = "val", thresholds=THRESHOLD_GRID, debounces=DEBOUNCE_GRID) -> list[dict]:
     """Toutes les combinaisons (seuil, k, n) sur les lignes d'un rôle, cumulées sur les répétitions.
     scored : [{"s": scores, "y": étiquettes, "evaluated_<role>": masque}, …]"""
@@ -179,6 +224,13 @@ def grid(scored: list[dict], role: str = "val", thresholds=THRESHOLD_GRID, debou
     return rows
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] choose
+#   Rôle   : CHOISIT LE RÉGLAGE : rappel maximal avec précision ≥ 90 % et ≤ 0,5 fausse alerte/h. Si aucun ne
+#            tient, prend le plus prudent et l'indique (contrainte_tenue = False).
+#   Entrée : rows : résultats de grid ; precision_min, fa_max : contraintes
+#   Sortie : le réglage retenu
+# ──────────────────────────────────────────────────────────────────────
 def choose(rows: list[dict], precision_min: float = PRECISION_MIN, fa_max: float = FA_MAX) -> dict:
     """Critère unique : rappel maximal sous précision ≥ precision_min et FA/h ≤ fa_max (validation).
     Égalités : moins de fausses alertes/h, puis n le plus court (réaction plus rapide), puis seuil haut."""
@@ -191,11 +243,23 @@ def choose(rows: list[dict], precision_min: float = PRECISION_MIN, fa_max: float
     return {**best, "contrainte_tenue": False}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] apply
+#   Rôle   : Applique un réglage aux scores : seuil puis règle de persistance.
+#   Entrée : scores : scores du modèle ; op : réglage
+#   Sortie : alarme par ligne
+# ──────────────────────────────────────────────────────────────────────
 def apply(scores: np.ndarray, op: dict) -> np.ndarray:
     """Alarme d'un modèle à son point de fonctionnement (seuil, k, n)."""
     return debounce(np.asarray(scores, float) >= op["seuil"], int(op["k"]), int(op["n"]))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] criterion_text
+#   Rôle   : Phrase qui explique le critère de choix (affichée sur le site et dans les JSON).
+#   Entrée : contraintes
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
 def criterion_text(precision_min: float = PRECISION_MIN, fa_max: float = FA_MAX) -> str:
     text = (f"seuil unique et règle de persistance (k sur n lignes) choisis sur la validation : rappel maximal "
             f"sous les contraintes précision ≥ {precision_min:.2f} et fausses alertes ≤ {fa_max:g} par heure")

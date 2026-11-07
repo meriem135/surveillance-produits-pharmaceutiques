@@ -29,7 +29,7 @@ export default function AuthShell({ title, subtitle, children, footer, topLink }
               'Rapport de consignes pour l’opérateur',
             ].map(t => (
               <li key={t} className="flex items-start gap-2.5">
-                <span className="w-2 h-2 mt-[7px] shrink-0" style={{ background: 'var(--accent-primary)' }} aria-hidden />{t}
+                <span className="w-2 h-2 mt-[7px] shrink-0 rounded-full" style={{ background: 'var(--accent-primary)' }} aria-hidden />{t}
               </li>
             ))}
           </ul>
@@ -75,7 +75,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 export const inputClass =
-  'w-full h-11 px-3 rounded-[4px] text-[15px] outline-none border bg-[var(--bg-panel)] border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]';
+  'w-full h-11 px-3.5 rounded-[12px] text-[15px] outline-none border transition-shadow bg-[var(--bg-panel)] border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]';
 
 export const primaryButtonClass =
-  'w-full h-11 rounded-[4px] text-[15px] font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 bg-[var(--accent-primary)] text-[var(--accent-primary-fg)] hover:brightness-95';
+  'w-full h-11 rounded-[12px] text-[15px] font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60 bg-[var(--accent-primary)] text-[var(--accent-primary-fg)] hover:brightness-110 shadow-[0_8px_20px_-8px_var(--accent-primary)] transition';

@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/transmission_real.py
+#   SCRIPT 2 — PROTOCOLE DE L'ÉTUDE. Fusionne les 3 capteurs, découpe train / validation / test
+#   par blocs d'une heure, zone de garde, injecte les 9 scénarios d'attaque. Aucun modèle ici.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Attaques de transmission sur les TRACES RÉELLES TON_IoT — sans année simulée
 ==========================================================================
@@ -23,45 +28,33 @@ Consigne : travailler uniquement sur les données disponibles (3 traces normales
    RÉPÉTÉE 20 fois en décalant le cycle de 20 blocs d'un cran à chaque répétition,
    ce qui parcourt TOUTES les rotations : chaque heure sert 3 fois de test et 3 fois
    de validation ; les scénarios tournent aussi, les résultats sont cumulés.
-3. Même protocole que transmission_study.py (seuil = max F1 sur la validation de
-   chaque répétition) : les 4 détecteurs non supervisés
-   réentraînés, et un détecteur STATISTIQUE par capteur — A : capteur figé,
-   L : niveau (EWMA), V : dispersion (EWMA du carré des écarts), R : séquence déjà
-   vue (rejeu exact).
+3. Ce module ne contient AUCUN modèle : il fournit le protocole commun (fusion,
+   découpage, zone de garde, injection) aux 6 modèles supervisés de
+   transmission_models.py (Random Forest, Extra Trees, XGBoost, HistGradientBoosting,
+   Régression Logistique, MLP) et à l'application.
 
-Ce que sont ces traces : du bruit sans mémoire (frigo uniforme 1–14 °C, thermostat
-25 °C avec sauts, météo cycle de 5 valeurs), sans relation physique entre capteurs.
-Le canal « désaccord salle↔frigo » de transmission_study.py n'a donc pas de base ici.
-
-Sorties : models/transmission_reel/resultats_transmission_reel.json, detecteur_statistique.json
-          (le jeu de données dataset_transmission_reel.csv n'est écrit QUE par
-          transmission_models.py : l'ordre d'exécution des deux scripts n'importe plus)
+Sortie : models/transmission_reel/resultats_transmission_reel.json (fusion et profil des traces,
+         lus par l'application) ; le jeu de données dataset_transmission_reel.csv est écrit
+         par transmission_models.py.
 Usage :  cd backend && .venv/bin/python scripts/transmission_real.py
 """
 
 from __future__ import annotations
 
-import contextlib
-import io
 import json
 import sys
 import time
-import traceback
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score, roc_auc_score
-from sklearn.preprocessing import StandardScaler
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 
 import build_dataset as bd  # noqa: E402
-import train_models as tm  # noqa: E402
-import transmission_study as ts  # noqa: E402
-from app.domains.ml import pipeline  # noqa: E402
+from app.domains.ml import features  # noqa: E402
 from app.core import paths  # noqa: E402
 
 SEED = 2019
@@ -81,7 +74,7 @@ W_MAX = 180                     # plus longue fenêtre glissante des features (1
 GUARD = 240                     # 20 min exclues après chaque épisode et en début de bloc changeant de rôle
 EP_MIN, EP_MAX = 180, 300       # durée d'un épisode : 15 à 25 min (≈ 33 % d'un bloc)
 N_RUNS = 20                     # répétitions : les 20 rotations du cycle de blocs (voir BLOCK_CYCLE)
-FEATURES = pipeline.FEATURE_COLS
+FEATURES = features.FEATURE_COLS
 OUT_DIR = paths.MODELS_DIR / "transmission_reel"
 DATASET_PATH = paths.PROCESSED_DIR / "dataset_transmission_reel.csv"
 
@@ -106,12 +99,68 @@ ATTACKS = [
 ]
 ATTACK_NAMES = [a[0] for a in ATTACKS]
 
-log = ts.log
+T0 = time.time()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] log
+#   Rôle   : Affiche un message avec le temps écoulé depuis le lancement.
+#   Entrée : msg : texte
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
+def log(msg: str) -> None:
+    print(f"[{time.time() - T0:6.1f}s] {msg}", flush=True)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _json_default
+#   Rôle   : Aide l'écriture JSON : convertit les nombres numpy et les dates en types simples.
+#   Entrée : o : objet
+#   Sortie : valeur écrivable en JSON
+# ──────────────────────────────────────────────────────────────────────
+def _json_default(o):
+    if isinstance(o, (np.integer,)):
+        return int(o)
+    if isinstance(o, (np.floating,)):
+        return float(o)
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    return str(o)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _fmt
+#   Rôle   : Formate un nombre pour l'affichage (« — » si absent).
+#   Entrée : v : valeur ; spec : format ; width : largeur
+#   Sortie : texte
+# ──────────────────────────────────────────────────────────────────────
+def _fmt(v, spec: str, width: int) -> str:
+    return f"{'—':>{width}s}" if v is None else f"{v:>{width}{spec}}"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _partial_corr
+#   Rôle   : Corrélation entre deux capteurs une fois l'effet de la météo retiré.
+#   Entrée : a, b : séries ; w : série à neutraliser
+#   Sortie : un nombre entre -1 et 1
+# ──────────────────────────────────────────────────────────────────────
+def _partial_corr(a, b, w) -> float:
+    """Corrélation entre a et b une fois l'effet (linéaire) de w retiré de chacun."""
+    a, b, w = (np.asarray(v, dtype=float) for v in (a, b, w))
+    ra = a - np.polyval(np.polyfit(w, a, 1), w)
+    rb = b - np.polyval(np.polyfit(w, b, 1), w)
+    return float(np.corrcoef(ra, rb)[0, 1])
 
 
 PHASE2_ONLY_COLS = ("hour_sin", "hour_cos", "season_sin", "season_cos")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] drop_legacy_cols
+#   Rôle   : Supprime les anciennes colonnes inutiles (heure, saison…) pour garder un jeu de données propre.
+#   Entrée : df : tableau
+#   Sortie : tableau nettoyé
+# ──────────────────────────────────────────────────────────────────────
 def drop_legacy_cols(df: pd.DataFrame) -> pd.DataFrame:
     """Retire les colonnes héritées du pré-calcul historique (heure, saison, moyennes et
     écarts glissants sur 10 pas). Elles ne font pas partie des 35 features du modèle
@@ -125,6 +174,13 @@ def drop_legacy_cols(df: pd.DataFrame) -> pd.DataFrame:
 # 1. Jeu de données : traces réelles fusionnées + attaques de transmission
 # ════════════════════════════════════════════════════════════════════════════
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] fuse_real
+#   Rôle   : FUSIONNE LES 3 CAPTEURS (météo, frigo, thermostat) sur une même grille de temps, une ligne
+#            toutes les 5 s ; les petits trous (< 1 min) sont comblés par la dernière valeur.
+#   Entrée : real : les 3 traces TON_IoT nettoyées
+#   Sortie : (tableau fusionné, statistiques de fusion)
+# ──────────────────────────────────────────────────────────────────────
 def fuse_real(real: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, dict]:
     """Les trois traces sur une grille commune de 5 s."""
     cols = {"weather": "temperature", "fridge": "fridge_temperature", "thermostat": "current_temperature"}
@@ -144,6 +200,12 @@ def fuse_real(real: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, dict]:
     return df, info
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] profile
+#   Rôle   : Décrit les traces : moyenne, dispersion, mémoire dans le temps, lien entre capteurs.
+#   Entrée : df : tableau fusionné
+#   Sortie : dictionnaire de statistiques
+# ──────────────────────────────────────────────────────────────────────
 def profile(df: pd.DataFrame) -> dict:
     """Ce que sont ces traces : niveau, dispersion, mémoire (autocorrélation) et lien entre capteurs."""
     out = {}
@@ -152,7 +214,7 @@ def profile(df: pd.DataFrame) -> dict:
         out[s] = {"moyenne": round(float(x.mean()), 2), "ecart_type": round(float(x.std()), 2),
                   "autocorr_5s": round(float(x.autocorr(1)), 3), "autocorr_1min": round(float(x.autocorr(12)), 3)}
     out["correlation_frigo_salle_meteo_fixee"] = round(
-        ts._partial_corr(df["fridge_temp"], df["thermostat_temp"], df["weather_temp"]), 3)
+        _partial_corr(df["fridge_temp"], df["thermostat_temp"], df["weather_temp"]), 3)
     return out
 
 
@@ -175,6 +237,12 @@ VAL_BLOCKS = 3             # 3/20 = 15 %  (le reste, 3/20 = 15 %, part au test)
 EVAL_PATTERN = (True, False, True, False, False)   # blocs de val / test successifs : épisode ou non
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] block_index
+#   Rôle   : Numéro du bloc d'une heure de chaque ligne (720 lignes de 5 s = 1 h).
+#   Entrée : n : nombre de lignes
+#   Sortie : tableau des numéros de bloc
+# ──────────────────────────────────────────────────────────────────────
 def block_index(n: int) -> np.ndarray:
     """Numéro du bloc d'une heure de chaque ligne (sert aussi de groupe pour la
     validation croisée par groupes : une attaque et ses fenêtres glissantes restent
@@ -182,6 +250,13 @@ def block_index(n: int) -> np.ndarray:
     return np.arange(n) // STEPS_HOUR
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] role_of_block
+#   Rôle   : Dit si un bloc d'une heure sert au train, à la validation ou au test (cycle de 20 blocs : 14 / 3
+#            / 3, décalé d'un cran à chaque répétition).
+#   Entrée : block : numéro du bloc ; run : numéro de répétition
+#   Sortie : "train", "val" ou "test"
+# ──────────────────────────────────────────────────────────────────────
 def role_of_block(block: int, run: int = 0) -> str:
     r = (block + run) % BLOCK_CYCLE
     if r < TRAIN_BLOCKS:
@@ -189,6 +264,13 @@ def role_of_block(block: int, run: int = 0) -> str:
     return "val" if r < TRAIN_BLOCKS + VAL_BLOCKS else "test"
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] block_split
+#   Rôle   : DÉCOUPAGE 70 / 15 / 15 NON ALÉATOIRE : donne le rôle de chaque ligne d'après son bloc d'une
+#            heure. Une attaque reste entière dans un seul rôle : pas de fuite.
+#   Entrée : n : nombre de lignes ; run : répétition
+#   Sortie : un rôle par ligne
+# ──────────────────────────────────────────────────────────────────────
 def block_split(n: int, run: int = 0) -> np.ndarray:
     """Rôle (train / val / test) de CHAQUE ligne, déduit de son bloc horaire.
     Le découpage n'est plus stocké dans le jeu de données : il est recalculé ICI,
@@ -197,6 +279,13 @@ def block_split(n: int, run: int = 0) -> np.ndarray:
     return np.array([role_of_block(i // STEPS_HOUR, run) for i in range(n)], dtype=object)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] boundary_guard
+#   Rôle   : ZONE DE GARDE en début de bloc : les 20 premières minutes d'un bloc qui change de rôle sont
+#            exclues, car leurs fenêtres de 15 min regarderaient dans le bloc d'à côté.
+#   Entrée : n : lignes ; run : répétition ; guard : taille de la zone
+#   Sortie : vrai/faux par ligne
+# ──────────────────────────────────────────────────────────────────────
 def boundary_guard(n: int, run: int = 0, guard: int = GUARD) -> np.ndarray:
     """Vrai pour les `guard` premières lignes de chaque bloc dont le rôle diffère de celui
     du bloc précédent : leurs fenêtres glissantes (≤ W_MAX) et la persistance des alertes
@@ -208,6 +297,13 @@ def boundary_guard(n: int, run: int = 0, guard: int = GUARD) -> np.ndarray:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] excluded_rows
+#   Rôle   : Toutes les lignes exclues (ni apprises ni évaluées) : garde après chaque attaque + garde en
+#            début de bloc.
+#   Entrée : garde : colonne « garde » du jeu de données ; run : répétition
+#   Sortie : vrai/faux par ligne
+# ──────────────────────────────────────────────────────────────────────
 def excluded_rows(garde: np.ndarray, run: int = 0) -> np.ndarray:
     """Lignes hors apprentissage et hors évaluation : zone de garde après les épisodes
     (colonne `garde` du jeu de données) et en début de bloc changeant de rôle."""
@@ -215,6 +311,15 @@ def excluded_rows(garde: np.ndarray, run: int = 0) -> np.ndarray:
     return garde | boundary_guard(len(garde), run)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] build_schedule
+#   Rôle   : PLANNING DES ATTAQUES : décide où placer chaque épisode (15 à 25 min) et quel scénario. Une
+#            attaque dans chaque bloc de train, dans 2 blocs sur 5 en validation et test (proportion
+#            réaliste).
+#   Entrée : n : lignes ; rng : hasard reproductible ; run : répétition ; roles : rôles qui reçoivent des
+#            attaques
+#   Sortie : liste d'épisodes {nom, capteur, type, début, fin, rôle}
+# ──────────────────────────────────────────────────────────────────────
 def build_schedule(n: int, rng: np.random.Generator, run: int = 0,
                    roles: tuple[str, ...] = ("val", "test")) -> list[dict]:
     """Planning des épisodes : un épisode dans CHAQUE bloc d'entraînement (~33 %
@@ -245,6 +350,15 @@ def build_schedule(n: int, rng: np.random.Generator, run: int = 0,
     return episodes
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] inject
+#   Rôle   : INJECTE LES ATTAQUES dans les traces : modifie la température transmise selon le scénario (gel =
+#            valeur bloquée, rejeu = vieille séquence renvoyée, nominale = fausses valeurs ~7 °C, biais =
+#            décalage, dérive = décalage progressif). Met label = 1 sur ces lignes et garde la vraie valeur à
+#            côté.
+#   Entrée : df : traces fusionnées ; episodes : planning ; rng : hasard ; run : répétition
+#   Sortie : tableau avec label, attack_type, garde et valeurs falsifiées
+# ──────────────────────────────────────────────────────────────────────
 def inject(df: pd.DataFrame, episodes: list[dict], rng: np.random.Generator, run: int = 0) -> pd.DataFrame:
     n = len(df)
     cols = {"fridge": "fridge_temp", "thermostat": "thermostat_temp"}
@@ -286,29 +400,24 @@ def inject(df: pd.DataFrame, episodes: list[dict], rng: np.random.Generator, run
     # Le rôle train/val/test n'est PLUS écrit dans le jeu de données : il est recalculé
     # au moment de l'entraînement par block_split() (non aléatoire, 70/15/15, par blocs).
     out["garde"] = garde
-    return pipeline._engineer_features(out)
+    return features._engineer_features(out)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# 2. Détecteur statistique par capteur
+# 2. Rejeu exact (feature « repeat_2min » des modèles supervisés)
 # ════════════════════════════════════════════════════════════════════════════
 
-SENSORS = {"fridge": "fridge_temp", "thermostat": "thermostat_temp", "weather": "weather_temp"}
-STD_WINDOW = 12             # 1 min : fenêtre du canal A (capteur figé)
-HASH_WINDOW = 24            # 2 min de valeurs brutes pour le canal R (rejeu exact)
+HASH_WINDOW = 24            # 2 min de valeurs brutes
 HASH_MIN_DISTINCT = 8       # une suite constante (thermostat à 25 °C) n'est pas un rejeu
-REPLAY_SCORE = 1e3          # le canal R est tout-ou-rien : au-dessus de tout seuil
 
 
-def _ewma(x: np.ndarray, lam: float) -> np.ndarray:
-    return pd.Series(x).ewm(alpha=lam, adjust=False).mean().to_numpy()
-
-
-def _zscore(v: np.ndarray, train_idx: np.ndarray) -> tuple[np.ndarray, float, float]:
-    m, s = float(v[train_idx].mean()), float(v[train_idx].std() or 1e-9)
-    return (v - m) / s, m, s
-
-
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] replay_flags
+#   Rôle   : Détecte un REJEU EXACT : vrai quand les 2 dernières minutes de valeurs ont déjà été vues telles
+#            quelles.
+#   Entrée : x : valeurs d'un capteur
+#   Sortie : vrai/faux par ligne
+# ──────────────────────────────────────────────────────────────────────
 def replay_flags(x: np.ndarray) -> np.ndarray:
     """Vrai quand les HASH_WINDOW dernières valeurs ont déjà été vues telles quelles plus tôt."""
     xr = np.round(x, 2)
@@ -323,245 +432,20 @@ def replay_flags(x: np.ndarray) -> np.ndarray:
     return flags
 
 
-def stat_channels(df: pd.DataFrame, train_idx: np.ndarray, lam: float) -> dict:
-    """Quatre canaux par capteur, standardisés sur le normal d'entraînement :
-    A capteur figé (log de l'écart-type glissant), L niveau (EWMA de la valeur),
-    V dispersion (EWMA du carré des écarts à la moyenne), R séquence déjà vue."""
-    params = {"lambda": lam, "std_window": STD_WINDOW, "hash_window": HASH_WINDOW, "capteurs": {}}
-    per = {}
-    for name, col in SENSORS.items():
-        x = df[col].to_numpy(float)
-        rs = pd.Series(x).rolling(STD_WINDOW, min_periods=STD_WINDOW).std(ddof=0).to_numpy()
-        rs = np.where(np.isnan(rs), np.nanmedian(rs), rs)
-        z_a, m_a, s_a = _zscore(np.log(rs + 1e-3), train_idx)
-        z_l, m_l, s_l = _zscore(_ewma(x, lam), train_idx)
-        mu = float(x[train_idx].mean())
-        z_v, m_v, s_v = _zscore(np.log(_ewma((x - mu) ** 2, lam) + 1e-6), train_idx)
-        per[name] = {"A": -z_a, "L": np.abs(z_l), "V": np.abs(z_v),
-                     "R": replay_flags(x).astype(float) * REPLAY_SCORE}
-        params["capteurs"][name] = {
-            "moyenne": mu,
-            "immobilite": {"log_std_mean": m_a, "log_std_std": s_a},
-            "niveau": {"ewma_mean": m_l, "ewma_std": s_l},
-            "dispersion": {"log_var_mean": m_v, "log_var_std": s_v},
-        }
-    channels = {}
-    for ch in ("A", "L", "V", "R"):
-        channels[ch] = np.column_stack([per[s][ch] for s in SENSORS]).max(axis=1)
-    channels["ALV"] = np.maximum.reduce([channels["A"], channels["L"], channels["V"]])
-    channels["TOUS"] = np.maximum(channels["ALV"], channels["R"])
-    channels["per_sensor"] = {s: np.maximum.reduce([per[s][c] for c in ("A", "L", "V", "R")]) for s in SENSORS}
-    channels["params"] = params
-    return channels
-
-
-def stat_detector(df: pd.DataFrame, y: np.ndarray, train_idx: np.ndarray, val_idx: np.ndarray) -> dict:
-    best = None
-    for lam in (0.005, 0.01, 0.02, 0.05):
-        ch = stat_channels(df, train_idx, lam)
-        ap = average_precision_score(y[val_idx], ch["TOUS"][val_idx])
-        log(f"  statistique : lambda={lam}  AP val {ap:.4f}")
-        if best is None or ap > best[0]:
-            best = (ap, ch)
-    return best[1]
-
-
 # ════════════════════════════════════════════════════════════════════════════
-# 3. Évaluation cumulée sur les répétitions
+# 3. Programme : fusion et profil des traces (lus par l'application)
 # ════════════════════════════════════════════════════════════════════════════
 
-def count_run(pred: np.ndarray, df: pd.DataFrame, idx: np.ndarray, episodes: list[dict], split: str) -> dict:
-    """Comptes bruts d'une répétition (à cumuler) : lignes, événements, épisodes, délais."""
-    y = df["label"].to_numpy()[idx] == 1
-    p = pred[idx]
-    types = df["attack_type"].to_numpy()[idx]
-    fa = np.zeros(len(df), dtype=bool)
-    fa[idx] = p & ~y
-    out = {"tp": int((p & y).sum()), "fp": int((p & ~y).sum()), "fn": int((~p & y).sum()),
-           "tn": int((~p & ~y).sum()), "fa_events": int((fa & ~np.r_[False, fa[:-1]]).sum()),
-           "nominal_hours": float((~y).sum() / STEPS_HOUR),
-           "per_attack": {nm: [int((types == nm).sum()), int((p & (types == nm)).sum())] for nm in ATTACK_NAMES},
-           "per_episode": {nm: [0, 0] for nm in ATTACK_NAMES}, "delays": [],
-           "delays_per_attack": {nm: [] for nm in ATTACK_NAMES}}
-    for ep in episodes:
-        if ep["split"] != split:
-            continue
-        seg = pred[ep["start"]:ep["end"]]
-        out["per_episode"][ep["name"]][0] += 1
-        if seg.any():
-            out["per_episode"][ep["name"]][1] += 1
-            out["delays"].append(int(np.argmax(seg)) * STEP_MINUTES)
-            out["delays_per_attack"][ep["name"]].append(int(np.argmax(seg)) * STEP_MINUTES)
-    return out
-
-
-def f_beta(precision: float, recall: float, beta: float) -> float:
-    """F-bêta : bêta = 2 (F2) donne au rappel 4 fois le poids de la précision."""
-    b2 = beta * beta
-    return (1 + b2) * precision * recall / (b2 * precision + recall) if precision + recall else 0.0
-
-
-def pool(runs: list[dict]) -> dict:
-    """Cumule les comptes des répétitions et en tire les métriques finales."""
-    tp = sum(r["tp"] for r in runs); fp = sum(r["fp"] for r in runs)
-    fn = sum(r["fn"] for r in runs); tn = sum(r["tn"] for r in runs)
-    hours = sum(r["nominal_hours"] for r in runs)
-    delays = [d for r in runs for d in r["delays"]]
-    per_attack, per_episode = {}, {}
-    for nm in ATTACK_NAMES:
-        n = sum(r["per_attack"][nm][0] for r in runs); d = sum(r["per_attack"][nm][1] for r in runs)
-        per_attack[nm] = {"n": n, "detected": d, "rate": round(100 * d / max(1, n), 1)}
-        ne = sum(r["per_episode"][nm][0] for r in runs); de = sum(r["per_episode"][nm][1] for r in runs)
-        dl = [x for r in runs for x in r.get("delays_per_attack", {}).get(nm, [])]
-        per_episode[nm] = {"n": ne, "detected": de,
-                           "delai_median_min": round(float(np.median(dl)), 1) if dl else None}
-    precision = tp / (tp + fp) if tp + fp else 0.0
-    recall = tp / (tp + fn) if tp + fn else 0.0
-    return {
-        "recall": round(recall, 4),
-        "precision": round(precision, 4),
-        "f1": round(2 * tp / (2 * tp + fp + fn), 4) if 2 * tp + fp + fn else 0.0,
-        "f2": round(f_beta(precision, recall, 2.0), 4),
-        "fpr": round(fp / (fp + tn), 5) if fp + tn else 0.0,
-        "tp": tp, "fp": fp, "fn": fn, "tn": tn,
-        "part_attaques": round((tp + fn) / max(1, tp + fp + fn + tn), 4),   # prévalence mesurée
-        "fausses_alarmes_evenements_par_heure": round(sum(r["fa_events"] for r in runs) / max(1e-9, hours), 2),
-        "episodes": sum(v["n"] for v in per_episode.values()),
-        "episodes_detectes": sum(v["detected"] for v in per_episode.values()),
-        "delai_median_min": round(float(np.median(delays)), 1) if delays else None,
-        "per_attack": per_attack, "per_episode": per_episode,
-    }
-
-
-def print_tables(results: dict) -> None:
-    keys = list(results)
-    print()
-    print("═" * 112)
-    print(f"ATTAQUES DE TRANSMISSION SUR LES TRACES RÉELLES — test cumulé sur {N_RUNS} répétitions "
-          "(seuil : max F1 sur la validation de chaque répétition)")
-    print("═" * 112)
-    # Ordre des métriques (priorité pharma) : rappel, fausses alertes/h, délai, précision, F1/F2
-    print(f"{'Détecteur':28s} {'Rappel':>7s} {'FA/h':>6s} {'Délai méd.':>11s} {'Épisodes':>9s} "
-          f"{'Préc.':>6s} {'F1':>6s} {'F2':>6s} {'AUC':>6s} {'AP':>6s}")
-    for k in keys:
-        r = results[k]
-        ep = f"{r['episodes_detectes']}/{r['episodes']}"
-        delai = "—" if r["delai_median_min"] is None else f"{r['delai_median_min']:.1f} min"
-        print(f"{r['nom']:28s} {r['recall']:>7.3f} {r['fausses_alarmes_evenements_par_heure']:>6.2f} "
-              f"{delai:>11s} {ep:>9s} {r['precision']:>6.3f} {r['f1']:>6.3f} {r.get('f2', 0.0):>6.3f} "
-              f"{ts._fmt(r.get('roc_auc'), '.3f', 6)} {ts._fmt(r.get('avg_precision'), '.3f', 6)}")
-    print("FA/h : alertes distinctes à tort par heure normale. AUC et AP : moyennes des répétitions.")
-
-    for title, field in (("rappel = % des LIGNES d'attaque détectées", "per_attack"),
-                         ("ÉPISODES détectés", "per_episode"), ("DÉLAI médian (min)", "delai")):
-        print()
-        print(f"Détection par scénario — {title} (test cumulé)")
-        print(f"{'Scénario':28s} {'n':>5s} " + " ".join(f"{k:>11s}" for k in keys))
-        for name in ATTACK_NAMES:
-            n = results[keys[0]]["per_attack" if field == "per_attack" else "per_episode"][name]["n"]
-            if field == "per_attack":
-                cells = " ".join(f"{results[k][field][name]['rate']:>10.1f}%" for k in keys)
-            elif field == "per_episode":
-                cells = " ".join(f"{results[k][field][name]['detected']:>8d}/{n:<2d}" for k in keys)
-            else:
-                cells = " ".join(ts._fmt(results[k]["per_episode"][name].get("delai_median_min"), ".1f", 11)
-                                 for k in keys)
-            print(f"{name:28s} {n:>5d} {cells}")
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# 4. Programme
-# ════════════════════════════════════════════════════════════════════════════
-
-DETECTORS = [("OCSVM", "OCSVM_Multivarie"), ("PCA", "Autoencodeur_PCA"),
-             ("GNN", "GNN_Correlation"), ("LSTM", "Forecasting_LSTM"),
-             ("Canal A", "Canal A seul (figé)"), ("Canal L", "Canal L seul (niveau)"),
-             ("Canal V", "Canal V seul (dispersion)"), ("Canal R", "Canal R seul (rejeu exact)"),
-             ("Stat A+L+V", "Statistique A+L+V"), ("Statistique", "Statistique A+L+V+R")]
-CHANNEL_OF = {"Canal A": "A", "Canal L": "L", "Canal V": "V", "Canal R": "R", "Stat A+L+V": "ALV", "Statistique": "TOUS"}
-
-
-def one_run(base: pd.DataFrame, run: int, quiet: bool) -> tuple[dict, list[dict], pd.DataFrame]:
-    """Une répétition : injection, entraînement, scores et comptes de chaque détecteur."""
-    rng = np.random.default_rng(SEED + run)
-    episodes = build_schedule(len(base), rng, run)
-    df = inject(base, episodes, rng, run)
-    y = df["label"].to_numpy().astype(int)
-    split = block_split(len(df), run)     # découpage recalculé ici (non stocké dans le CSV)
-    garde = excluded_rows(df["garde"].to_numpy().astype(bool), run)
-    train_idx = np.where((split == "train") & (y == 0) & ~garde)[0]
-    val_idx = np.where((split == "val") & ~garde)[0]
-    test_idx = np.where((split == "test") & ~garde)[0]
-    val_norm_idx = val_idx[y[val_idx] == 0]
-    X_s = StandardScaler().fit(df[FEATURES].to_numpy(float)[train_idx]).transform(df[FEATURES].to_numpy(float))
-
-    scores: dict[str, np.ndarray] = {}
-    preds: dict[str, np.ndarray] = {}
-
-    def attempt(key, fn):
-        try:
-            fn()
-        except Exception:  # noqa: BLE001 — un modèle en échec ne doit pas arrêter l'étude
-            traceback.print_exc()
-            log(f"  !! {key} : échec, ignoré (répétition {run})")
-
-    attempt("OCSVM", lambda: scores.__setitem__("OCSVM", ts.ocsvm_scores(X_s, y, train_idx, val_idx)[0]))
-    attempt("PCA", lambda: scores.__setitem__("PCA", tm.train_autoencoder_pca(X_s, train_idx)[0]))
-    attempt("GNN", lambda: scores.__setitem__("GNN", tm.train_gnn_correlation(df, train_idx)[0]))
-    attempt("LSTM", lambda: scores.__setitem__(
-        "LSTM", tm.train_forecasting_lstm(df, X_s, train_idx, val_norm_idx, y == 1)[0]))
-    channels = stat_detector(df, y, train_idx, val_idx)
-    for key, ch in CHANNEL_OF.items():
-        scores[key] = channels[ch]
-
-    counts: dict[str, dict] = {}
-    for key, _ in DETECTORS:
-        if key in scores:
-            s = np.nan_to_num(np.asarray(scores[key], dtype=float), nan=0.0)
-            # Le canal R est tout-ou-rien : son seuil est naturel, pas choisi par le F1
-            # (sinon « tout signaler » gagne sur la validation dès que R voit peu d'attaques).
-            thr = REPLAY_SCORE / 2 if key == "Canal R" else pipeline._best_f1_threshold(y[val_idx], s[val_idx])
-            preds[key] = s >= thr
-        if key not in preds:
-            continue
-        c = {"test": count_run(preds[key], df, test_idx, episodes, "test"),
-             "val": count_run(preds[key], df, val_idx, episodes, "val")}
-        if key in scores:
-            c["roc_auc"] = float(roc_auc_score(y[test_idx], s[test_idx]))
-            c["avg_precision"] = float(average_precision_score(y[test_idx], s[test_idx]))
-            c["threshold"] = float(thr)
-        counts[key] = c
-
-    # Capteur désigné par le détecteur statistique : le capteur au score le plus fort
-    names = list(SENSORS)
-    guess = np.array(names, dtype=object)[np.column_stack([channels["per_sensor"][s] for s in names]).argmax(axis=1)]
-    detected = np.zeros(len(df), dtype=bool)
-    detected[test_idx] = True
-    detected &= (y == 1) & preds["Statistique"]
-    cible, types = df["cible"].to_numpy(), df["attack_type"].to_numpy()
-    counts["localisation"] = {nm: [int((detected & (types == nm)).sum()),
-                                   int((detected & (types == nm) & (guess == cible)).sum())] for nm in ATTACK_NAMES}
-    counts["lambda"] = channels["params"]["lambda"]
-    counts["params"] = channels["params"]
-    counts["seuil_statistique"] = counts.get("Statistique", {}).get("threshold")
-    if not quiet:
-        log(f"    répétition {run} : {len(episodes)} épisodes, {int(y[val_idx].sum()):,}/{len(val_idx):,} lignes "
-            f"d'attaque en validation, {int(y[test_idx].sum()):,}/{len(test_idx):,} en test")
-    return counts, episodes, df
-
-
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] main
+#   Rôle   : Programme : fusionne les traces, calcule leur profil et écrit resultats_transmission_reel.json
+#            (lu par le site).
+#   Entrée : rien
+#   Sortie : fichier JSON dans models/transmission_reel/
+# ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     paths.ensure_dirs()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    production_model_file = paths.model_file
-    paths.model_file = lambda name: str(OUT_DIR / name)
-    try:
-        _main()
-    finally:
-        paths.model_file = production_model_file
-
-
-def _main() -> None:
     log("[1] Traces réelles TON_IoT")
     real = bd.load_normal_traces()
     base, fusion = fuse_real(real)
@@ -573,93 +457,16 @@ def _main() -> None:
         log(f"    {s:10s} moy {p['moyenne']:6.2f} σ {p['ecart_type']:5.2f} | autocorr 5 s {p['autocorr_5s']:5.2f}, "
             f"1 min {p['autocorr_1min']:5.2f}")
     log(f"    corrélation frigo↔salle à météo fixée : {prof['correlation_frigo_salle_meteo_fixee']:.2f}")
-
-    log(f"[2] {N_RUNS} répétitions : attaques injectées, détecteurs entraînés et évalués")
-    all_counts, all_episodes = [], []
-    for run in range(N_RUNS):
-        with contextlib.redirect_stdout(io.StringIO()) if run else contextlib.nullcontext():
-            counts, episodes, df = one_run(base, run, quiet=False)
-        # Ce script n'écrit PLUS dataset_transmission_reel.csv. Ici roles=("val", "test") :
-        # le train reste SANS attaques (étude statistique non supervisée). Le jeu de données
-        # de l'application, des notebooks et de l'entraînement web (attaques dans les trois
-        # rôles) est écrit uniquement par transmission_models.py, avec son planning
-        # d'épisodes : les deux scripts peuvent donc s'exécuter dans n'importe quel ordre.
-        all_counts.append(counts)
-        all_episodes.append([{**e, "run": run} for e in episodes])
-        log(f"    répétition {run} terminée (lambda {counts['lambda']})")
-
-    results: dict = {}
-    for key, nom in DETECTORS:
-        runs = [c[key] for c in all_counts if key in c]
-        if not runs:
-            continue
-        res = pool([r["test"] for r in runs])
-        res["nom"] = nom
-        val = pool([r["val"] for r in runs])
-        res.update(val_recall=val["recall"], val_precision=val["precision"], val_f1=val["f1"], val_f2=val["f2"],
-                   val_fausses_alarmes_par_heure=val["fausses_alarmes_evenements_par_heure"],
-                   val_part_attaques=val["part_attaques"])
-        if "roc_auc" in runs[0]:
-            res["roc_auc"] = round(float(np.mean([r["roc_auc"] for r in runs])), 4)
-            res["avg_precision"] = round(float(np.mean([r["avg_precision"] for r in runs])), 4)
-            res["thresholds"] = [round(r["threshold"], 4) for r in runs]
-        results[key] = res
-
-    print_tables(results)
-
-    loc = {}
-    for nm in ATTACK_NAMES:
-        n = sum(c["localisation"][nm][0] for c in all_counts)
-        ok = sum(c["localisation"][nm][1] for c in all_counts)
-        loc[nm] = {"n": n, "exact": round(100 * ok / n, 1) if n else None}
-    n_all = sum(v["n"] for v in loc.values())
-    ok_all = sum(round(v["n"] * v["exact"] / 100) for v in loc.values() if v["exact"] is not None)
-    loc["TOUTES"] = {"n": n_all, "exact": round(100 * ok_all / n_all, 1) if n_all else None}
-    print()
-    print("Capteur désigné (détecteur statistique, lignes d'attaque détectées, test cumulé)")
-    for name in ATTACK_NAMES + ["TOUTES"]:
-        v = loc[name]
-        print(f"  {name:28s} n={v['n']:>5d}  capteur correct : " + ("—" if v["exact"] is None else f"{v['exact']:.1f} %"))
-
-    ranking = sorted(results, key=lambda k: results[k]["val_f1"], reverse=True)
-    print()
-    print("Classement sur la VALIDATION (F1 cumulé) : "
-          + " > ".join(f"{k} ({results[k]['val_f1']:.3f})" for k in ranking))
-    b = results[ranking[0]]
-    print(f"→ Meilleur détecteur sur les traces réelles : {b['nom']} (test : F1 {b['f1']:.3f}, "
-          f"rappel {b['recall']:.3f}, {b['fausses_alarmes_evenements_par_heure']:.2f} fausse(s) alarme(s)/heure, "
-          f"{b['episodes_detectes']}/{b['episodes']} épisodes)")
-
     summary = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "dataset": DATASET_PATH.name,
         "perimetre": "attaques de transmission (Injection + MITM) sur les traces réelles TON_IoT",
         "fusion": fusion,
         "profil_traces": prof,
-        "protocole": {
-            "split": "70/15/15 NON aléatoire, blocs d'une heure entrelacés (14 train / 3 val / 3 test "
-                     "sur un cycle de 20), rôles tournant à chaque répétition ; recalculé à l'entraînement "
-                     "(transmission_real.block_split), plus stocké dans le jeu de données",
-            "attaques": "train sans attaque (étude non supervisée) ; un épisode de 15 à 25 min dans 2 blocs "
-                        "sur 5 de validation et de test (≈ 13–15 % des lignes)",
-            "repetitions": N_RUNS,
-            "couverture": "20 répétitions = les 20 rotations du cycle : chaque heure sert 3 fois de test "
-                          "et 3 fois de validation",
-            "seuil": "max F1 sur la validation de chaque répétition, appliqué tel quel à son test",
-            "pas_secondes": 5, "zone_de_garde_pas": GUARD,
-            "episodes_par_repetition": [len(e) for e in all_episodes],
-        },
         "scenarios": [{"nom": a[0], "capteur": a[1], "mecanisme": a[2], "parametre": a[3]} for a in ATTACKS],
-        "classement_validation": ranking,
-        "resultats": results,
-        "localisation": loc,
-        "episodes": [e for run in all_episodes for e in run],
     }
     with open(OUT_DIR / "resultats_transmission_reel.json", "w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2, ensure_ascii=False, default=ts._json_default)
-    with open(OUT_DIR / "detecteur_statistique.json", "w", encoding="utf-8") as f:
-        json.dump({**all_counts[0]["params"], "seuil": all_counts[0]["seuil_statistique"],
-                   "note": "paramètres de la répétition 0"}, f, indent=2, ensure_ascii=False, default=ts._json_default)
+        json.dump(summary, f, indent=2, ensure_ascii=False, default=_json_default)
     log(f"Résultats : {OUT_DIR / 'resultats_transmission_reel.json'}")
 
 

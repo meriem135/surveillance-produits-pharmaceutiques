@@ -20,11 +20,6 @@ export default defineConfig({
       '/api': {
         target: backend,
         changeOrigin: true,
-        ws: true,
-      },
-      '/ws': {
-        target: backend.replace(/^http/, 'ws'),
-        ws: true,
       },
     },
   },

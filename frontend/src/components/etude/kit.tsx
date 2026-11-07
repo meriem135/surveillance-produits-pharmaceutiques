@@ -48,21 +48,21 @@ export function usePalette() {
   const dark = theme === 'dark';
   return {
     dark,
-    series: dark ? ['#7AAEE8', '#C9D0D6', '#8D97A0', '#B9A4E0', '#D59BB8', '#6F7A84']
-      : ['#1F5FA6', '#3A444D', '#8A949D', '#6B5BA6', '#9A4F74', '#B0B7BD'],
-    ink: dark ? '#E4E8EB' : '#1A2026',
-    grid: dark ? '#38424A' : '#D5DADE',
-    axis: dark ? '#AEB7BF' : '#46515B',
-    attack: dark ? 'rgba(242,133,122,0.26)' : 'rgba(179,38,30,0.15)',
-    attackLine: dark ? '#F2857A' : '#B3261E',
-    alert: dark ? '#E0A23A' : '#E39A1C',
-    ok: dark ? '#7AAEE8' : '#1F5FA6',
-    danger: dark ? '#F2857A' : '#B3261E',
+    series: dark ? ['#8AA4FF', '#C9D0E0', '#8190AA', '#B7A3FF', '#FDBA74', '#5F6C86']
+      : ['#3B5BDB', '#334155', '#94A3B8', '#7048E8', '#C2410C', '#CBD5E1'],
+    ink: dark ? '#E8EDF7' : '#0F172A',
+    grid: dark ? '#232D46' : '#E8ECF4',
+    axis: dark ? '#AAB5CA' : '#475569',
+    attack: dark ? 'rgba(255, 135, 135,0.22)' : 'rgba(201, 42, 42,0.12)',
+    attackLine: dark ? '#FF8787' : '#C92A2A',
+    alert: dark ? '#FBBF24' : '#F59E0B',
+    ok: dark ? '#8AA4FF' : '#3B5BDB',
+    danger: dark ? '#FF8787' : '#C92A2A',
   };
 }
 
 export const tooltipStyle = {
-  contentStyle: { background: 'var(--bg-panel)', border: '1px solid var(--border-strong)', borderRadius: 3, fontSize: 12.5, color: 'var(--text-primary)' },
+  contentStyle: { background: 'var(--bg-panel)', border: '1px solid var(--border-strong)', borderRadius: 10, fontSize: 12.5, boxShadow: 'var(--shadow-pop)', color: 'var(--text-primary)' },
   labelStyle: { color: 'var(--text-secondary)' },
 };
 

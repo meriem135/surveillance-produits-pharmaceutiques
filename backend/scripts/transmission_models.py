@@ -1,3 +1,9 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/transmission_models.py
+#   SCRIPT 3 — LE CŒUR MACHINE LEARNING. Features, 6 modèles sur 20 répétitions, choix du
+#   réglage d'alerte, classement, diagnostic, validation croisée, SHAP, sauvegarde du meilleur
+#   modèle.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Modèles supervisés sur les traces réelles avec attaques de transmission (version 3)
 ==================================================================================
@@ -21,8 +27,6 @@ Corrections après la relecture du professeur (novembre 2026) :
      hyperparamètres réglés par une petite grille en validation croisée GROUPÉE par bloc sur
      le seul train (transmission_recherche.py) ; features de forme de la distribution
      glissante (min, max, quantiles), variation absolue moyenne, résidus entre capteurs.
-     Ligne « avant / après » : Random Forest avec les anciennes features (RF_v1), même
-     protocole corrigé.
 
 Prévalence (lignes évaluées, hors zone de garde). Un épisode dans CHAQUE bloc d'entraînement
 (≈ 50 % d'attaques : les modèles supervisés ont besoin d'exemples), dans 2 blocs sur 5 en
@@ -40,7 +44,7 @@ Sorties : data/processed/dataset_transmission_reel.csv + episodes_transmission_r
           validation_croisee.json, shap_transmission_reel.json, meilleur_modele.pkl +
           meilleur_modele.json (features, seuil, k, n), scores_repetition0.npz
 Usage :  cd backend && nice -n 10 .venv/bin/python scripts/transmission_models.py
-         (N_JOBS=3 ; SKIP_SHAP=1, SKIP_CV=1, SKIP_LC=1, SKIP_V1=1 pour aller plus vite ;
+         (N_JOBS=3 ; SKIP_SHAP=1, SKIP_CV=1, SKIP_LC=1 pour aller plus vite ;
           N_RUNS=… pour un essai ; MODELS=RandomForest,HistGB pour un sous-ensemble)
 """
 
@@ -83,7 +87,6 @@ sys.path.insert(0, str(HERE))
 import build_dataset as bd  # noqa: E402
 import transmission_alertes as ta  # noqa: E402
 import transmission_real as tr  # noqa: E402
-import transmission_study as ts  # noqa: E402
 from app.core import paths  # noqa: E402
 
 try:
@@ -104,7 +107,7 @@ SCORES0_PATH = OUT_DIR / "scores_repetition0.npz"
 SHAP_RUNS = int(os.environ.get("SHAP_RUNS", "5"))           # SHAP cumulé sur les 5 premières rotations
 LC_RUNS = (0, 7, 14)                                        # courbe d'apprentissage : 3 rotations
 LC_FRACTIONS = (0.1, 0.25, 0.5, 0.75, 1.0)
-log = ts.log
+log = tr.log
 
 SENSORS = ("weather", "fridge", "thermostat")
 WINDOWS = {"1min": 12, "5min": 60, "15min": 180}
@@ -114,11 +117,28 @@ SHAPE_WINDOWS = {"5min": 60, "15min": 180}
 assert max(max(WINDOWS.values()), max(SHAPE_WINDOWS.values())) <= tr.W_MAX
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] op_key
+#   Rôle   : Ancien nom d'un réglage d'alerte (« rappel_0.90 »). Gardé seulement pour relire les anciens
+#            fichiers JSON.
+#   Entrée : target : rappel visé (ex. 0.9)
+#   Sortie : le texte « rappel_0.90 »
+# ──────────────────────────────────────────────────────────────────────
 def op_key(target: float) -> str:
     """Ancien nom de point de fonctionnement « rappel cible » (gardé pour les anciens JSON)."""
     return f"rappel_{target:.2f}"
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] engineer
+#   Rôle   : PRÉPARATION DES DONNÉES (feature engineering). Transforme les 3 températures brutes en ~50
+#            colonnes que le modèle sait lire : variations, moyennes et écarts-types sur 1, 5 et 15 min,
+#            min/max/quantiles, écarts entre capteurs, détection de rejeu. Toutes les colonnes ne regardent
+#            QUE le passé (comme un vrai capteur en temps réel) et jamais plus de 15 min en arrière.
+#   Entrée : df : tableau des mesures (une ligne toutes les 5 s, colonnes fridge_temp, thermostat_temp,
+#            weather_temp…)
+#   Sortie : (tableau enrichi, liste des noms des colonnes à donner au modèle)
+# ──────────────────────────────────────────────────────────────────────
 def engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """Features de prétraitement. Toutes sont CAUSALES (ne regardent que le passé) et leurs
     fenêtres font au plus tr.W_MAX = 15 min :
@@ -166,34 +186,6 @@ def engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     return d, feats
 
 
-def engineer_v1(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    """Features de la version précédente (35 features, avec EWMA), gardées pour la ligne
-    « avant / après » : même modèle, même protocole corrigé, anciennes features."""
-    d = df.copy()
-    feats: list[str] = []
-    for s in SENSORS:
-        col = f"{s}_temp"
-        x = d[col]
-        d[f"{s}_diff_1"] = x.diff().fillna(0.0)
-        feats += [col, f"{s}_diff_1"]
-        for tag, w in WINDOWS.items():
-            d[f"{s}_mean_{tag}"] = x.rolling(w, min_periods=1).mean()
-            d[f"{s}_std_{tag}"] = x.rolling(w, min_periods=2).std(ddof=0).fillna(0.0)
-            feats += [f"{s}_mean_{tag}", f"{s}_std_{tag}"]
-        d[f"{s}_ewma_10min"] = x.ewm(alpha=2 / 121, adjust=False).mean()
-        d[f"{s}_repeat_2min"] = tr.replay_flags(x.to_numpy(float)).astype(float)
-        feats += [f"{s}_ewma_10min", f"{s}_repeat_2min"]
-    d["fridge_thermostat_diff"] = d["fridge_temp"] - d["thermostat_temp"]
-    d["weather_fridge_diff"] = d["weather_temp"] - d["fridge_temp"]
-    d["weather_thermostat_diff"] = d["weather_temp"] - d["thermostat_temp"]
-    d["fridge_cond_enc"] = LabelEncoder().fit_transform(d["fridge_cond"].astype(str)).astype(float)
-    d["thermo_status"] = pd.to_numeric(d["thermo_status"], errors="coerce").fillna(0).astype(float)
-    feats += ["fridge_thermostat_diff", "weather_fridge_diff", "weather_thermostat_diff",
-              "fridge_cond_enc", "thermo_status"]
-    d[feats] = d[feats].replace([np.inf, -np.inf], np.nan).fillna(0.0)
-    return d, feats
-
-
 # ── Modèles ──────────────────────────────────────────────────────────────────
 # Déséquilibre : poids de classe (class_weight / scale_pos_weight / sample_weight), pas de SMOTE.
 
@@ -203,12 +195,17 @@ MODELS = [("RandomForest", "Random Forest"),
           ("HistGB", "HistGradientBoosting"),
           ("Logistique", "Régression Logistique"),
           ("MLP", "MLP — réseau de neurones")]
-BASELINE = ("RF_v1", "Random Forest, anciennes features (avant)")
-TREE_MODELS = ("RandomForest", "ExtraTrees", "XGBoost", "HistGB", "RF_v1")
+TREE_MODELS = ("RandomForest", "ExtraTrees", "XGBoost", "HistGB")
 NEEDS_SCALING = ("Logistique", "MLP")
-MODEL_NAMES = dict(MODELS + [BASELINE])
+MODEL_NAMES = dict(MODELS)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _tuned
+#   Rôle   : Lit les meilleurs hyperparamètres trouvés par transmission_recherche.py pour un modèle.
+#   Entrée : key : nom court du modèle ("RandomForest", "XGBoost"…)
+#   Sortie : dictionnaire des réglages (vide si le fichier n'existe pas)
+# ──────────────────────────────────────────────────────────────────────
 def _tuned(key: str) -> dict:
     """Réglage retenu par transmission_recherche.py (validation croisée groupée sur le train)."""
     try:
@@ -218,9 +215,17 @@ def _tuned(key: str) -> dict:
         return {}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] make_model
+#   Rôle   : FABRIQUE UN MODÈLE vide (pas encore entraîné) parmi les 6 : Random Forest, Extra Trees, XGBoost,
+#            HistGradientBoosting, Régression Logistique, MLP. Chaque modèle reçoit un réglage qui compense
+#            le déséquilibre (beaucoup plus de mesures normales que d'attaques).
+#   Entrée : key : nom du modèle ; ratio : normales / attaques (pour XGBoost) ; params : réglages à forcer
+#   Sortie : l'objet scikit-learn / XGBoost prêt à être entraîné
+# ──────────────────────────────────────────────────────────────────────
 def make_model(key: str, ratio: float = 1.0, **params):
     """Estimateur non entraîné. ratio = normales / attaques du train (XGBoost)."""
-    if key in ("RandomForest", "RF_v1"):
+    if key == "RandomForest":
         p = dict(n_estimators=300, min_samples_leaf=5, max_features="sqrt", class_weight="balanced_subsample",
                  random_state=SEED, n_jobs=N_JOBS)
         return RandomForestClassifier(**{**p, **params})
@@ -246,17 +251,38 @@ def make_model(key: str, ratio: float = 1.0, **params):
     raise KeyError(key)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] make_random_forest
+#   Rôle   : Raccourci : un Random Forest avec ses meilleurs réglages.
+#   Entrée : rien
+#   Sortie : le Random Forest non entraîné
+# ──────────────────────────────────────────────────────────────────────
 def make_random_forest() -> RandomForestClassifier:
     """Random Forest au réglage retenu (utilisé aussi par transmission_biais_long.py)."""
     return make_model("RandomForest", **_tuned("RandomForest"))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] balanced_weights
+#   Rôle   : Donne un poids plus fort aux lignes d'attaque (rares) pour que le modèle ne les ignore pas.
+#            Utilisé par le MLP, qui n'a pas d'option « class_weight ».
+#   Entrée : y_tr : étiquettes du train (0 = normal, 1 = attaque)
+#   Sortie : un poids par ligne
+# ──────────────────────────────────────────────────────────────────────
 def balanced_weights(y_tr: np.ndarray) -> np.ndarray:
     """Poids d'échantillon qui équilibrent attaques et normales (comme class_weight="balanced")."""
     pos = max(1, int(y_tr.sum()))
     return np.where(y_tr == 1, len(y_tr) / (2 * pos), len(y_tr) / (2 * max(1, len(y_tr) - pos)))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] fit_model
+#   Rôle   : ENTRAÎNE un modèle sur les lignes d'entraînement. Pour la Régression Logistique et le MLP,
+#            ajoute d'abord une mise à l'échelle (StandardScaler) car ces modèles sont sensibles aux unités.
+#   Entrée : key : modèle ; X : features ; y : étiquettes ; rows : numéros des lignes du train ; params :
+#            réglages
+#   Sortie : (modèle entraîné, hyperparamètres utilisés pour l'affichage)
+# ──────────────────────────────────────────────────────────────────────
 def fit_model(key: str, X: np.ndarray, y: np.ndarray, rows: np.ndarray, params: dict | None = None):
     """Entraîne un modèle sur les lignes `rows`. Les modèles sensibles à l'échelle (Logistique,
     MLP) sont des pipelines StandardScaler → modèle : le .pkl s'applique tel quel aux mesures.
@@ -264,7 +290,7 @@ def fit_model(key: str, X: np.ndarray, y: np.ndarray, rows: np.ndarray, params: 
     y_tr = y[rows]
     pos = max(1, int(y_tr.sum()))
     ratio = float((len(rows) - pos) / pos)
-    used = {} if key == "RF_v1" else _tuned(key)
+    used = _tuned(key)
     used.update(params or {})
     est = make_model(key, ratio, **used)
     if key in NEEDS_SCALING:
@@ -284,15 +310,33 @@ def fit_model(key: str, X: np.ndarray, y: np.ndarray, rows: np.ndarray, params: 
     return model, shown
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] scores_of
+#   Rôle   : Demande au modèle sa probabilité d'attaque pour chaque ligne.
+#   Entrée : model : modèle entraîné ; X : features
+#   Sortie : un score entre 0 et 1 par ligne
+# ──────────────────────────────────────────────────────────────────────
 def scores_of(model, X: np.ndarray) -> np.ndarray:
     return model.predict_proba(X)[:, 1].astype(np.float32)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] role_prevalence
+#   Rôle   : Compte, pour train / validation / test, le nombre de lignes et la part d'attaques.
+#   Entrée : y : étiquettes ; idx_by_role : lignes de chaque rôle
+#   Sortie : {rôle: {lignes, attaques, part}}
+# ──────────────────────────────────────────────────────────────────────
 def role_prevalence(y: np.ndarray, idx_by_role: dict[str, np.ndarray]) -> dict:
     return {r: {"lignes": int(len(i)), "attaques": int(y[i].sum()),
                 "part": round(float(y[i].mean()), 4) if len(i) else 0.0} for r, i in idx_by_role.items()}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] pr_curve
+#   Rôle   : Calcule la courbe précision-rappel (≈ 120 points) affichée sur le site.
+#   Entrée : y : étiquettes ; s : scores du modèle
+#   Sortie : {recall: [...], precision: [...]}
+# ──────────────────────────────────────────────────────────────────────
 def pr_curve(y: np.ndarray, s: np.ndarray, n: int = 120) -> dict:
     """Courbe précision-rappel allégée (≈ n points) pour la page web."""
     p, r, _ = precision_recall_curve(y, s)
@@ -302,7 +346,15 @@ def pr_curve(y: np.ndarray, s: np.ndarray, n: int = 120) -> dict:
 
 # ── Une répétition ───────────────────────────────────────────────────────────
 
-def prepare_run(base: pd.DataFrame, run: int, with_v1: bool = False) -> dict:
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] prepare_run
+#   Rôle   : PRÉPARE UNE RÉPÉTITION de l'expérience : place les attaques dans le temps, les injecte dans les
+#            traces réelles, calcule les features et découpe les lignes en train / validation / test (en
+#            retirant la zone de garde).
+#   Entrée : base : traces réelles fusionnées ; run : numéro de la répétition (0 à 19)
+#   Sortie : dictionnaire avec df, X, y, épisodes, rôles et masques de chaque ligne
+# ──────────────────────────────────────────────────────────────────────
+def prepare_run(base: pd.DataFrame, run: int) -> dict:
     """Injection, features, masques des rôles (hors zones de garde) d'une répétition."""
     rng = np.random.default_rng(SEED + run)
     episodes = tr.build_schedule(len(base), rng, run, roles=("train", "val", "test"))
@@ -315,33 +367,45 @@ def prepare_run(base: pd.DataFrame, run: int, with_v1: bool = False) -> dict:
     out = {"run": run, "episodes": episodes, "df": df, "feats": feats, "y": y, "split": split, "excl": excl,
            "ev": ev, "idx": {r: np.where(m)[0] for r, m in ev.items()},
            "types": df["attack_type"].to_numpy(), "X": df[feats].to_numpy(np.float32)}
-    if with_v1:
-        d1, f1 = engineer_v1(injected)
-        out["X_v1"], out["feats_v1"] = d1[f1].to_numpy(np.float32), f1
     return out
 
 
-def one_run(base: pd.DataFrame, run: int, keys: list[str], with_v1: bool) -> dict:
-    r = prepare_run(base, run, with_v1)
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] one_run
+#   Rôle   : FAIT UNE RÉPÉTITION COMPLÈTE : prépare les données (prepare_run), entraîne chaque modèle sur le
+#            train et garde ses scores sur toutes les lignes. Si un modèle plante, il est ignoré et l'étude
+#            continue.
+#   Entrée : base : traces réelles ; run : numéro de répétition ; keys : modèles à entraîner
+#   Sortie : le dictionnaire de prepare_run + scores, modèles, réglages et temps d'entraînement
+# ──────────────────────────────────────────────────────────────────────
+def one_run(base: pd.DataFrame, run: int, keys: list[str]) -> dict:
+    r = prepare_run(base, run)
     tri = r["idx"]["train"]
     r.update(scores={}, models={}, params={}, fit_s={},
              prevalence=role_prevalence(r["y"], r["idx"]))
-    for key in keys + ([BASELINE[0]] if with_v1 else []):
-        Xm = r["X_v1"] if key == "RF_v1" else r["X"]
+    for key in keys:
         t0 = time.time()
         try:
-            model, used = fit_model(key, Xm, r["y"], tri)
+            model, used = fit_model(key, r["X"], r["y"], tri)
         except Exception:  # noqa: BLE001 — un modèle en échec ne doit pas arrêter l'étude
             traceback.print_exc(file=sys.__stderr__)
             log(f"  !! {key} : échec, ignoré (répétition {run})")
             continue
-        r["scores"][key] = scores_of(model, Xm)
+        r["scores"][key] = scores_of(model, r["X"])
         r["models"][key], r["params"][key], r["fit_s"][key] = model, used, round(time.time() - t0, 1)
     return r
 
 
 # ── Point de fonctionnement, métriques par rôle, classement ──────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] operating_point
+#   Rôle   : CHOISIT LE RÉGLAGE D'ALERTE d'un modèle sur la VALIDATION : un seuil de score et une règle « k
+#            mesures sur n ». Objectif : le plus de détections possible avec précision ≥ 90 % et au plus 0,5
+#            fausse alerte par heure.
+#   Entrée : runs : toutes les répétitions ; key : modèle
+#   Sortie : (réglage retenu, toutes les combinaisons essayées)
+# ──────────────────────────────────────────────────────────────────────
 def operating_point(runs: list[dict], key: str) -> tuple[dict, list[dict]]:
     """Seuil + persistance (k, n) choisis sur la validation CUMULÉE (un seul réglage par modèle)."""
     scored = [{"s": r["scores"][key], "y": r["y"], "evaluated_val": r["ev"]["val"]} for r in runs if key in r["scores"]]
@@ -350,6 +414,13 @@ def operating_point(runs: list[dict], key: str) -> tuple[dict, list[dict]]:
     return op, rows
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] role_metrics
+#   Rôle   : Mesure les performances d'un modèle sur train, validation et test avec son réglage : rappel,
+#            précision, F1, fausses alertes/h, épisodes détectés, délai, AUC et AP.
+#   Entrée : runs : répétitions ; key : modèle ; op : réglage d'alerte
+#   Sortie : dictionnaire des métriques par rôle
+# ──────────────────────────────────────────────────────────────────────
 def role_metrics(runs: list[dict], key: str, op: dict) -> dict:
     """Métriques cumulées train / val / test, au niveau « alarme » (persistance k sur n) et
     « ligne » (même seuil, sans persistance), plus AUC / AP moyennes."""
@@ -374,6 +445,14 @@ def role_metrics(runs: list[dict], key: str, op: dict) -> dict:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] summarize_model
+#   Rôle   : FICHE RÉSULTAT D'UN MODÈLE : réglage choisi + toutes ses métriques (test surtout, mais aussi
+#            validation et train) + courbes précision-rappel. C'est ce qui est écrit dans
+#            comparaison_modeles.json.
+#   Entrée : runs : répétitions ; key : modèle
+#   Sortie : dictionnaire complet des résultats du modèle
+# ──────────────────────────────────────────────────────────────────────
 def summarize_model(runs: list[dict], key: str) -> dict:
     op, rows = operating_point(runs, key)
     m = role_metrics(runs, key, op)
@@ -407,6 +486,14 @@ def summarize_model(runs: list[dict], key: str) -> dict:
     return res
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] rank_models
+#   Rôle   : CLASSE LES MODÈLES sur la validation (jamais sur le test) : d'abord ceux qui respectent la
+#            contrainte, puis le meilleur rappel, puis le moins de fausses alertes, puis le délai le plus
+#            court.
+#   Entrée : results : fiches de summarize_model
+#   Sortie : liste des modèles du meilleur au moins bon
+# ──────────────────────────────────────────────────────────────────────
 def rank_models(results: dict, keys: list[str] | None = None) -> list[str]:
     """Classement sur la VALIDATION uniquement : modèles qui tiennent la contrainte (précision,
     fausses alertes/h) d'abord, puis rappel (alarme) le plus haut, puis moins de fausses
@@ -423,6 +510,13 @@ def rank_models(results: dict, keys: list[str] | None = None) -> list[str]:
     return sorted(keys, key=cle)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] diagnostic
+#   Rôle   : Compare train, validation et test pour dire si le modèle sur-apprend (apprend par cœur) ou sous-
+#            apprend (trop simple).
+#   Entrée : res : fiche d'un modèle
+#   Sortie : écarts mesurés + phrase de verdict
+# ──────────────────────────────────────────────────────────────────────
 def diagnostic(res: dict) -> dict:
     """Écart train → validation → test (AP, F1 de l'alarme) : sur- ou sous-apprentissage."""
     ap = res["par_role"]["ap"]
@@ -445,6 +539,13 @@ def diagnostic(res: dict) -> dict:
 
 # ── Courbe d'apprentissage ───────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] learning_curve
+#   Rôle   : COURBE D'APPRENTISSAGE : réentraîne le meilleur modèle avec 10 %, 25 %, 50 %, 75 % et 100 % du
+#            train pour voir si plus de données l'améliorerait.
+#   Entrée : base : traces ; key : modèle ; op : réglage d'alerte
+#   Sortie : une ligne par taille de train (AP et F1 train / validation)
+# ──────────────────────────────────────────────────────────────────────
 def learning_curve(base: pd.DataFrame, key: str, op: dict) -> list[dict]:
     """Score selon la taille du train (fraction des BLOCS d'entraînement tirés au hasard),
     moyenne sur LC_RUNS rotations : AP et F1 (ligne, seuil retenu) sur le train utilisé et sur la validation."""
@@ -475,12 +576,26 @@ def learning_curve(base: pd.DataFrame, key: str, op: dict) -> list[dict]:
 
 # ── Validation croisée de confirmation ───────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] cv_splitters
+#   Rôle   : Les deux façons de faire la validation croisée : naïve (lignes mélangées, à NE PAS faire) et
+#            groupée par bloc d'une heure (la bonne).
+#   Entrée : n_splits : nombre de plis
+#   Sortie : {nom: découpeur scikit-learn}
+# ──────────────────────────────────────────────────────────────────────
 def cv_splitters(n_splits: int = 5) -> dict:
     from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold  # noqa: PLC0415
     return {"naif": StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=SEED),
             "groupes_blocs": StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=SEED)}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] shared_blocks
+#   Rôle   : Compte les blocs d'une heure présents à la fois dans l'apprentissage et l'évaluation : 0 = pas
+#            de fuite.
+#   Entrée : splitter : découpeur ; X, y : données ; groups : bloc de chaque ligne
+#   Sortie : nombre de blocs partagés
+# ──────────────────────────────────────────────────────────────────────
 def shared_blocks(splitter, X, y, groups) -> int:
     """Nombre de blocs d'une heure présents à la fois dans l'apprentissage et dans
     l'évaluation d'un même fold (somme sur les folds) : 0 = pas de fuite par les blocs."""
@@ -491,6 +606,13 @@ def shared_blocks(splitter, X, y, groups) -> int:
     return total
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] validation_croisee
+#   Rôle   : Montre la FUITE DE DONNÉES : la validation croisée naïve donne des scores trop beaux, la
+#            validation groupée par bloc donne des scores honnêtes.
+#   Entrée : r0 : répétition 0 ; keys : modèles ; n_splits : nombre de plis
+#   Sortie : résultats moyens (rappel, précision, F1, AP) de chaque méthode
+# ──────────────────────────────────────────────────────────────────────
 def validation_croisee(r0: dict, keys: list[str], n_splits: int = 5) -> dict:
     """StratifiedKFold naïf (lignes mélangées : une attaque et ses fenêtres glissantes de part
     et d'autre → score trop optimiste) contre StratifiedGroupKFold par bloc d'une heure.
@@ -529,6 +651,13 @@ def validation_croisee(r0: dict, keys: list[str], n_splits: int = 5) -> dict:
 
 # ── SHAP ─────────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] shap_summary
+#   Rôle   : EXPLICABILITÉ SHAP : mesure quelles features ont le plus poussé le modèle à dire « attaque », en
+#            général et pour chaque scénario d'attaque.
+#   Entrée : runs : répétitions ; key : modèle à arbres ; rng : générateur aléatoire
+#   Sortie : top 15 global + top 6 par scénario
+# ──────────────────────────────────────────────────────────────────────
 def shap_summary(runs: list[dict], key: str, rng) -> dict:
     """SHAP (TreeExplainer) du meilleur modèle arborescent sur les lignes d'attaque du test des
     SHAP_RUNS premières rotations : importance moyenne |SHAP| par feature, globale et par scénario."""
@@ -569,6 +698,12 @@ def shap_summary(runs: list[dict], key: str, rng) -> dict:
 
 # ── Affichage ────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] print_results
+#   Rôle   : Affiche dans le terminal le tableau des résultats de tous les modèles.
+#   Entrée : results : fiches ; ranking : classement
+#   Sortie : rien (affichage)
+# ──────────────────────────────────────────────────────────────────────
 def print_results(results: dict, ranking: list[str]) -> None:
     print()
     print("═" * 118)
@@ -586,7 +721,7 @@ def print_results(results: dict, ranking: list[str]) -> None:
                   f"{v['recall']:>7.3f} {v['precision']:>6.3f} {v['f1']:>6.3f} "
                   f"{v['fausses_alarmes_evenements_par_heure']:>6.2f} "
                   f"{str(v['episodes_detectes']) + '/' + str(v['episodes']):>9s} {d:>6s} "
-                  f"{ts._fmt(r['par_role']['ap'][role], '.3f', 6)}")
+                  f"{tr._fmt(r['par_role']['ap'][role], '.3f', 6)}")
     best = results[ranking[0]]
     print()
     print("Par scénario (meilleur modèle, test) : rappel lignes, épisodes, délai médian")
@@ -598,6 +733,15 @@ def print_results(results: dict, ranking: list[str]) -> None:
 
 # ── Programme ────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] main
+#   Rôle   : PROGRAMME PRINCIPAL de l'étude : (1) charge les traces réelles, (2) fait 20 répétitions avec les
+#            6 modèles, (3) choisit le réglage et classe les modèles, (4) courbe d'apprentissage, (5)
+#            validation croisée, (6) SHAP, puis sauvegarde le meilleur modèle (meilleur_modele.pkl) et tous
+#            les résultats JSON.
+#   Entrée : rien (variables d'environnement N_RUNS, MODELS, SKIP_… pour aller plus vite)
+#   Sortie : fichiers dans models/transmission_reel/
+# ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     paths.ensure_dirs()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -607,28 +751,26 @@ def main() -> None:
         keys = [k for k in os.environ["MODELS"].split(",") if k in dict(MODELS)]
     if XGBClassifier is None and "XGBoost" in keys:
         keys.remove("XGBoost")
-    with_v1 = not os.environ.get("SKIP_V1")
     log("[1] Traces réelles TON_IoT, prétraitement")
     with contextlib.redirect_stdout(io.StringIO()):
         real = bd.load_normal_traces()
     base, fusion = tr.fuse_real(real)
     log(f"    grille {tr.STEP} : {fusion['pas_conserves']:,} lignes ({fusion['debut']} → {fusion['fin']})")
 
-    log(f"[2] {N_RUNS} répétitions : {', '.join(keys)}{' + RF_v1' if with_v1 else ''}, {N_JOBS} cœurs")
+    log(f"[2] {N_RUNS} répétitions : {', '.join(keys)}, {N_JOBS} cœurs")
     runs, run_times = [], []
     for run in range(N_RUNS):
         t0 = time.time()
         with contextlib.redirect_stdout(io.StringIO()):
-            r = one_run(base, run, keys, with_v1)
+            r = one_run(base, run, keys)
         if run == 0:
             r["df"].to_csv(DATASET_PATH, index=False, float_format="%.4f")
             with open(EPISODES_PATH, "w", encoding="utf-8") as f:
-                json.dump(r["episodes"], f, indent=1, ensure_ascii=False, default=ts._json_default)
+                json.dump(r["episodes"], f, indent=1, ensure_ascii=False, default=tr._json_default)
             log(f"    {DATASET_PATH.name} (répétition 0) : {len(r['df']):,} lignes, {len(r['feats'])} features")
         # Mémoire : on garde scores, masques et étiquettes ; X pour SHAP / courbes ; modèles arborescents
         # des SHAP_RUNS premières rotations ; tout pour la répétition 0.
         r.pop("df", None)
-        r.pop("X_v1", None)
         if run >= SHAP_RUNS:
             r.pop("X", None)
             r["models"] = {}
@@ -643,7 +785,7 @@ def main() -> None:
 
     log("[3] Point de fonctionnement unique de chaque modèle (validation cumulée)")
     results: dict = {}
-    for key in keys + ([BASELINE[0]] if with_v1 else []):
+    for key in keys:
         if not any(key in r["scores"] for r in runs):
             continue
         t0 = time.time()
@@ -700,7 +842,7 @@ def main() -> None:
             cv = validation_croisee(runs[0], cv_keys)
             cv["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
             with open(CV_PATH, "w", encoding="utf-8") as f:
-                json.dump(cv, f, indent=2, ensure_ascii=False, default=ts._json_default)
+                json.dump(cv, f, indent=2, ensure_ascii=False, default=tr._json_default)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             cv = None
@@ -733,7 +875,6 @@ def main() -> None:
         "dataset": DATASET_PATH.name,
         "fusion": fusion,
         "features": r0["feats"],
-        "features_v1": r0.get("feats_v1"),
         "protocole": {
             "split": "70/15/15 NON aléatoire, blocs d'une heure entrelacés (14 train / 3 val / 3 test "
                      "sur un cycle de 20), rôles tournant à chaque répétition",
@@ -768,10 +909,10 @@ def main() -> None:
         "shap": shap_out,
     }
     with open(OUT_DIR / "comparaison_modeles.json", "w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2, ensure_ascii=False, default=ts._json_default)
+        json.dump(summary, f, indent=2, ensure_ascii=False, default=tr._json_default)
     if shap_out is not None:
         with open(OUT_DIR / "shap_transmission_reel.json", "w", encoding="utf-8") as f:
-            json.dump({"modele": shap_key, **shap_out}, f, indent=2, ensure_ascii=False, default=ts._json_default)
+            json.dump({"modele": shap_key, **shap_out}, f, indent=2, ensure_ascii=False, default=tr._json_default)
     log(f"Résultats : {OUT_DIR / 'comparaison_modeles.json'} ({time.time() - t_start:.0f} s)")
 
 

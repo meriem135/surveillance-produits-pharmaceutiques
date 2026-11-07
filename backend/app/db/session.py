@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/db/session.py
+#   CONNEXION À LA BASE DE DONNÉES. PostgreSQL si disponible, sinon repli automatique sur SQLite
+#   ; création des tables au démarrage.
+# ══════════════════════════════════════════════════════════════════════════
 import asyncio
 import logging
 import socket
@@ -12,6 +17,12 @@ from app.core.paths import SQLITE_DB
 logger = logging.getLogger(__name__)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] is_postgres_running
+#   Rôle   : Teste si un serveur PostgreSQL écoute sur le port.
+#   Entrée : host, port
+#   Sortie : vrai/faux
+# ──────────────────────────────────────────────────────────────────────
 def is_postgres_running(host="localhost", port=5432):
     try:
         with socket.create_connection((host, port), timeout=1):
@@ -20,6 +31,13 @@ def is_postgres_running(host="localhost", port=5432):
         return False
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _postgres_usable
+#   Rôle   : Teste si on peut vraiment se connecter à PostgreSQL (port + identifiants). Sinon on bascule sur
+#            SQLite.
+#   Entrée : url : adresse de la base ; timeout
+#   Sortie : (ok ?, message d'erreur)
+# ──────────────────────────────────────────────────────────────────────
 def _postgres_usable(url: str, timeout: float = 4.0) -> tuple[bool, str]:
     """Vérifie qu'on peut réellement se connecter (port ouvert ET identifiants /
     base valides). Exécuté dans un thread dédié : fonctionne même si l'import
@@ -86,6 +104,15 @@ if "postgresql" in database_url:
             "pool_recycle": 3600,
         }
 
+# SQLite dont le chemin (copié d'un autre PC) n'existe pas ici -> base du projet.
+if database_url.startswith("sqlite"):
+    from pathlib import Path as _P
+    _db_file = database_url.split(":///", 1)[-1]
+    if not _P(_db_file).parent.exists():
+        print(f"[!] Chemin SQLite introuvable ({_db_file}) -> {SQLITE_DB}")
+        SQLITE_DB.parent.mkdir(parents=True, exist_ok=True)
+        database_url = f"sqlite+aiosqlite:///{SQLITE_DB.as_posix()}"
+
 # Create async engine with connection pooling or SQLite connection
 engine = create_async_engine(
     database_url,
@@ -102,25 +129,31 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] get_session
+#   Rôle   : Fournit une connexion à la base à chaque requête API (FastAPI Depends).
+#   Entrée : rien
+#   Sortie : session de base de données
+# ──────────────────────────────────────────────────────────────────────
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting async database sessions"""
     async with AsyncSessionLocal() as session:
         yield session
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _ensure_ml_metrics_columns
+#   Rôle   : Ajoute les colonnes manquantes aux tables déjà créées (mise à jour du schéma).
+#   Entrée : rien
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def _ensure_ml_metrics_columns():
-    """Ajoute de manière idempotente les colonnes de métriques globales à MLModel.
+    """Ajoute de manière idempotente les colonnes manquantes aux tables existantes.
 
     create_all() ne modifie pas les tables existantes, on complète donc le schéma
-    pour persister les métriques globales (precision, recall, f1, ...) en PostgreSQL.
+    en PostgreSQL.
     """
     driver = str(database_url).split(":", 1)[0]
     add_col = {
-        "ml_models": {
-            "precision": "float", "recall": "float", "f1": "float",
-            "roc_auc": "float", "ap": "float", "fpr": "float",
-            "tp": "integer", "fp": "integer", "fn": "integer", "tn": "integer",
-            "result_json": "jsonb",
-        },
         # source : « web » (entraînement du dashboard) ou « reference » (étude chargée par charger_base.py)
         "transmission_runs": {"source": "varchar NOT NULL DEFAULT 'web'"},
     }
@@ -139,12 +172,24 @@ async def _ensure_ml_metrics_columns():
                     pass
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] init_db
+#   Rôle   : Crée toutes les tables au démarrage.
+#   Entrée : rien
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def init_db():
     """Initialize database tables"""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
     await _ensure_ml_metrics_columns()
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] close_db
+#   Rôle   : Ferme les connexions à la base à l'arrêt.
+#   Entrée : rien
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def close_db():
     """Close database connections"""
     await engine.dispose()

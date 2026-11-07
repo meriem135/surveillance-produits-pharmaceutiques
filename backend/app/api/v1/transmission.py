@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/app/api/v1/transmission.py
+#   ROUTES ENTRAÎNEMENT (/api/v1/transmission/...). Lancer un entraînement (admin), suivre sa
+#   progression, historique, rapport pour l'opérateur, chiffres publics.
+# ══════════════════════════════════════════════════════════════════════════
 """
 API « attaques de transmission » (traces réelles)
 =================================================
@@ -5,8 +10,7 @@ API « attaques de transmission » (traces réelles)
   GET  /api/v1/transmission/summary         état du jeu de données, référence, dernier entraînement
   GET  /api/v1/transmission/scenarios       les scénarios injectés
   POST /api/v1/transmission/train           entraîne les 6 modèles supervisés en arrière-plan (admin)
-  WS   /api/v1/transmission/train-ws        progression en direct (courbe du Random Forest incluse)
-  GET  /api/v1/transmission/training-status
+  GET  /api/v1/transmission/training-status   état + messages de progression (polling : ?depuis=<seq>)
   GET  /api/v1/transmission/results         résultats du dernier entraînement web
   GET  /api/v1/transmission/history         entraînements enregistrés en base, du plus récent au plus ancien
   GET  /api/v1/transmission/report          rapport de recommandation pour l'opérateur
@@ -20,11 +24,10 @@ summary, results et report lisent le dernier entraînement en base, sinon les fi
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import traceback
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,10 +44,20 @@ progress_manager = TrainingProgressManager()
 _training_task: asyncio.Task | None = None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _emit
+#   Rôle   : Enregistre un message de progression de l'entraînement (lu ensuite par la page).
+#   Entrée : step, progress, message
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 async def _emit(step: str, progress: int, message: str, **extra):
     await progress_manager.broadcast({"step": step, "progress": progress, "message": message, **extra})
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] AlertContext
+#   Rôle   : Corps de la requête « consigne pour une alerte » : scénario, capteur, probabilité.
+# ──────────────────────────────────────────────────────────────────────
 class AlertContext(BaseModel):
     attack_type: str = Field(..., examples=["MITM_gel"])
     sensor: str | None = Field(None, examples=["fridge"])
@@ -52,6 +65,12 @@ class AlertContext(BaseModel):
     top_features: list[str] = Field(default_factory=list)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_kpis
+#   Rôle   : route API GET /transmission/kpis : chiffres publics de la page d'accueil.
+#   Entrée : rien
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/kpis")
 async def transmission_kpis():
     """Agrégats publics des résultats de référence (aucune donnée de compte ni de session)."""
@@ -61,6 +80,12 @@ async def transmission_kpis():
     return kpis
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _latest_from_db
+#   Rôle   : Dernier entraînement terminé en base (None si aucun).
+#   Entrée : session
+#   Sortie : dictionnaire ou None
+# ──────────────────────────────────────────────────────────────────────
 async def _latest_from_db(session: AsyncSession) -> dict | None:
     """Dernier entraînement terminé en base ; None si aucun (ou base indisponible)."""
     try:
@@ -70,6 +95,12 @@ async def _latest_from_db(session: AsyncSession) -> dict | None:
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_summary
+#   Rôle   : route API GET /transmission/summary : résumé de l'étude.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/summary")
 async def transmission_summary(_user=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     out = await asyncio.to_thread(service.summary)
@@ -79,19 +110,71 @@ async def transmission_summary(_user=Depends(require_any_role("operator")), sess
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_scenarios
+#   Rôle   : route API GET /transmission/scenarios : les 9 scénarios d'attaque.
+#   Entrée : rien
+#   Sortie : liste
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/scenarios")
 async def transmission_scenarios(_user=Depends(require_any_role("operator"))):
     return await asyncio.to_thread(service.scenarios)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_dataset_imported / upload / delete
+#   Rôle   : routes /transmission/dataset : voir, IMPORTER (CSV de la forme de dataset_transmission_reel.csv) ou
+#            oublier le jeu de données utilisé pour le prochain entraînement (admin).
+# ──────────────────────────────────────────────────────────────────────
+@router.get("/transmission/dataset")
+async def transmission_dataset_imported(_user=Depends(require_any_role())):
+    """Jeu de données importé depuis la page Entraînement (ou null)."""
+    return {"importe": service.imported_dataset()}
+
+
+@router.post("/transmission/dataset")
+async def transmission_dataset_upload(file: UploadFile = File(...), _user=Depends(require_any_role())):
+    if _training_task and not _training_task.done():
+        raise HTTPException(status_code=409, detail="Un entraînement est en cours : réessayez après.")
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Le fichier doit être un .csv")
+    try:
+        info = await asyncio.to_thread(service.import_dataset, file.file, file.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    finally:
+        await file.close()
+    return {"importe": info}
+
+
+@router.delete("/transmission/dataset")
+async def transmission_dataset_delete(_user=Depends(require_any_role())):
+    """Oublie le jeu de données importé : l'entraînement revient au jeu de données du projet."""
+    if _training_task and not _training_task.done():
+        raise HTTPException(status_code=409, detail="Un entraînement est en cours : réessayez après.")
+    await asyncio.to_thread(service.remove_imported_dataset)
+    return {"importe": None}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_train
+#   Rôle   : route API POST /transmission/train : LANCE UN ENTRAÎNEMENT en arrière-plan (admin) et
+#            l'enregistre en base.
+#   Entrée : admin connecté
+#   Sortie : {status, depuis}
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/transmission/train")
-async def transmission_train(user=Depends(require_any_role())):
+async def transmission_train(user=Depends(require_any_role()),
+                             dataset: str = Query("projet", pattern="^(projet|importe)$")):
     """Lance l'entraînement du modèle retenu par l'étude de référence (hyperparamètres, seuil et
-    persistance lus en base) sur une répétition ; progression sur /transmission/train-ws.
+    persistance lus en base) sur une répétition ; progression sur /transmission/training-status.
     L'entraînement et ses métriques train / validation / test sont enregistrés en base."""
     global _training_task
     if _training_task and not _training_task.done():
         raise HTTPException(status_code=409, detail="Un entraînement est déjà en cours")
+    use_import = dataset == "importe"
+    if use_import and service.imported_dataset() is None:
+        raise HTTPException(status_code=400, detail="Aucun jeu de données importé : importez d'abord un CSV.")
     progress_manager.clear()
     username, user_id = getattr(user, "username", None), getattr(user, "id", None)
 
@@ -109,7 +192,8 @@ async def transmission_train(user=Depends(require_any_role())):
         try:
             cfg = await _db(settings_repo.get_all)
             ref = await _db(repository.latest_result, "reference")
-            out = await service.train(_emit, ref, (cfg or {}).get("precision_min"), (cfg or {}).get("fa_max"))
+            out = await service.train(_emit, ref, (cfg or {}).get("precision_min"), (cfg or {}).get("fa_max"),
+                                      use_import=use_import)
         except Exception as e:  # noqa: BLE001
             traceback.print_exc()
             if run_id is not None:
@@ -117,15 +201,24 @@ async def transmission_train(user=Depends(require_any_role())):
             await _emit("error", 0, f"Erreur entraînement : {e}")
             return
         records = out.pop("_records", None)
+        all_eps = out.pop("_all_episodes", None)
         if run_id is not None:
             await _db(repository.finish_run, run_id, out)
-            await _db(repository.store_details, run_id, out, records, None, service.feature_label)
+            await _db(repository.store_details, run_id, out, records, all_eps, service.feature_label)
             await _db(repository.prune_heavy_details, run_id)
+            # Dernier message : les métriques sont en base, la page Résultats peut les afficher.
+            await _emit("saved", 100, f"Résultats enregistrés en base (entraînement n° {run_id}).", run_id=run_id)
 
     _training_task = asyncio.create_task(_background())
-    return {"status": "training_started", "ws_url": "/api/v1/transmission/train-ws"}
+    return {"status": "training_started", "depuis": progress_manager.last_seq}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_training_target
+#   Rôle   : route API GET /transmission/training-target : quel modèle sera entraîné.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/training-target")
 async def transmission_training_target(_user=Depends(require_any_role()), session: AsyncSession = Depends(get_session)):
     """Ce que l'entraînement web va entraîner : le modèle retenu par l'étude de référence en base."""
@@ -136,25 +229,30 @@ async def transmission_training_target(_user=Depends(require_any_role()), sessio
                               "hyperparametres": c["hyperparameters"], "repetitions": c["repetitions"]}}
 
 
-@router.websocket("/transmission/train-ws")
-async def transmission_train_ws(websocket: WebSocket):
-    await progress_manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            msg = json.loads(data) if data else {}
-            if msg.get("type") == "ping":
-                await websocket.send_json({"type": "pong"})
-    except WebSocketDisconnect:
-        progress_manager.disconnect(websocket)
-
-
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_training_status
+#   Rôle   : route API GET /transmission/training-status : PROGRESSION de l'entraînement (appelé chaque
+#            seconde par la page).
+#   Entrée : depuis : dernier message lu
+#   Sortie : {running, messages, seq}
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/training-status")
-async def transmission_training_status(_user=Depends(require_any_role("operator"))):
+async def transmission_training_status(
+    depuis: int = Query(0, ge=0, description="Renvoie les messages de progression dont seq > depuis"),
+    _user=Depends(require_any_role("operator")),
+):
+    """Interrogée toutes les secondes par la page Entraînement pendant un entraînement."""
     running = bool(_training_task and not _training_task.done())
-    return {"running": running, "latest": progress_manager._latest_status}
+    return {"running": running, "latest": progress_manager._latest_status,
+            "messages": progress_manager.since(depuis), "seq": progress_manager.last_seq}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_results
+#   Rôle   : route API GET /transmission/results : résultats du dernier entraînement.
+#   Entrée : session
+#   Sortie : dictionnaire
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/results")
 async def transmission_results(_user=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     results = await _latest_from_db(session) or service._load_json(service.WEB_RESULTS)
@@ -163,6 +261,12 @@ async def transmission_results(_user=Depends(require_any_role("operator")), sess
     return results
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_history
+#   Rôle   : route API GET /transmission/history : historique des entraînements.
+#   Entrée : limit
+#   Sortie : liste
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/history")
 async def transmission_history(limit: int = Query(20, ge=1, le=200), _user=Depends(require_any_role("operator")),
                                session: AsyncSession = Depends(get_session)):
@@ -170,6 +274,29 @@ async def transmission_history(limit: int = Query(20, ge=1, le=200), _user=Depen
     return {"runs": await repository.history(session, limit)}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_run_delete
+#   Rôle   : route API DELETE /transmission/history/{run_id} : supprime un entraînement de la base
+#            (métriques, SHAP, résultats…) (administrateur).
+#   Entrée : run_id
+#   Sortie : {supprime: run_id}
+# ──────────────────────────────────────────────────────────────────────
+@router.delete("/transmission/history/{run_id}")
+async def transmission_run_delete(run_id: int, _user=Depends(require_any_role()),
+                                  session: AsyncSession = Depends(get_session)):
+    if _training_task and not _training_task.done():
+        raise HTTPException(status_code=409, detail="Un entraînement est en cours : réessayez après.")
+    if not await repository.delete_run(session, run_id):
+        raise HTTPException(status_code=404, detail="Entraînement introuvable.")
+    return {"supprime": run_id}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_report
+#   Rôle   : route API GET /transmission/report : rapport pour l'opérateur.
+#   Entrée : session
+#   Sortie : rapport
+# ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/report")
 async def transmission_report(_user=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
     latest = await _latest_from_db(session)
@@ -183,6 +310,12 @@ async def transmission_report(_user=Depends(require_any_role("operator")), sessi
     return await asyncio.to_thread(service.operator_report)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _reference_from_db
+#   Rôle   : Résultat de l'étude de référence en base.
+#   Entrée : session
+#   Sortie : dictionnaire ou None
+# ──────────────────────────────────────────────────────────────────────
 async def _reference_from_db(session: AsyncSession) -> dict | None:
     try:
         return await repository.latest_result(session, "reference")
@@ -191,6 +324,12 @@ async def _reference_from_db(session: AsyncSession) -> dict | None:
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] transmission_alert_report
+#   Rôle   : route API POST /transmission/report : consigne pour une alerte précise.
+#   Entrée : ctx : scénario, capteur…
+#   Sortie : consigne
+# ──────────────────────────────────────────────────────────────────────
 @router.post("/transmission/report")
 async def transmission_alert_report(ctx: AlertContext, _user=Depends(require_any_role("operator"))):
     return service.alert_recommendation(ctx.attack_type, ctx.sensor, ctx.probability, ctx.top_features)

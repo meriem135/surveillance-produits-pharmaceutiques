@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installation complète (Linux / macOS) : dépendances, dataset, entraînement des 4 modèles.
+# Installation complète (Linux / macOS) : dépendances, dataset, entraînement des 6 modèles supervisés.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -11,8 +11,7 @@ if [ ! -x backend/.venv/bin/python ]; then
     curl -sS https://bootstrap.pypa.io/get-pip.py | backend/.venv/bin/python
   }
 fi
-backend/.venv/bin/pip install -q -r backend/requirements-train.txt \
-  --extra-index-url https://download.pytorch.org/whl/cpu
+backend/.venv/bin/pip install -q -r backend/requirements-train.txt
 
 echo "[2/4] Dépendances frontend"
 (cd frontend && npm ci --no-audit --no-fund)
@@ -20,7 +19,7 @@ echo "[2/4] Dépendances frontend"
 echo "[3/4] Dataset (data/processed, data/generated)"
 (cd backend && .venv/bin/python scripts/build_dataset.py)
 
-echo "[4/4] Entraînement des 4 modèles (models/)"
-(cd backend && .venv/bin/python scripts/train_models.py)
+echo "[4/4] Entraînement des 6 modèles supervisés (models/transmission_reel/)"
+(cd backend && .venv/bin/python scripts/transmission_models.py)
 
 echo "Terminé. Lancez ./start_backend.sh puis ./start_frontend.sh"

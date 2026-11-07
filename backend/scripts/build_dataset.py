@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════
+# [RÔLE DU FICHIER] backend/scripts/build_dataset.py
+#   SCRIPT 1 — DONNÉES BRUTES. Lit et nettoie les traces TON_IoT (notebook/Raw) ; construit
+#   aussi une année simulée et le flux de démo.
+# ══════════════════════════════════════════════════════════════════════════
 """
 Construction du dataset d'entraînement et du flux de démonstration
 ==================================================================
@@ -23,7 +28,7 @@ Méthode (celle des notebooks Generation_Annuelle + Pipeline_Phase2_Complet) :
    c) Injection « plausible » : valeurs forgées autour de 7 °C, décorrélées de
       la météo, 3 à 6 h. Météo et thermostat ne sont jamais modifiés en (b)/(c).
 4. Les 21 features multivariées sont calculées par la même fonction que
-   l'entraînement (`app.domains.ml.pipeline._engineer_features`).
+   l'entraînement (`app.domains.ml.features._engineer_features`).
 
 Usage :  cd backend && .venv/bin/python scripts/build_dataset.py
 """
@@ -73,6 +78,12 @@ INJECTION_PLAUSIBLE = "Injection_fridge_plausible"
 SEASON_OF_MONTH = {12: 1, 1: 1, 2: 1, 3: 2, 4: 2, 5: 2, 6: 3, 7: 3, 8: 3, 9: 4, 10: 4, 11: 4}
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] log
+#   Rôle   : Affiche un message d'avancement.
+#   Entrée : msg : texte
+#   Sortie : rien
+# ──────────────────────────────────────────────────────────────────────
 def log(msg: str) -> None:
     print(msg, flush=True)
 
@@ -81,11 +92,23 @@ def log(msg: str) -> None:
 # 1. Traces brutes
 # ════════════════════════════════════════════════════════════════════════════
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _clean_columns
+#   Rôle   : Nettoie les noms de colonnes (minuscules, espaces, caractère invisible).
+#   Entrée : df : tableau
+#   Sortie : tableau
+# ──────────────────────────────────────────────────────────────────────
 def _clean_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [str(c).replace("﻿", "").strip().lower() for c in df.columns]
     return df
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _parse_datetime
+#   Rôle   : Assemble date + heure en vraie date (corrige l'année tronquée « 201 » → 2019).
+#   Entrée : date, time : colonnes
+#   Sortie : dates
+# ──────────────────────────────────────────────────────────────────────
 def _parse_datetime(date: pd.Series, time: pd.Series) -> pd.Series:
     d = date.astype(str).str.strip()
     # Année tronquée dans les fichiers source (« 4 Apr 201 ») -> 2019
@@ -94,6 +117,12 @@ def _parse_datetime(date: pd.Series, time: pd.Series) -> pd.Series:
     return pd.to_datetime(d + " " + t, format="mixed", dayfirst=True, errors="coerce")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] load_normal_traces
+#   Rôle   : CHARGE LES TRACES NORMALES TON_IoT des 3 capteurs depuis notebook/Raw et les nettoie.
+#   Entrée : rien
+#   Sortie : {capteur: tableau}
+# ──────────────────────────────────────────────────────────────────────
 def load_normal_traces() -> dict[str, pd.DataFrame]:
     """Charge et nettoie les 3 fichiers normaux de chaque capteur."""
     specs = {
@@ -126,6 +155,12 @@ def load_normal_traces() -> dict[str, pd.DataFrame]:
     return out
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] load_attack_traces
+#   Rôle   : Charge les valeurs des traces d'attaque TON_IoT, par capteur.
+#   Entrée : rien
+#   Sortie : {type d'attaque: {capteur: valeurs}}
+# ──────────────────────────────────────────────────────────────────────
 def load_attack_traces() -> dict[str, dict[str, np.ndarray]]:
     """Valeurs de température de chaque trace d'attaque TON_IoT, par capteur."""
     value_cols = {
@@ -166,6 +201,12 @@ def load_attack_traces() -> dict[str, dict[str, np.ndarray]]:
 # 2. Année normale générée
 # ════════════════════════════════════════════════════════════════════════════
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _fourier_seasonal
+#   Rôle   : Courbe des saisons sur 365 jours (somme de sinus/cosinus).
+#   Entrée : rien
+#   Sortie : 365 valeurs
+# ──────────────────────────────────────────────────────────────────────
 def _fourier_seasonal() -> np.ndarray:
     days = np.arange(1, 366)
     s = np.zeros(365)
@@ -175,6 +216,12 @@ def _fourier_seasonal() -> np.ndarray:
     return s - s.mean()
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _daily_profile
+#   Rôle   : Profil jour/nuit de la météo extrait des vraies données.
+#   Entrée : weather : trace météo
+#   Sortie : 24 valeurs
+# ──────────────────────────────────────────────────────────────────────
 def _daily_profile(weather: pd.DataFrame) -> np.ndarray:
     """Profil jour/nuit (écart à la moyenne, 24 valeurs) extrait des données réelles,
     ramené à une amplitude crête-à-crête de 8 °C (climat méditerranéen)."""
@@ -185,6 +232,12 @@ def _daily_profile(weather: pd.DataFrame) -> np.ndarray:
     return prof * (8.0 / span) if span > 0 else prof
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _warp
+#   Rôle   : Adapte le profil jour/nuit à la saison (amplitude et décalage).
+#   Entrée : day : jour de l'année ; base : profil
+#   Sortie : 24 valeurs
+# ──────────────────────────────────────────────────────────────────────
 def _warp(day: int, base: np.ndarray) -> np.ndarray:
     amp = 0.6 + 0.4 * np.sin(2 * np.pi * (day - 80) / 365)
     shift = 2 * np.sin(2 * np.pi * (day - 80) / 365)
@@ -192,6 +245,12 @@ def _warp(day: int, base: np.ndarray) -> np.ndarray:
     return np.interp((hours + shift) % 24, hours, base, period=24) * amp
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _ar1
+#   Rôle   : Bruit réaliste « qui a de la mémoire » (processus AR(1)).
+#   Entrée : n : longueur ; phi : mémoire ; std : écart-type ; rng
+#   Sortie : n valeurs
+# ──────────────────────────────────────────────────────────────────────
 def _ar1(n: int, phi: float, std: float, rng: np.random.Generator) -> np.ndarray:
     eta = rng.normal(0, std * np.sqrt(1 - phi ** 2), n + 200)
     eps = np.zeros(n + 200)
@@ -200,6 +259,13 @@ def _ar1(n: int, phi: float, std: float, rng: np.random.Generator) -> np.ndarray
     return eps[200:]
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] generate_year
+#   Rôle   : GÉNÈRE UNE ANNÉE 2019 de mesures normales (pas de 5 min) : météo = saisons + jour/nuit + bruit +
+#            événements extrêmes ; frigo et thermostat suivent la météo.
+#   Entrée : real : traces réelles ; rng : hasard
+#   Sortie : tableau d'une année
+# ──────────────────────────────────────────────────────────────────────
 def generate_year(real: dict[str, pd.DataFrame], rng: np.random.Generator) -> pd.DataFrame:
     idx = pd.date_range(f"{YEAR}-01-01", f"{YEAR}-12-31 23:55", freq=FREQ)
     n = len(idx)
@@ -240,10 +306,23 @@ def generate_year(real: dict[str, pd.DataFrame], rng: np.random.Generator) -> pd
 # 3. Attaques
 # ════════════════════════════════════════════════════════════════════════════
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] _slot
+#   Rôle   : Numéro de ligne correspondant à une date.
+#   Entrée : df ; ts : date
+#   Sortie : numéro de ligne
+# ──────────────────────────────────────────────────────────────────────
 def _slot(df: pd.DataFrame, ts: pd.Timestamp) -> int:
     return int(df["datetime"].searchsorted(ts))
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] inject_attacks
+#   Rôle   : INJECTE LES ATTAQUES dans l'année : rejeu des traces TON_IoT, frigo figé (MITM), valeurs forgées
+#            (injection).
+#   Entrée : df : année ; traces : attaques TON_IoT ; rng
+#   Sortie : liste des épisodes
+# ──────────────────────────────────────────────────────────────────────
 def inject_attacks(df: pd.DataFrame, traces: dict, rng: np.random.Generator) -> list[dict]:
     col_of = {"weather": "weather_temp", "fridge": "fridge_temp", "thermostat": "thermostat_temp"}
     episodes = []
@@ -283,8 +362,14 @@ def inject_attacks(df: pd.DataFrame, traces: dict, rng: np.random.Generator) -> 
 # 4. Assemblage
 # ════════════════════════════════════════════════════════════════════════════
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] finalize
+#   Rôle   : Ajoute l'état du frigo/thermostat, calcule les 21 features et garde les colonnes utiles.
+#   Entrée : df : année avec attaques
+#   Sortie : jeu de données final
+# ──────────────────────────────────────────────────────────────────────
 def finalize(df: pd.DataFrame) -> pd.DataFrame:
-    from app.domains.ml.pipeline import FEATURE_COLS, _engineer_features
+    from app.domains.ml.features import FEATURE_COLS, _engineer_features
 
     df["fridge_cond"] = np.where(df["fridge_temp"] > 8.0, "high", "low")
     df["thermo_status"] = (np.abs(df["thermostat_temp"] - THERMO_SETPOINT) > 1.5).astype(int)
@@ -297,6 +382,12 @@ def finalize(df: pd.DataFrame) -> pd.DataFrame:
     return featured[cols]
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] build_stream
+#   Rôle   : Construit le flux de démonstration (extraits par saison autour d'attaques).
+#   Entrée : data ; episodes
+#   Sortie : tableau du flux
+# ──────────────────────────────────────────────────────────────────────
 def build_stream(data: pd.DataFrame, episodes: list[dict]) -> pd.DataFrame:
     """Flux de démo : pour chaque saison (Hiver → Automne), jusqu'à 3 fenêtres
     de 200 pas autour d'épisodes d'attaque de types différents : d'abord deux
@@ -321,6 +412,12 @@ def build_stream(data: pd.DataFrame, episodes: list[dict]) -> pd.DataFrame:
                    "weather_roll_std_10", "label", "attack_type"]]
 
 
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] main
+#   Rôle   : Programme : traces → année générée → attaques → features → écrit les CSV dans data/.
+#   Entrée : rien
+#   Sortie : fichiers CSV
+# ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     rng = np.random.default_rng(SEED)
     np.random.seed(SEED)
