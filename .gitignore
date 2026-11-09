@@ -100,3 +100,7 @@ _DELETE_LATER/
 # ===== JUPYTER =====
 .ipynb_checkpoints/
 /models/transmission_reel/*.npz
+
+# ===== Jeu importé depuis la page Entraînement (propre à chaque installation) =====
+models/transmission_reel/dataset_importe.csv
+models/transmission_reel/dataset_importe.json
