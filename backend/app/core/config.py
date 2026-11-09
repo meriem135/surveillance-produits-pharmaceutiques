@@ -1,7 +1,7 @@
 # ══════════════════════════════════════════════════════════════════════════
 # [RÔLE DU FICHIER] backend/app/core/config.py
 #   CONFIGURATION. Tous les réglages de l'application (base de données, secret JWT, compte
-#   admin, MQTT, CORS), lus dans backend/.env.
+#   admin, CORS), lus dans backend/.env.
 # ══════════════════════════════════════════════════════════════════════════
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # ──────────────────────────────────────────────────────────────────────
 # [EN BREF] Settings
 #   Rôle   : TOUS LES RÉGLAGES de l'application, lus dans backend/.env ou les variables d'environnement :
-#            base de données, secret JWT, compte admin, MQTT, CORS…
+#            base de données, secret JWT, compte admin, CORS…
 # ──────────────────────────────────────────────────────────────────────
 class Settings(BaseSettings):
     """
@@ -43,17 +43,6 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@peaksoft.local"
     ADMIN_PASSWORD: str = ""
 
-    # Service d'ingestion (désactivable quand le broker n'est pas présent)
-    ENABLE_MQTT: bool = True
-    # Simulateur edge : publie le flux saisonnier sur le broker MQTT (démo Industrie 4.0)
-    ENABLE_EDGE_SIMULATOR: bool = False
-
-    # MQTT Configuration
-    MQTT_BROKER_URL: str = os.getenv("MQTT_BROKER_URL", "localhost")
-    MQTT_BROKER_PORT: int = int(os.getenv("MQTT_BROKER_PORT", 1883))
-    MQTT_USERNAME: str = os.getenv("MQTT_USERNAME", "admin")
-    MQTT_PASSWORD: str = os.getenv("MQTT_PASSWORD", "public")
-
     # API base URL (for internal self-calls)
     API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
 
@@ -63,7 +52,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True
+        case_sensitive=True,
+        # Un ancien .env peut encore contenir ENABLE_MQTT, MQTT_BROKER_URL… : on les ignore
+        # au lieu de refuser de démarrer.
+        extra="ignore",
     )
 
 settings = Settings()

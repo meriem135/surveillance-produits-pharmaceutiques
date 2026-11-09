@@ -16,7 +16,7 @@ from app.domains.devices.models import Device
 
 logger = logging.getLogger(__name__)
 
-# Les 3 capteurs edge (un topic MQTT chacun : factory/<id>/telemetry) et le
+# Les 3 capteurs de la chaîne du froid (frigo, thermostat, météo) et le
 # jumeau numérique qui porte le flux fusionné (télémétrie « behavioral_twin »).
 DEFAULT_DEVICES = [
     {"id": "weather-01", "name": "Station météo extérieure", "device_type": "weather",

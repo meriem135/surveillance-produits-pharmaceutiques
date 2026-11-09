@@ -1,6 +1,6 @@
 # ══════════════════════════════════════════════════════════════════════════
 # [RÔLE DU FICHIER] backend/app/main.py
-#   POINT D'ENTRÉE DU SERVEUR. Crée l'application FastAPI, démarre la base, MQTT et le
+#   POINT D'ENTRÉE DU SERVEUR. Crée l'application FastAPI, démarre la base et le
 #   chargement de l'étude, branche toutes les routes /api/v1/... et sert le dashboard React
 #   compilé. Lancement : uvicorn app.main:app.
 # ══════════════════════════════════════════════════════════════════════════
@@ -13,11 +13,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.core.paths import SEASONAL_STREAM_CSV, ensure_dirs
+from app.core.paths import ensure_dirs
 from app.db.seed import seed_defaults
 from app.db.session import init_db, close_db
 from app.api.v1 import devices, risks, auth, transmission, overview, etude, parametres
-from app.services.mqtt_service import mqtt_service
 
 # ──────────────────────────────────────────────────────────────────────
 # [EN BREF] _charger_etude
@@ -48,8 +47,7 @@ async def _charger_etude():
 # ──────────────────────────────────────────────────────────────────────
 # [EN BREF] lifespan
 #   Rôle   : CYCLE DE VIE DE L'APPLICATION : au démarrage, crée les dossiers et les tables, ajoute les
-#            données de départ, lance MQTT (si activé) et le chargement de l'étude ; à l'arrêt, ferme MQTT et
-#            la base.
+#            données de départ et lance le chargement de l'étude ; à l'arrêt, ferme la base.
 #   Entrée : app : l'application FastAPI
 #   Sortie : rien
 # ──────────────────────────────────────────────────────────────────────
@@ -60,19 +58,6 @@ async def lifespan(app: FastAPI):
     await init_db()
     await seed_defaults()
 
-    # Ingestion terrain : désactivable (.env) quand le broker n'existe pas sur le poste.
-    if settings.ENABLE_MQTT:
-        asyncio.create_task(mqtt_service.start())
-    edge_simulator = None
-    if settings.ENABLE_MQTT and settings.ENABLE_EDGE_SIMULATOR:
-        from app.services.mqtt_simulator import MqttSimulator
-
-        edge_simulator = MqttSimulator(
-            settings.MQTT_BROKER_URL, settings.MQTT_BROKER_PORT, SEASONAL_STREAM_CSV,
-            settings.MQTT_USERNAME, settings.MQTT_PASSWORD,
-        )
-        asyncio.create_task(edge_simulator.start())
-
     # Étude de référence : chargée en base au démarrage si la version en place est différente
     # (pages Jeu de données, Résultats, SHAP, Détection vs réalité, Temps réel).
     if os.environ.get("VIGILO_SKIP_CHARGER_BASE") != "1":
@@ -80,10 +65,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    if edge_simulator is not None:
-        await edge_simulator.stop()
-    if settings.ENABLE_MQTT:
-        await mqtt_service.stop()
     await close_db()
 
 app = FastAPI(

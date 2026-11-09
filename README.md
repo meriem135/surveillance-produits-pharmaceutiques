@@ -6,8 +6,10 @@ et météo (l'extérieur) — sont suivis en temps réel.
 
 - **Attaques de transmission** (étude principale) : modèles supervisés sur les traces réelles avec
   attaques MITM / injection, réglage d'alerte orienté précision, temps réel et rapport opérateur.
-- **Ingestion temps réel** : les mesures des trois capteurs (MQTT ou rejeu du flux
-  saisonnier) sont lues par le dashboard via l'API REST (interrogation chaque seconde).
+- **Temps réel simulé** : les mesures enregistrées repassent une à une dans le modèle sauvegardé,
+  comme un flux de capteurs (le dashboard interroge l'API REST chaque seconde). Il n'y a pas
+  d'ingestion de vrais capteurs : la plateforme étudie les attaques MITM / injection du trajet
+  capteur → broker MQTT sur des traces réelles, mais ne contient pas de client MQTT.
 
 Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 
@@ -16,12 +18,11 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 ```
 ├── backend/                 API FastAPI + ML + services
 │   ├── app/
-│   │   ├── main.py          point d'entrée (lifespan : BDD, seed, MQTT)
+│   │   ├── main.py          point d'entrée (lifespan : BDD, seed, chargement de l'étude)
 │   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview…)
 │   │   ├── core/            configuration (.env) et chemins canoniques (paths.py)
 │   │   ├── db/              session (PostgreSQL → repli SQLite), seed
 │   │   ├── domains/         auth, devices, intelligence (score de risque), ml (features), transmission
-│   │   └── services/        MQTT (agrégation 3 capteurs)
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
 │   │   ├── transmission_real.py    traces réelles, injection des attaques, découpage et zone de garde (aucun modèle)
@@ -93,8 +94,8 @@ choisit le seuil sur la validation, `rank_models` classe les modèles, le test c
 
 | Fichier | À quoi il sert |
 | --- | --- |
-| `main.py` | Point d'entrée. Au démarrage : crée les tables, crée le compte admin, lance MQTT si activé, charge l'étude en base. Branche toutes les routes `/api/v1/...` et sert le dashboard compilé. |
-| `core/config.py` | Les réglages lus dans `backend/.env` (base de données, secret JWT, compte admin, MQTT, CORS). |
+| `main.py` | Point d'entrée. Au démarrage : crée les tables, crée le compte admin, charge l'étude en base. Branche toutes les routes `/api/v1/...` et sert le dashboard compilé. |
+| `core/config.py` | Les réglages lus dans `backend/.env` (base de données, secret JWT, compte admin, CORS). |
 | `core/paths.py` | Tous les chemins de fichiers (data/, models/…) au même endroit. |
 | `db/session.py` | Connexion à la base : PostgreSQL si disponible, sinon repli automatique sur SQLite. |
 | `db/seed.py` | Données de départ : compte administrateur et paramètres par défaut. |
@@ -127,13 +128,6 @@ choisit le seuil sur la validation, `rank_models` classe les modèles, le test c
 | `intelligence/` | Score de risque des équipements (criticité, tendance). |
 | `parametres.py` | Table et validation des paramètres modifiables par l'administrateur. |
 
-**Les services (`app/services/`)** :
-
-| Fichier | À quoi il sert |
-| --- | --- |
-| `mqtt_service.py` | Écoute les capteurs sur le broker MQTT et regroupe les 3 mesures d'un même instant (si `ENABLE_MQTT=true`). |
-| `mqtt_simulator.py` | Simule des capteurs : publie le flux de démo sur MQTT (si `ENABLE_EDGE_SIMULATOR=true`). |
-
 **Les tests (`backend/tests/`)** vérifient le protocole (pas de fuite entre train / val / test, zone de
 garde, règle k sur n), les droits (un opérateur ne peut pas gérer les comptes), l'enregistrement en base
 et le temps réel. Lancer : `backend/.venv/bin/python -m pytest`.
@@ -157,7 +151,7 @@ Le compte administrateur est créé au premier démarrage à partir de `ADMIN_US
 `ADMIN_PASSWORD` ; l'inscription publique ne crée que des opérateurs.
 
 Services optionnels (tous désactivables dans `.env`) : PostgreSQL (sinon SQLite),
-broker Mosquitto (`ENABLE_MQTT`, `ENABLE_EDGE_SIMULATOR`), OpenSearch/Wazuh.
+OpenSearch/Wazuh.
 
 ## Avec Docker
 
@@ -165,7 +159,7 @@ Une image contient le dashboard compilé et l'API (un seul port) ; PostgreSQL to
 propre conteneur. Au premier démarrage, le jeu de données est reconstruit depuis `notebook/Raw`.
 
 ```bash
-cp backend/.env.example backend/.env       # JWT_SECRET_KEY, ADMIN_PASSWORD, CORS_ORIGINS, ENABLE_MQTT=false…
+cp backend/.env.example backend/.env       # JWT_SECRET_KEY, ADMIN_PASSWORD, CORS_ORIGINS…
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env   # VIGILO_PORT=8010 pour changer de port
 docker compose up -d --build                # http://localhost:8000/dashboard
 docker compose exec app python -m pytest tests -q
@@ -274,4 +268,4 @@ cd frontend && npx tsc -b && npm run build
 
 - **Backend** : FastAPI, SQLModel, PostgreSQL / SQLite, scikit-learn, PyTorch, SHAP
 - **Frontend** : React 19, Vite 8, TypeScript, Tailwind 4, Radix UI, Recharts
-- **IoT** : MQTT (gmqtt)
+- **Données IoT** : traces réelles TON_IoT (frigo, thermostat, météo), rejouées en temps réel simulé
