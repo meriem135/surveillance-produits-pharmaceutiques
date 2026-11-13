@@ -1,0 +1,456 @@
+\chapter{Réalisation}\label{chap5}
+\pagestyle{fancy}
+\lhead{Chapitre 5 : Réalisation}
+
+% =====================================================================
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Ce chapitre présente la réalisation de la plateforme VigiloChain : les outils
+utilisés, l'API backend, le tableau de bord, la vérification par les tests et
+le déploiement. Il se termine par une matrice de traçabilité qui relie chaque
+besoin fonctionnel du chapitre~\ref{chap2} à la page du tableau de bord et aux
+routes de l'API qui le réalisent.
+
+% =====================================================================
+\section{Environnement de travail}
+
+Le tableau~\ref{tab:environnement} présente les principaux outils utilisés.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Environnement logiciel du projet VigiloChain.}
+\label{tab:environnement}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{3.6cm} X >{\centering\arraybackslash}p{3.2cm}@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Catégorie}} & \textcolor{white}{\textbf{Logiciel}} &
+\textcolor{white}{\textbf{Version}} \\
+\hline
+Développement & Visual Studio Code, Jupyter Notebook & -- \\
+\rowcolor{trowa}
+Backend & Python, FastAPI, Pydantic & 3.12, 0.110+, 2.6+ \\
+Données & PostgreSQL, SQLite, SQLModel, SQLAlchemy & 16, --, 0.0.24, 2.0+ \\
+\rowcolor{trowa}
+Apprentissage & scikit-learn, XGBoost, SHAP & 1.4+, 2.0+, 0.45+ \\
+Frontend & React, Vite, TypeScript, React Router & 19, 8, 6, 7 \\
+\rowcolor{trowa}
+Interface & Tailwind CSS, Recharts, Radix UI, Lucide & 4, 3, --, -- \\
+Sécurité & python-jose (JWT), bcrypt & -- \\
+\rowcolor{trowa}
+Déploiement & Docker, Docker Compose & -- \\
+Qualité & pytest & 8+ \\
+\hline
+\end{tabularx}
+\end{table}
+
+% =====================================================================
+\section{Réalisation du backend}
+
+\subsection{Organisation du code}
+
+Le backend est une application FastAPI organisée en quatre niveaux, de
+l'extérieur vers l'intérieur : \texttt{api/v1} (routes REST), \texttt{domains}
+(logique métier par domaine : \textit{auth}, \textit{transmission},
+\textit{parametres}), \texttt{models} et \texttt{db} (entités SQLModel, session
+asynchrone, données initiales). Une route ne contient que la validation des
+entrées, le contrôle d'accès et l'appel au service du domaine concerné.
+
+Au démarrage, l'application initialise la base, crée le compte administrateur
+à partir des variables d'environnement et sert le tableau de bord compilé sur
+le même port que l'API. Si PostgreSQL n'est pas joignable, elle bascule sur
+SQLite.
+
+\subsection{Authentification et contrôle d'accès}
+
+La connexion (\texttt{POST /auth/login}) vérifie le mot de passe haché avec
+bcrypt et renvoie un jeton JWT qui porte l'identité et le rôle. Chaque route
+protégée déclare une dépendance FastAPI : \texttt{get\_current\_user} pour tout
+utilisateur connecté, \texttt{require\_any\_role("operator")} pour l'opérateur
+et l'administrateur, \texttt{require\_any\_role()} sans argument pour
+l'administrateur seul. Le refus renvoie le code HTTP~403. Les actions
+d'administration (comptes, mots de passe, paramètres) écrivent une ligne dans
+la table \texttt{audit\_logs}.
+
+\subsection{Routes de l'API}
+
+Toutes les routes sont préfixées par \texttt{/api/v1}. Le
+tableau~\ref{tab:api} liste celles que le tableau de bord appelle,
+regroupées par module. Une documentation interactive (Swagger UI) est
+générée automatiquement par FastAPI.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.35}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Routes de l'API utilisées par le tableau de bord.}
+\label{tab:api}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.5cm} >{\raggedright\arraybackslash}p{5.5cm} >{\centering\arraybackslash}p{1.9cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Méthode}} & \textcolor{white}{\textbf{Chemin}} &
+\textcolor{white}{\textbf{Accès}} & \textcolor{white}{\textbf{Rôle de la route}} \\
+\hline
+\multicolumn{4}{@{}l}{\textit{Module auth}} \\
+POST & \texttt{/auth/register} & Public & Inscription (compte opérateur) \\
+\rowcolor{trowa}
+POST & \texttt{/auth/login} & Public & Connexion, renvoie le jeton JWT \\
+GET, PATCH & \texttt{/auth/me} & Connecté & Lire et modifier son profil \\
+\rowcolor{trowa}
+POST & \texttt{/auth/me/password} & Connecté & Changer son mot de passe \\
+GET, POST & \texttt{/auth/users} & Admin & Lister et créer des comptes \\
+\rowcolor{trowa}
+PATCH, DELETE & \texttt{/auth/users/\{id\}} & Admin & Modifier et supprimer un compte \\
+PATCH & \texttt{/auth/users/\{id\}/toggle-active} & Admin & Activer ou désactiver un compte \\
+\rowcolor{trowa}
+POST & \texttt{/auth/users/\{id\}/reset-password} & Admin & Réinitialiser un mot de passe \\
+GET, DELETE & \texttt{/auth/audit-logs} & Admin & Consulter et purger le journal d'audit \\
+\multicolumn{4}{@{}l}{\textit{Module transmission (détection)}} \\
+\rowcolor{trowa}
+GET & \texttt{/transmission/kpis} & Public & Chiffres clés de la page d'accueil \\
+GET & \texttt{/transmission/report} & Op., Admin & Rapport d'alerte par type d'attaque \\
+\rowcolor{trowa}
+GET & \texttt{/transmission/history} & Op., Admin & Historique des entraînements \\
+DELETE & \texttt{/transmission/history/\{id\}} & Admin & Supprimer un entraînement \\
+\rowcolor{trowa}
+GET, POST, DELETE & \texttt{/transmission/dataset} & Admin & Lire, importer (CSV) et retirer le jeu importé \\
+POST & \texttt{/transmission/train} & Admin & Lancer l'entraînement en arrière-plan \\
+\rowcolor{trowa}
+GET & \texttt{/transmission/training-status} & Op., Admin & Messages de progression depuis le dernier lu \\
+GET & \texttt{/transmission/training-target} & Admin & Modèle retenu et son réglage d'alerte \\
+\multicolumn{4}{@{}l}{\textit{Module etude (lecture des résultats et temps réel)}} \\
+\rowcolor{trowa}
+GET & \texttt{/overview} & Op., Admin & Indicateurs de la vue d'ensemble \\
+GET & \texttt{/etude/metrics}, \texttt{/etude/runs} & Op., Admin & Métriques des modèles, liste des runs \\
+\rowcolor{trowa}
+GET & \texttt{/etude/timeline} & Op., Admin & Alertes et attaques dans le temps \\
+GET & \texttt{/etude/shap} & Op., Admin & Importance SHAP globale et par scénario \\
+\rowcolor{trowa}
+GET & \texttt{/etude/dataset} & Op., Admin & Indicateurs du jeu de données \\
+GET & \texttt{/etude/live/info} & Op., Admin & Modèle, seuil et vitesse par défaut du rejeu \\
+\rowcolor{trowa}
+POST & \texttt{/etude/live/start} & Op., Admin & Démarrer une lecture côté serveur \\
+GET & \texttt{/etude/live/\{id\}/next} & Op., Admin & Paquet suivant de mesures (1 à 200) \\
+\rowcolor{trowa}
+DELETE & \texttt{/etude/live/\{id\}} & Op., Admin & Arrêter la lecture \\
+\multicolumn{4}{@{}l}{\textit{Module parametres}} \\
+GET & \texttt{/parametres} & Op., Admin & Lire les paramètres, bornes et valeurs par défaut \\
+\rowcolor{trowa}
+PUT & \texttt{/parametres} & Admin & Modifier les paramètres (tracé dans l'audit) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Données persistantes}
+
+Tout ce que le tableau de bord affiche est lu en base ; aucun résultat n'est
+écrit en dur. Les tables se regroupent en trois familles :
+\begin{itemize}
+  \item \textbf{Gestion} : \texttt{users}, \texttt{audit\_logs},
+        \texttt{app\_settings} ;
+  \item \textbf{Mesures et événements} : \texttt{transmission\_dataset}
+        (mesures et variables), \texttt{transmission\_episodes} (épisodes
+        d'attaque), \texttt{transmission\_predictions},
+        \texttt{transmission\_alerts} ;
+  \item \textbf{Résultats d'entraînement} : \texttt{transmission\_runs} (un
+        enregistrement par entraînement), \texttt{transmission\_model\_results},
+        \texttt{transmission\_metrics}, \texttt{transmission\_shap},
+        \texttt{transmission\_learning\_curve}.
+\end{itemize}
+
+\subsection{Rejeu temps réel et entraînement}
+
+Deux traitements s'exécutent côté serveur et sont suivis par interrogation
+périodique du client.
+
+\begin{itemize}
+  \item \textbf{Rejeu temps réel.} \texttt{POST /etude/live/start} crée une
+        lecture des mesures de la période choisie (entraînement, validation ou
+        test). Le tableau de bord réclame ensuite chaque seconde, avec
+        \texttt{GET /etude/live/\{id\}/next}, un paquet de mesures dont la
+        taille correspond à la vitesse. Le serveur calcule le score du modèle,
+        applique le seuil et la règle de persistance, puis renvoie les points,
+        les débuts et fins d'alerte et les compteurs (alertes vraies et
+        fausses).
+  \item \textbf{Entraînement.} \texttt{POST /transmission/train} lance
+        l'entraînement en arrière-plan ; un second lancement simultané est
+        refusé (code 409). Le modèle retenu par l'étude de référence est
+        réentraîné avec son réglage d'alerte, sur le jeu importé ou sur celui du
+        projet. Le client lit les messages de progression avec
+        \texttt{GET /transmission/training-status}, puis le résultat est
+        enregistré en base et devient consultable dans « Résultats ».
+\end{itemize}
+
+% =====================================================================
+\section{Réalisation du tableau de bord}
+
+Le tableau de bord est une application monopage React~19 écrite en TypeScript
+et construite avec Vite. Nous ne décrivons que les fichiers effectivement
+chargés par l'application (tableau~\ref{tab:front}).
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Fichiers utilisés du tableau de bord (\texttt{frontend/src}).}
+\label{tab:front}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.6cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Fichier}} & \textcolor{white}{\textbf{Rôle}} \\
+\hline
+\texttt{main.tsx}, \texttt{App.tsx} &
+Point d'entrée et routage : \texttt{HashRouter}, fournisseurs de thème, de
+session et d'infobulles, routes publiques (\texttt{/}, \texttt{/login},
+\texttt{/register}) et route protégée donnant accès au tableau de bord. \\
+\rowcolor{trowa}
+\texttt{components/PrivateRoute.tsx} &
+Redirige vers la connexion si l'utilisateur n'est pas authentifié. \\
+\texttt{layouts/DashboardLayout.tsx} &
+Coquille du tableau de bord : menu en trois groupes filtré selon le rôle,
+barre supérieure (thème, menu du compte), garde d'accès par page (« Accès
+refusé ») et chargement différé des pages. \\
+\rowcolor{trowa}
+\texttt{contexts/AuthContext.tsx}, \texttt{lib/auth.ts} &
+Session : connexion, déconnexion, jeton JWT conservé et vérifié à l'échéance,
+en-têtes d'authentification des requêtes. \\
+\texttt{contexts/ThemeContext.tsx} &
+Thème clair ou sombre. \\
+\rowcolor{trowa}
+\texttt{components/etude/kit.tsx} &
+Boîte à outils commune des pages : accès à l'API avec cache (\texttt{useApi}),
+en-têtes de page, sections, indicateurs, tableaux, palette des graphiques et
+libellés français des modèles et des scénarios. \\
+\texttt{components/AuthShell.tsx}, \texttt{BandMark.tsx} &
+Gabarit des pages de connexion et d'inscription ; logo. \\
+\rowcolor{trowa}
+\texttt{components/ui/} (tooltip, toast, toaster, use-toast, dropdown-menu) &
+Composants Radix UI utilisés : infobulles, notifications et menu du compte. \\
+\texttt{lib/features.ts}, \texttt{lib/utils.ts}, \texttt{types.ts} &
+Regroupement des variables du modèle par capteur, type et fenêtre ;
+utilitaire de classes CSS ; type du thème. \\
+\hline
+\end{tabularx}
+\end{table}
+
+Le tableau~\ref{tab:pages} donne, pour chaque page, l'accès par rôle et les
+routes de l'API qu'elle appelle. Les pages de la zone privée sont chargées à
+la demande (\textit{lazy loading}), ce qui allège le premier affichage. Le
+temps réel et le suivi de l'entraînement fonctionnent par interrogation
+périodique (une requête par seconde) et non par connexion persistante.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Pages du tableau de bord, accès et routes de l'API appelées.}
+\label{tab:pages}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.6cm} >{\centering\arraybackslash}p{1.9cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Page}} & \textcolor{white}{\textbf{Accès}} &
+\textcolor{white}{\textbf{Routes de l'API}} \\
+\hline
+\multicolumn{3}{@{}l}{\textit{Pages publiques}} \\
+\texttt{HomePage} & Tous & \texttt{GET /transmission/kpis} \\
+\rowcolor{trowa}
+\texttt{LoginPage}, \texttt{RegisterPage} & Tous &
+\texttt{POST /auth/login}, \texttt{POST /auth/register} \\
+\multicolumn{3}{@{}l}{\textit{Surveillance}} \\
+\rowcolor{trowa}
+\texttt{OverviewPage} & Op., Admin & \texttt{GET /overview} \\
+\texttt{TempsReelPage} & Op., Admin &
+\texttt{GET /etude/live/info}, \texttt{POST /etude/live/start},
+\texttt{GET /etude/live/\{id\}/next}, \texttt{DELETE /etude/live/\{id\}} \\
+\rowcolor{trowa}
+\texttt{RapportPage} & Op., Admin & \texttt{GET /transmission/report} \\
+\multicolumn{3}{@{}l}{\textit{Analyse du modèle}} \\
+\texttt{ResultatsPage} & Op., Admin & \texttt{GET /etude/metrics}, \texttt{GET /etude/runs} \\
+\rowcolor{trowa}
+\texttt{DetectionPage} & Op., Admin & \texttt{GET /etude/timeline} \\
+\texttt{ShapPage} & Op., Admin & \texttt{GET /etude/shap} \\
+\rowcolor{trowa}
+\texttt{DatasetPage} & Op., Admin & \texttt{GET /etude/dataset} \\
+\multicolumn{3}{@{}l}{\textit{Administration}} \\
+\texttt{EntrainementPage} & Admin &
+\texttt{POST /transmission/train}, \texttt{GET /transmission/training-status},
+\texttt{GET /transmission/training-target}, \texttt{GET},
+\texttt{POST}, \texttt{DELETE /transmission/dataset},
+\texttt{GET}, \texttt{DELETE /transmission/history} \\
+\rowcolor{trowa}
+\texttt{ParametresPage} & Admin & \texttt{GET}, \texttt{PUT /parametres} \\
+\texttt{AdminUsersPage} & Admin & \texttt{/auth/users} (liste, création, modification,
+activation, réinitialisation du mot de passe, suppression) \\
+\rowcolor{trowa}
+\texttt{AuditLogsPage} & Admin & \texttt{GET}, \texttt{DELETE /auth/audit-logs} \\
+\multicolumn{3}{@{}l}{\textit{Compte}} \\
+\texttt{ProfilePage} & Op., Admin & \texttt{PATCH /auth/me}, \texttt{POST /auth/me/password} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Aperçu de l'interface}
+
+Les figures suivantes présentent les pages principales. Placez les captures
+d'écran dans le dossier \texttt{figures/} avec les noms indiqués ; tant
+qu'elles sont absentes, un cadre les remplace.
+
+\newcommand{\capture}[3]{%
+  \begin{figure}[H]\centering
+  \IfFileExists{figures/#1.png}%
+    {\includegraphics[width=0.92\textwidth]{figures/#1.png}}%
+    {\fbox{\parbox[c][5cm][c]{0.8\textwidth}{\centering Capture à insérer : \texttt{figures/#1.png}}}}
+  \caption{#2}\label{#3}
+  \end{figure}}
+
+\capture{vue_ensemble}{Page « Vue d'ensemble » : dernier entraînement et détection par scénario.}{fig:ui-overview}
+\capture{temps_reel}{Page « Temps réel » : mesures, score, alertes et attaques réelles côte à côte.}{fig:ui-live}
+\capture{detection}{Page « Détection vs réalité » : alertes du modèle et épisodes d'attaque dans le temps.}{fig:ui-detection}
+\capture{rapport}{Page « Rapport d'alerte » : consigne à appliquer par type d'attaque.}{fig:ui-report}
+\capture{shap}{Page « Explicabilité SHAP » : importance globale et par scénario.}{fig:ui-shap}
+\capture{entrainement}{Page « Entraînement » (administrateur) : import du CSV et suivi en direct.}{fig:ui-train}
+
+% =====================================================================
+\section{Vérification par les tests}
+
+Le backend est vérifié par 34 tests automatisés pytest, répartis en six
+fichiers (tableau~\ref{tab:tests}). Ils s'exécutent dans le conteneur avec
+\texttt{docker compose exec app python -m pytest tests -q}.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Tests automatisés du backend.}
+\label{tab:tests}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{4.8cm} >{\centering\arraybackslash}p{1.4cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Fichier}} & \textcolor{white}{\textbf{Tests}} &
+\textcolor{white}{\textbf{Ce qui est vérifié}} \\
+\hline
+\texttt{test\_transmission\_protocol} & 13 &
+Protocole d'évaluation : découpage 70/15/15 par blocs entiers, 20 rotations,
+zone de garde, aucun épisode ni fenêtre de variables à cheval sur deux rôles,
+variables causales, règle d'alerte $k$ sur $n$, choix du modèle sur la
+validation seule. \\
+\rowcolor{trowa}
+\texttt{test\_transmission} & 12 &
+Rapport pour l'opérateur : consigne par famille d'attaque, niveau d'alerte,
+chiffres publics de la page d'accueil, entraînement web avec le modèle de
+référence. \\
+\texttt{test\_etude\_roles} & 3 &
+Étude de référence stockée et lue en base ; refus (403) d'un opérateur sur les
+comptes, les paramètres et les entraînements ; rejeu temps réel (seuil,
+persistance, alertes vraies et fausses). \\
+\rowcolor{trowa}
+\texttt{test\_transmission\_db} & 3 &
+Un entraînement terminé est stocké avec une ligne par modèle ; les échecs
+gardent leur statut ; historique et résultats lus en base. \\
+\texttt{test\_overview} & 2 &
+Base vide : blocs vides ; base remplie : chiffres conformes à la base. \\
+\rowcolor{trowa}
+\texttt{test\_settings} & 1 &
+Origines CORS lues depuis la configuration. \\
+\hline
+\end{tabularx}
+\end{table}
+
+% =====================================================================
+\section{Déploiement}
+
+L'application se déploie en une commande, \texttt{docker compose up -d --build}
+(figure~\ref{fig:deploiement}). L'image est construite en deux étapes : une
+étape Node compile le tableau de bord avec Vite, puis une image Python embarque
+l'API, les modèles et le tableau de bord compilé. L'API sert donc l'interface et
+les routes REST sur un seul port (8000), accessible en local uniquement et à
+publier derrière un proxy inverse. Le processus s'exécute sous un utilisateur
+non privilégié, avec un contrôle de santé. Au premier démarrage, le jeu de
+données est reconstruit à partir des traces brutes dans un volume.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw=thead, fill=tlayer, rounded corners=3pt, align=center,
+              font=\footnotesize, minimum height=1.2cm, text width=3.8cm, inner sep=4pt},
+  vol/.style={draw=gray!60, fill=gray!10, rounded corners=3pt, align=center,
+              font=\scriptsize, minimum height=0.8cm, text width=2.4cm},
+  arr/.style={-Latex, thick, draw=thead},
+  lbl/.style={font=\scriptsize\itshape, text=gray!80!black}
+]
+\node[box] (nav) at (0,0) {\textbf{Navigateur}\\Tableau de bord};
+\node[box] (app) at (5.2,0) {\textbf{Service \texttt{app}}\\FastAPI + tableau de bord\\port 8000};
+\node[box] (db)  at (10.4,0) {\textbf{Service \texttt{db}}\\PostgreSQL 16};
+\node[vol] (v1)  at (4.2,-2.1) {volume \texttt{data}};
+\node[vol] (v2)  at (6.4,-2.1) {volume \texttt{models}};
+\node[vol] (v3)  at (10.4,-2.1) {volume \texttt{pgdata}};
+\node[box, fill=gray!10, draw=gray!60] (ad) at (10.4,2.1) {\textbf{Service \texttt{adminer}}\\Consultation de la base\\port 8080};
+\draw[arr] (nav) -- node[lbl, above] {HTTP} (app);
+\draw[arr] (app) -- node[lbl, above] {SQL asynchrone} (db);
+\draw[arr] (app) -- (v1);
+\draw[arr] (app) -- (v2);
+\draw[arr] (db) -- (v3);
+\draw[arr, gray] (ad) -- (db);
+\end{tikzpicture}
+\caption{Déploiement de VigiloChain avec Docker Compose.}
+\label{fig:deploiement}
+\end{figure}
+
+% =====================================================================
+\section{Traçabilité des besoins}
+
+Le tableau~\ref{tab:trace} relie chaque besoin fonctionnel à la page du
+tableau de bord et aux routes de l'API qui le réalisent.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.35}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Matrice de traçabilité des besoins fonctionnels.}
+\label{tab:trace}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{1.1cm} >{\raggedright\arraybackslash}p{3.4cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Besoin}} & \textcolor{white}{\textbf{Page}} &
+\textcolor{white}{\textbf{Routes de l'API}} \\
+\hline
+BF1 & \texttt{OverviewPage} & \texttt{GET /overview} \\
+\rowcolor{trowa}
+BF2 & \texttt{TempsReelPage} & \texttt{/etude/live/info}, \texttt{start}, \texttt{\{id\}/next}, \texttt{DELETE \{id\}} \\
+BF3 & \texttt{DetectionPage} & \texttt{GET /etude/timeline} \\
+\rowcolor{trowa}
+BF4 & \texttt{RapportPage} & \texttt{GET /transmission/report} \\
+BF5 & \texttt{ResultatsPage} & \texttt{GET /etude/metrics}, \texttt{GET /etude/runs} \\
+\rowcolor{trowa}
+BF6 & \texttt{ShapPage} & \texttt{GET /etude/shap} \\
+BF7 & \texttt{DatasetPage} & \texttt{GET /etude/dataset} \\
+\rowcolor{trowa}
+BF8 & \texttt{EntrainementPage} & \texttt{/transmission/dataset}, \texttt{train}, \texttt{training-status}, \texttt{training-target}, \texttt{history} \\
+BF9 & \texttt{ParametresPage} & \texttt{GET}, \texttt{PUT /parametres} \\
+\rowcolor{trowa}
+BF10 & \texttt{AdminUsersPage} & \texttt{/auth/users} et sous-routes \\
+BF11 & \texttt{AuditLogsPage} & \texttt{GET}, \texttt{DELETE /auth/audit-logs} \\
+\rowcolor{trowa}
+BF12 & \texttt{HomePage}, \texttt{LoginPage}, \texttt{RegisterPage} & \texttt{/transmission/kpis}, \texttt{/auth/login}, \texttt{/auth/register} \\
+BF13 & \texttt{ProfilePage}, \texttt{DashboardLayout} & \texttt{PATCH /auth/me}, \texttt{POST /auth/me/password} \\
+\hline
+\end{tabularx}
+\end{table}
+
+% =====================================================================
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+Ce chapitre a présenté la réalisation de VigiloChain : un backend FastAPI qui
+protège chaque route par rôle et lit ses résultats en base, un tableau de bord
+React dont chaque page correspond à un besoin fonctionnel, 34 tests
+automatisés et un déploiement en une commande avec Docker Compose. La matrice
+de traçabilité montre que les treize besoins du chapitre~\ref{chap2} sont tous
+couverts. Le chapitre suivant conclut le rapport et ouvre des perspectives.

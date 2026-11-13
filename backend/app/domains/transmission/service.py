@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 import time
 import warnings
@@ -104,7 +105,8 @@ RECOMMANDATIONS = {
         "titre": "Décalage des mesures (injection)",
         "risque": "Le frigo paraît plus froid qu'il ne l'est : un produit peut sortir de la plage "
                   "2–8 °C sans alerte.",
-        "signes": "La moyenne lissée sur 10 minutes baisse alors que rien ne change sur place.",
+        "signes": "La moyenne et les valeurs basses (quantile 10 %) sur 5 à 15 minutes baissent alors que rien ne "
+                  "change sur place.",
         "actions": [
             "Comparer avec un thermomètre de référence étalonné.",
             "Recalibrer ou remplacer le capteur si l'écart est confirmé sur place.",
@@ -115,7 +117,8 @@ RECOMMANDATIONS = {
     "derive": {
         "titre": "Dérive lente des mesures (injection)",
         "risque": "Le décalage augmente peu à peu : difficile à voir, il finit par cacher une sortie de plage.",
-        "signes": "La moyenne sur 15 minutes s'éloigne lentement de la moyenne habituelle.",
+        "signes": "La moyenne et les valeurs basses sur 5 à 15 minutes s'éloignent lentement des valeurs "
+                  "habituelles.",
         "actions": [
             "Comparer avec un thermomètre de référence étalonné.",
             "Regarder l'historique de la journée : une dérive se voit sur plusieurs heures.",
@@ -159,6 +162,45 @@ def _family(attack_type: str) -> str:
         if kind in attack_type.lower():
             return kind
     return "biais"
+
+
+def _stat(feature: str) -> str | None:
+    """Nature de la statistique d'une feature : répétition, dispersion ou niveau (moyenne, extrêmes…)."""
+    if "repeat" in feature:
+        return "repeat"
+    if "std_" in feature or "absdiff" in feature or feature.endswith("diff_1"):
+        return "dispersion"
+    if any(t in feature for t in ("mean_", "max_", "min_", "q10_", "q90_", "ewma", "diff")):
+        return "niveau"
+    return None
+
+
+def infer_families(top_features: list[str] | None) -> dict:
+    """Famille(s) d'attaque probable(s), déduites des indices dominants du modèle.
+
+    Le modèle est binaire (normal / attaque) : il ne nomme pas l'attaque. On regarde donc ce qui a le plus
+    pesé dans son score (valeurs SHAP, de la plus forte à la plus faible) :
+      - une séquence déjà transmise                       → rejeu ;
+      - une dispersion (écart-type, variation) en tête    → gel ou injection nominale ;
+      - un niveau (moyenne, extrêmes) en tête             → biais ou dérive ;
+      - sinon                                             → famille non identifiée.
+    Les indices ne séparent pas toujours deux familles voisines : on renvoie alors les deux, la plus
+    probable en premier. C'est une hypothèse à confirmer sur place, pas un diagnostic."""
+    feats = [f for f in (top_features or []) if f]
+    out = {"candidats": [], "capteur": None}
+    if not feats:
+        return out
+    stats = [_stat(f) for f in feats]
+    out["capteur"] = next((s for s in SENSOR_FR if feats[0].startswith(s + "_")), None)
+    if "repeat" in stats[:3]:
+        out["candidats"] = ["rejeu"]
+    elif stats[0] == "dispersion":
+        # une dispersion de 5 min touchée aussi → valeurs forgées « peu bruitées » plutôt que figées
+        large = any("std_5min" in f or "absdiff" in f for f in feats[:4])
+        out["candidats"] = ["nominale", "gel"] if large else ["gel", "nominale"]
+    elif stats[0] == "niveau":
+        out["candidats"] = ["biais", "derive"]
+    return out
 
 
 def feature_label(feature: str) -> str:
@@ -346,9 +388,44 @@ def _compact(r: dict) -> dict:
     return {k: r[k] for k in COMPACT_KEYS if k in r}
 
 
-def study_records(df: pd.DataFrame, episodes: list[dict], run: int, scores: np.ndarray, op: dict) -> dict:
+def alert_shap(model, df: pd.DataFrame, feats: list[str], alerts: list[dict], top: int = 6,
+               max_rows: int = 6) -> list[dict]:
+    """SHAP PAR ALERTE : pour chaque alerte, valeurs SHAP (TreeExplainer) des lignes de l'alerte, moyennées
+    avec leur signe (> 0 : la feature pousse vers « attaque »). On garde les `top` features qui poussent le
+    plus vers « attaque », avec leur valeur moyenne pendant l'alerte et leur valeur moyenne hors attaque
+    (référence). Lignes de l'alerte sous-échantillonnées à `max_rows`, réparties sur sa durée (SHAP exact des arbres : ~0,3 s par ligne)."""
+    import shap  # noqa: PLC0415
+
+    if model is None or not alerts:
+        return []
+    X = df[feats].to_numpy(float)
+    ref = X[df["label"].to_numpy().astype(int) == 0].mean(axis=0)
+    explainer = shap.TreeExplainer(model)
+    out: list[dict] = []
+    for a in alerts:
+        rows = np.arange(a["start_idx"], a["end_idx"])
+        if len(rows) > max_rows:
+            rows = rows[np.linspace(0, len(rows) - 1, max_rows).astype(int)]
+        values = explainer.shap_values(X[rows])
+        if isinstance(values, list):
+            values = values[-1]
+        values = np.asarray(values)
+        if values.ndim == 3:
+            values = values[:, :, -1]
+        m = values.mean(axis=0)
+        x = X[rows].mean(axis=0)
+        for rang, i in enumerate(np.argsort(m)[::-1][:top], 1):
+            out.append({"start_idx": int(a["start_idx"]), "rang": rang, "feature": feats[i],
+                        "shap": round(float(m[i]), 5), "valeur": round(float(x[i]), 4),
+                        "valeur_normale": round(float(ref[i]), 4)})
+    return out
+
+
+def study_records(df: pd.DataFrame, episodes: list[dict], run: int, scores: np.ndarray, op: dict,
+                  model=None, feats: list[str] | None = None) -> dict:
     """Ce que les pages lisent en base pour UNE répétition : lignes du jeu de données (rôle,
-    zone de garde), score / signal / alarme du meilleur modèle, alertes, épisodes détectés."""
+    zone de garde), score / signal / alarme du meilleur modèle, alertes, épisodes détectés.
+    Si `model` (à arbres) et `feats` sont fournis : SHAP de chaque alerte (`alertes_shap`)."""
     tr, _, ta = _scripts_all()
     n = len(df)
     split = tr.block_split(n, run)
@@ -376,8 +453,14 @@ def study_records(df: pd.DataFrame, episodes: list[dict], run: int, scores: np.n
         eps.append({**e, "detecte": bool(seg.any()),
                     "delai_min": round(int(np.argmax(seg)) * tr.STEP_MINUTES, 2) if seg.any() else None,
                     "start_ts": pd.Timestamp(ts[e["start"]]), "end_ts": pd.Timestamp(ts[min(n - 1, e["end"] - 1)])})
+    a_shap: list[dict] = []
+    if model is not None and feats:
+        try:
+            a_shap = alert_shap(model, df, feats, alerts)
+        except Exception:  # noqa: BLE001 — une explication manquante ne doit pas bloquer le chargement
+            logging.getLogger(__name__).exception("SHAP par alerte non calculé")
     return {"split": split, "evaluee": ~excl, "scores": s, "signal": signal, "alarme": alarm,
-            "alertes": alerts, "episodes": eps}
+            "alertes": alerts, "episodes": eps, "alertes_shap": a_shap}
 
 
 def reference_choice(ref: dict | None) -> dict | None:
@@ -677,7 +760,8 @@ async def train(emit: Emit, reference: dict | None = None, precision_min: float 
     with open(OUT_DIR / "modele_web.json", "w", encoding="utf-8") as f:
         json.dump({"modele": key, "nom": nom, "features": feats, "seuil": op["seuil"],
                    "k": op["k"], "n": op["n"], "critere": op["critere"]}, f, indent=2, ensure_ascii=False)
-    records = await asyncio.to_thread(study_records, df, episodes, 0, scores, op)
+    records = await asyncio.to_thread(study_records, df, episodes, 0, scores, op,
+                                      model if key in tm.TREE_MODELS else None, feats)
     out = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "duree_s": round(time.time() - t0, 1),
@@ -810,6 +894,12 @@ def _niveau(episodes_pct: float | None, mesures_pct: float | None = None,
     return niveau, " ; ".join(raisons)
 
 
+TYPE_TXT = ("Le modèle est binaire : il dit « attaque » ou « normal », il ne nomme pas l'attaque. Les scénarios "
+            "ci-dessous sont ceux que nous avons simulés, donc connus : ils servent à mesurer comment le modèle "
+            "réagit à chacun. En service, la famille d'attaque est déduite des indices qui ont le plus pesé dans "
+            "le score (valeurs SHAP) : c'est une hypothèse, à confirmer par une vérification sur place.")
+
+
 def _fmt_delai(d) -> str:
     return "—" if d is None else f"{d:.1f} min".replace(".", ",")
 
@@ -864,7 +954,11 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
         pa = t.get("per_attack", {}).get(name, {})
         pe = t.get("per_episode", {}).get(name, {})
         reco = RECOMMANDATIONS[_family(kind)]
-        feats = shap_sc.get(name, [])[:3]
+        all_feats = shap_sc.get(name, [])
+        feats = all_feats[:3]
+        # la famille que l'on déduirait des seuls indices du modèle, comparée à celle réellement simulée
+        ded = infer_families([f["feature"] for f in all_feats])["candidats"] if all_feats else None
+        ded_ok = None if ded is None else (_family(kind) in ded)
         rate = round(100 * pe["detected"] / pe["n"], 1) if pe.get("n") else None   # épisodes détectés
         mesures = pa.get("rate") if pa.get("n") else None
         niveau, raison = _niveau(rate, mesures, pe.get("delai_median_min"))
@@ -875,8 +969,17 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
             "episodes": f"{pe.get('detected', '—')}/{pe.get('n', '—')}",
             "delai_median_min": pe.get("delai_median_min"),
             "ce_que_le_modele_regarde": [f.get("label") or feature_label(f["feature"]) for f in feats] or [reco["signes"]],
+            "famille_deduite": [RECOMMANDATIONS[k]["titre"] for k in ded] if ded else [],
+            "deduction_correcte": ded_ok,
             "risque": reco["risque"], "actions": reco["actions"],
         })
+
+    evalues = [s for s in report["scenarios"] if s["deduction_correcte"] is not None]
+    report["identification"] = (
+        f"Famille retrouvée à partir des seuls indices du modèle : {sum(s['deduction_correcte'] for s in evalues)} "
+        f"scénarios sur {len(evalues)} (la bonne famille figure parmi les hypothèses proposées)."
+        if evalues else "Famille déduite des indices : non évaluée (pas de valeurs SHAP disponibles).")
+    report["type_attaque"] = TYPE_TXT
 
     limites = []
     for name in ("Injection_biais_0.5", "Injection_biais_1.0"):
@@ -906,7 +1009,7 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
              f"{_fmt_delai(md['delai_median_min'])}, précision {round(100 * md['precision'])} %, rappel "
              f"{round(100 * md['recall'])} %, F1 {md['f1']:.2f} (test).", "", md["lecture"], "", md["seuil"], "",
              "## Déséquilibre des classes", "", DESEQUILIBRE_TXT, "", "## Consignes par type d'attaque", "",
-             f"*{CRITERE_NIVEAU}*", ""]
+             TYPE_TXT, "", report["identification"], "", f"*{CRITERE_NIVEAU}*", ""]
     for s in report["scenarios"]:
         rate_txt = ("non évalué" if s["taux_detection"] is None else
                     f"épisodes {s['episodes']}, délai médian {_fmt_delai(s['delai_median_min'])}, "
@@ -915,6 +1018,9 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
                   f"- **Ce que fait l'attaquant :** {s['description']}",
                   f"- **Détection :** {rate_txt} — **{s['niveau']}** ({s['niveau_raison']})",
                   f"- **Ce que le modèle regarde :** {', '.join(s['ce_que_le_modele_regarde'])}",
+                  "- **Famille déduite de ces indices :** "
+                  + (" ou ".join(s["famille_deduite"]) + (" ✔" if s["deduction_correcte"] else " ✘")
+                     if s["famille_deduite"] else "non identifiée"),
                   f"- **Risque :** {s['risque']}",
                   "- **À faire :**"] + [f"  {i}. {act}" for i, act in enumerate(s["actions"], 1)] + [""]
     if limites:
@@ -924,23 +1030,50 @@ def operator_report(models: dict | None = None, shap_data: dict | None = None, s
     return report
 
 
-def alert_recommendation(attack_type: str, sensor: str | None = None, probability: float | None = None,
-                         top_features: list[str] | None = None) -> dict:
-    """Consigne pour une alerte précise (scénario désigné par le modèle, capteur, probabilité)."""
-    reco = RECOMMANDATIONS[_family(attack_type)]
+def alert_recommendation(attack_type: str | None = None, sensor: str | None = None,
+                         probability: float | None = None, top_features: list[str] | None = None) -> dict:
+    """Consigne pour une alerte précise.
+
+    Le modèle est binaire : il ne nomme pas l'attaque. Sans `attack_type` (cas normal en service), la famille
+    est déduite des indices dominants (`infer_families`) ; avec `attack_type` (scénario connu, par exemple en
+    simulation), elle est reprise telle quelle. Si rien ne permet de conclure, la consigne est générale."""
+    ded = infer_families(top_features)
+    if attack_type:
+        fam, source = _family(attack_type), "indiquée"
+    elif ded["candidats"]:
+        fam, source = ded["candidats"][0], "déduite des indices du modèle"
+    else:
+        fam, source = None, "non identifiée"
+    sensor = sensor or ded["capteur"]
     sensor_fr = SENSOR_FR.get(sensor or "", sensor or "capteur")
-    out = {
-        "attack_type": attack_type, "capteur": sensor_fr, "famille": reco["titre"],
-        "description": SCENARIOS_FR.get(attack_type, ""), "risque": reco["risque"], "signes": reco["signes"],
-        "actions": reco["actions"],
+    out: dict[str, Any] = {
+        "attack_type": attack_type, "capteur": sensor_fr, "famille_source": source,
         "indices": [feature_label(f) for f in (top_features or [])],
     }
+    if fam:
+        reco = RECOMMANDATIONS[fam]
+        out.update({"famille": reco["titre"], "description": SCENARIOS_FR.get(attack_type or "", ""),
+                    "risque": reco["risque"], "signes": reco["signes"], "actions": reco["actions"],
+                    "autres_hypotheses": ([RECOMMANDATIONS[k]["titre"] for k in ded["candidats"] if k != fam]
+                                          if source != "indiquée" else [])})
+        next_step = reco["actions"][1].rstrip(".").lower()
+        label = reco["titre"].lower()
+    else:
+        out.update({"famille": "Attaque de transmission suspectée (type non identifié)", "description": "",
+                    "risque": "Le détecteur signale une transmission suspecte sans pouvoir dire de quel type.",
+                    "signes": "", "actions": GENERAL_RULES, "autres_hypotheses": []})
+        next_step = GENERAL_RULES[2].rstrip(".").lower()
+        label = "attaque de transmission suspectée"
+    if source == "déduite des indices du modèle":
+        out["avertissement"] = ("Famille déduite des indices du modèle (hypothèse) : à confirmer par une "
+                                "vérification sur place.")
     if probability is not None:
         p = float(probability)
         out["confiance"] = "élevée" if p >= 0.8 else ("moyenne" if p >= 0.5 else "faible")
         out["probabilite"] = round(p, 3)
-    out["consigne"] = (f"Alerte {reco['titre'].lower()} sur le {sensor_fr}"
+    out["consigne"] = (f"Alerte {label} sur le {sensor_fr}"
                        + (f" (confiance {out['confiance']})" if "confiance" in out else "")
+                       + (" (famille probable)" if source.startswith("déduite") else "")
                        + " : contrôler la température sur place avant toute décision, puis "
-                       + reco["actions"][1].rstrip(".").lower() + ".")
+                       + next_step + ".")
     return out

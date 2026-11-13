@@ -1,15 +1,5 @@
-# devices/ — Gestion des équipements IoT
+# devices/ — Équipements IoT et mesures
 
 | Fichier | Rôle |
 |---------|------|
-| `models.py` | Modèle SQLAlchemy : `Device`, `Telemetry` |
-| `schemas.py` | Schémas Pydantic pour l'API |
-| `repository.py` | Accès DB (DeviceRepository, TelemetryRepository) |
-| `service.py` | Logique métier : CRUD + scoring + historique |
-
-### Flux
-```
-API → DeviceService → DeviceRepository → DB
-                   → TelemetryRepository
-                   → IntelligenceService (ml)
-```
+| `models.py` | Tables SQLAlchemy : `Device`, `Telemetry` (lues par la page Vue d'ensemble et créées au démarrage par `db/seed.py`) |

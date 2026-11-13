@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   ShieldAlert, Users, Moon, Sun, ChevronDown, LogOut, User, Brain, Sparkles,
-  ScrollText, Radio, Gauge, Menu, X, Crosshair, FileText, Database, Play, Settings,
+  ScrollText, Radio, Gauge, Menu, X, Crosshair, Database, Play, Settings,
 } from 'lucide-react';
 
 const OverviewPage = lazy(() => import('../pages/OverviewPage'));
@@ -25,7 +25,7 @@ const DetectionPage = lazy(() => import('../pages/etude/DetectionPage'));
 const DatasetPage = lazy(() => import('../pages/etude/DatasetPage'));
 const ResultatsPage = lazy(() => import('../pages/etude/ResultatsPage'));
 const ShapPage = lazy(() => import('../pages/etude/ShapPage'));
-const RapportPage = lazy(() => import('../pages/etude/RapportPage'));
+// const RapportPage = lazy(() => import('../pages/etude/RapportPage')); // page masquée temporairement
 const EntrainementPage = lazy(() => import('../pages/etude/EntrainementPage'));
 const ParametresPage = lazy(() => import('../pages/etude/ParametresPage'));
 
@@ -41,7 +41,8 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
     items: [
       { label: "Vue d'ensemble", path: '/dashboard/overview', icon: Gauge, roles: ALL, hint: 'Indicateurs lus en base de données' },
       { label: 'Temps réel', path: '/dashboard/temps-reel', icon: Radio, roles: ALL, hint: 'Le meilleur modèle analyse le flux de mesures' },
-      { label: "Rapport d'alerte", path: '/dashboard/rapport', icon: FileText, roles: ALL, hint: 'Consignes pour l’opérateur' },
+      // Page « Rapport d'alerte » masquée temporairement (RapportPage conservée, à réactiver en décommentant ici et la route plus bas) :
+      // { label: "Rapport d'alerte", path: '/dashboard/rapport', icon: FileText, roles: ALL, hint: 'Consignes pour l’opérateur' },
     ],
   },
   {
@@ -50,7 +51,6 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
       { label: 'Résultats', path: '/dashboard/resultats', icon: Brain, roles: ALL, hint: 'Métriques train / validation / test' },
       { label: 'Détection vs réalité', path: '/dashboard/detection', icon: Crosshair, roles: ALL, hint: 'Alertes du modèle face aux attaques réelles' },
       { label: 'Explicabilité SHAP', path: '/dashboard/explicabilite', icon: Sparkles, roles: ALL, hint: 'Ce qui influence le score du modèle' },
-      { label: 'Jeu de données', path: '/dashboard/donnees', icon: Database, roles: ALL, hint: 'KPI des traces réelles avec attaques' },
     ],
   },
   {
@@ -66,6 +66,8 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
 
 // Pages accessibles sans entrée dans la barre latérale (« Mon profil » est dans le menu du compte, en haut à droite)
 const HIDDEN_ITEMS: Item[] = [
+  // Page « Jeu de données » masquée pour le moment (roles: [] : ni menu ni accès). Pour la réactiver : la remettre dans NAV_GROUPS avec roles: ALL.
+  { label: 'Jeu de données', path: '/dashboard/donnees', icon: Database, roles: [], hint: 'KPI des traces réelles avec attaques' },
   { label: 'Mon profil', path: '/dashboard/profile', icon: User, roles: ALL },
 ];
 
@@ -222,7 +224,8 @@ export default function DashboardLayout() {
                 <Route path="/dashboard/overview" element={canAccess('/dashboard/overview') ? <OverviewPage /> : <AccessDenied />} />
                 <Route path="/dashboard/temps-reel" element={canAccess('/dashboard/temps-reel') ? <TempsReelPage /> : <AccessDenied />} />
                 <Route path="/dashboard/detection" element={canAccess('/dashboard/detection') ? <DetectionPage /> : <AccessDenied />} />
-                <Route path="/dashboard/rapport" element={canAccess('/dashboard/rapport') ? <RapportPage /> : <AccessDenied />} />
+                {/* Masquée temporairement : réactiver = remplacer par <Route path="/dashboard/rapport" element={canAccess('/dashboard/rapport') ? <RapportPage /> : <AccessDenied />} /> */}
+                <Route path="/dashboard/rapport" element={<Navigate to="/dashboard/overview" replace />} />
                 <Route path="/dashboard/resultats" element={canAccess('/dashboard/resultats') ? <ResultatsPage /> : <AccessDenied />} />
                 <Route path="/dashboard/explicabilite" element={canAccess('/dashboard/explicabilite') ? <ShapPage /> : <AccessDenied />} />
                 <Route path="/dashboard/donnees" element={canAccess('/dashboard/donnees') ? <DatasetPage /> : <AccessDenied />} />

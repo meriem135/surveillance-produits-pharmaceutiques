@@ -1,0 +1,83 @@
+\styledtitle{Conclusion générale}
+\begin{spacing}{1.5}
+\vspace{1cm}
+\label{chap:ConclusionPers}
+\addstarredchapter{Conclusion générale}
+\lhead{Conclusion générale et perspectives}
+\rhead{\thepage}
+
+Ce projet de fin d'études a permis de concevoir et de développer un système
+intelligent capable de détecter les falsifications des mesures de température
+transmises par les capteurs d'une chaîne du froid pharmaceutique. En combinant
+la construction d'un jeu de données avec attaques injectées, la modélisation
+prédictive, l'explicabilité des alertes et la visualisation interactive, nous
+avons réalisé une application web, baptisée VigiloChain, qui constitue un outil
+d'aide à la décision pour les opérateurs chargés de protéger les médicaments
+sensibles.
+
+Les résultats obtenus démontrent la pertinence de la démarche adoptée. Sur le
+jeu de test, jamais utilisé pour choisir le modèle ni le seuil, le modèle retenu
+atteint une précision de 92,7\,\% et un rappel de 65,2\,\%, soit un F1 de 0,765.
+Au niveau des épisodes, 70 attaques sur 73 sont détectées, avec un délai médian
+de 4 minutes et 0,35 fausse alerte par heure. Les performances proches entre
+validation et test indiquent l'absence de sur-apprentissage marqué. L'intégration
+d'outils modernes tels que Extra Trees, SHAP, FastAPI et React a permis d'obtenir
+un détecteur performant et de rendre ses résultats accessibles de manière claire :
+chaque alerte est expliquée par les variables qui l'ont provoquée, puis
+accompagnée d'un rapport de recommandations pour l'opérateur.
+
+Il est à noter, en outre, que les attaques utilisées dans cette étude sont
+injectées dans des traces réelles avec des signatures connues, et que le temps
+réel du tableau de bord repose sur le rejeu de mesures enregistrées. Les
+performances présentées ne reflètent donc pas encore celles d'un déploiement sur
+des capteurs en service. Par conséquent, il s'avère essentiel, pour tout travail
+futur, de valider le système sur des flux réels, avec de véritables tentatives de
+falsification ou des essais en laboratoire, afin de confirmer la pertinence des
+résultats obtenus.
+
+Dans le cadre de la recherche d'axes d'amélioration, l'extension du jeu de
+données est une première piste : elle consisterait à ajouter de nouveaux
+scénarios d'attaque, d'autres capteurs et d'autres types de produits.
+Notre application intègre déjà un mécanisme de rejeu qui fait passer les
+mesures dans le modèle sauvegardé avec le seuil et la règle de persistance
+retenus, et qui lève des alertes comme le ferait un flux réel. Une perspective
+d'évolution consiste à connecter directement l'application aux capteurs, par
+exemple au moyen d'un protocole de messagerie de l'Internet des objets comme MQTT.
+Cette automatisation permettrait de collecter et d'analyser en continu les
+mesures réelles, sans passer par un fichier. De plus, l'extension du système à
+plusieurs sites et à plusieurs chaînes du froid, avec une supervision centralisée
+et des droits d'accès par site, permettrait de dépasser le cadre d'un seul
+entrepôt.
+
+Une autre perspective intéressante consisterait à remplacer l'hypothèse par un
+diagnostic. Le modèle actuel est binaire : il répond seulement « attaque » ou
+« normal », et la famille d'attaque proposée dans le rapport est déduite des
+variables qui ont le plus pesé dans l'alerte. Un modèle multiclasse, entraîné à
+prédire directement la famille de manipulation, offrirait à l'opérateur une
+information plus directe et plus fiable. Bien que cette tâche n'ait pas pu être
+réalisée dans le cadre de ce projet par manque de temps, elle constitue une piste
+prometteuse pour enrichir la portée de notre solution.
+
+Enfin, l'adaptation de la gravité au produit transporté représenterait une
+amélioration notable. Les seuils de gravité actuels sont des choix de conception,
+indépendants du type de médicament et de l'écart réel à la plage de conservation.
+En les reliant aux exigences de chaque produit, et en ajoutant une notification
+de l'opérateur et un suivi de chaque alerte jusqu'à sa clôture, les rapports
+générés deviendraient plus précis et directement exploitables dans le processus
+de décision.
+
+Sur le plan personnel, ce projet a représenté une expérience extrêmement
+formatrice. Nous avons approfondi nos compétences en science des données
+(construction de variables causales, évaluation rigoureuse, explicabilité),
+mais aussi développé de nouvelles aptitudes en développement web et en
+visualisation interactive. Nous avons appris à mener un projet de bout en bout,
+depuis la définition du besoin métier jusqu'au déploiement d'une solution
+concrète et testée, en suivant la démarche CRISP-DM. Ce travail nous a permis de
+renforcer notre esprit analytique, notre autonomie et notre rigueur scientifique.
+
+En conclusion, ce projet constitue une étape importante dans notre évolution
+professionnelle, en nous donnant la confiance et l'expérience nécessaires pour
+aborder de futurs défis, tout en contribuant à apporter des solutions concrètes
+à un problème réel : la protection de la chaîne du froid pharmaceutique.
+
+\end{spacing}

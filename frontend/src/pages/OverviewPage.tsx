@@ -71,9 +71,6 @@ const STATUT: Record<string, { label: string; color: string }> = {
   interrompu: { label: 'Interrompu', color: 'var(--accent-warning)' },
   en_cours: { label: 'En cours', color: 'var(--accent-primary)' },
 };
-const DEVICE_FR: Record<string, string> = { fridge: 'Chambre froide', thermostat: 'Thermostat', weather: 'Météo', gateway: 'Passerelle' };
-const ROLE_FR: Record<string, string> = { admin: 'administrateur', operator: 'opérateur' };
-const pluriel = (n: number, mot: string) => `${nf(n)} ${mot}${n > 1 ? 's' : ''}`;
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 export default function OverviewPage() {
@@ -241,7 +238,7 @@ export default function OverviewPage() {
         ) : <div className="p-5"><Empty>Aucun résultat de modèle en base pour l’instant.</Empty></div>}
       </Section>
 
-      <div className="grid gap-6 xl:grid-cols-2 items-start">
+      <div>
         <Section title="Effet de la règle de persistance"
           subtitle="Même seuil : alerte à chaque mesure, ou seulement si k mesures sur n le dépassent."
           source="transmission_runs.result_json, modeles.<meilleur>.par_role" flush>
@@ -260,36 +257,6 @@ export default function OverviewPage() {
               </tbody>
             </Table>
           ) : <div className="p-5"><Empty>Aucun point de fonctionnement enregistré pour ce modèle.</Empty></div>}
-        </Section>
-
-        <Section title="Découpage du jeu de données" subtitle={run?.donnees.fichier ? `Fichier ${run.donnees.fichier}, blocs temporels d’une heure` : undefined}
-          source="transmission_runs.dataset (étude affichée)">
-          {run?.donnees.prevalence ? (
-            <div className="space-y-4">
-              {(['train', 'val', 'test'] as const).map(k => {
-                const s = run.donnees.prevalence?.[k];
-                if (!s) return null;
-                const max = Math.max(...Object.values(run.donnees.prevalence ?? {}).map(v => v.lignes), 1);
-                return (
-                  <div key={k}>
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
-                      <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{k === 'train' ? 'Entraînement' : k === 'val' ? 'Validation' : 'Test'}</span>
-                      <span className="tabular-nums text-[13px]" style={{ color: 'var(--text-secondary)' }}>{nf(s.lignes)} lignes, {nf(s.attaques)} attaquées ({pct(s.part)})</span>
-                    </div>
-                    <div className="mt-1.5 h-3 flex" style={{ width: `${Math.max(8, (s.lignes / max) * 100)}%`, border: '1px solid var(--border-strong)' }}>
-                      <div style={{ width: `${(1 - s.part) * 100}%`, background: 'var(--bg-subtle)' }} />
-                      <div style={{ width: `${s.part * 100}%`, background: pal.attack, borderLeft: `1.5px solid ${pal.attackLine}` }} />
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="flex gap-4 text-[12.5px] pt-1" style={{ color: 'var(--text-secondary)' }}>
-                <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-strong)' }} /> lignes normales</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3" style={{ background: pal.attack, border: `1px solid ${pal.attackLine}` }} /> lignes attaquées</span>
-              </div>
-              <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Lignes cumulées sur les répétitions. Largeur proportionnelle au nombre de lignes ; les lignes de garde entre blocs ne sont pas évaluées.</p>
-            </div>
-          ) : <Empty>Pas de découpage enregistré pour le dernier entraînement.</Empty>}
         </Section>
       </div>
 
@@ -356,45 +323,6 @@ export default function OverviewPage() {
             {e.dernier_lancement.erreur ? `. ${e.dernier_lancement.erreur}` : ''}
           </div>
         )}
-      </Section>
-
-      {/* ── Plateforme : capteurs, données, comptes ─────────────────────── */}
-      <Section title="Capteurs et plateforme" source="devices, telemetry, users, audit_logs" flush>
-        <Readouts className="!border-0 !border-b !rounded-none" cols={4}>
-          <Stat label="Entraînements enregistrés" value={nf(e.total)}
-            sub={e.total ? <>{Object.entries(e.par_statut).map(([s, n]) => `${n} ${(STATUT[s]?.label ?? s).toLowerCase()}${n > 1 && s !== 'en_cours' ? 's' : ''}`).join(', ')} ; dernier le {dateFr(e.dernier)}</> : 'Aucun entraînement en base'} />
-          <Stat label="Mesures du jeu de données" value={run ? nf(run.donnees.lignes) : '—'}
-            sub={run ? <>{nf(run.donnees.features)} variables, {pluriel(run.donnees.episodes, 'épisode')}, {pluriel(run.donnees.scenarios, 'scénario')}</> : 'Aucun entraînement terminé'} />
-          <Stat label="Capteurs déclarés" value={nf(data.capteurs.total)}
-            sub={data.capteurs.total ? `${nf(data.capteurs.en_ligne)} en ligne` : 'Table devices vide'} />
-          <Stat label="Comptes utilisateurs" value={nf(data.comptes.total)}
-            sub={data.comptes.total ? <>{pluriel(data.comptes.actifs, 'actif')} : {Object.entries(data.comptes.par_role).map(([r, n]) => `${n} ${ROLE_FR[r] ?? r}${n > 1 ? 's' : ''}`).join(', ')}</> : 'Aucun compte'} />
-        </Readouts>
-        <div className="grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <div className="p-4 sm:p-5">
-            {data.capteurs.liste.length ? (
-              <ul>
-                {data.capteurs.liste.map(d => (
-                  <li key={d.id} className="flex items-center justify-between gap-3 py-2.5 border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{d.nom}</div>
-                      <div className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>{DEVICE_FR[d.type] ?? d.type}, identifiant {d.id}, vu le {dateFr(d.vu_le)}</div>
-                    </div>
-                    {d.statut === 'online' ? <State kind="ok">en ligne</State> : <State kind="manque">hors ligne</State>}
-                  </li>
-                ))}
-              </ul>
-            ) : <Empty>Aucun capteur déclaré dans la table <code>devices</code>.</Empty>}
-          </div>
-          <dl className="p-4 sm:p-5 space-y-3 text-sm lg:border-l" style={{ borderColor: 'var(--border)' }}>
-            <div><dt className="vc-kicker">Mesures temps réel en base</dt><dd className="mt-0.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>
-              {nf(data.telemetrie.mesures)}{data.telemetrie.mesures ? <span className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>, du {dateFr(data.telemetrie.debut)} au {dateFr(data.telemetrie.fin)}</span> : null}</dd></div>
-            <div><dt className="vc-kicker">Actions tracées dans le journal d’audit</dt><dd className="mt-0.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>
-              {nf(data.audit.actions)}{data.audit.derniere ? <span className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>, dernière le {dateFr(data.audit.derniere)}</span> : null}</dd></div>
-            <div><dt className="vc-kicker">Alertes et rapports</dt><dd className="mt-0.5 text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
-              Non stockés : le rapport opérateur est recalculé à chaque ouverture depuis l’étude de référence en base.</dd></div>
-          </dl>
-        </div>
       </Section>
 
       {/* ── Provenance ─────────────────────────────────────────────────── */}

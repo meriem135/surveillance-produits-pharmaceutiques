@@ -12,12 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.domains.transmission.models import (
-    TransmissionAlert, TransmissionDatasetRow, TransmissionEpisode, TransmissionLearningPoint, TransmissionMetric,
-    TransmissionModelResult, TransmissionPrediction, TransmissionRun, TransmissionShap, utcnow,
+    TransmissionAlert, TransmissionAlertShap, TransmissionDatasetRow, TransmissionEpisode, TransmissionLearningPoint,
+    TransmissionMetric, TransmissionModelResult, TransmissionPrediction, TransmissionRun, TransmissionShap, utcnow,
 )
 
 DETAIL_TABLES = (TransmissionMetric, TransmissionShap, TransmissionDatasetRow, TransmissionEpisode,
-                 TransmissionPrediction, TransmissionAlert, TransmissionLearningPoint)
+                 TransmissionPrediction, TransmissionAlert, TransmissionAlertShap, TransmissionLearningPoint)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -310,6 +310,11 @@ async def store_details(session: AsyncSession, run_id: int, out: dict, records: 
                                                         for k, v in a.items()}) for a in records["alertes"]]
         await _bulk(session, TransmissionAlert, alerts)
         counts["transmission_alerts"] = len(alerts)
+        ash = [dict(run_id=run_id, model_key=best, **r) for r in records.get("alertes_shap") or []]
+        for r in ash:
+            r["libelle"] = label(r["feature"])
+        await _bulk(session, TransmissionAlertShap, ash)
+        counts["transmission_alert_shap"] = len(ash)
         eps = []
         for e in records["episodes"]:
             eps.append(dict(run_id=run_id, repetition=0, scenario=e["name"], capteur=e["sensor"], mecanisme=e["kind"],
@@ -359,7 +364,8 @@ async def prune_heavy_details(session: AsyncSession, keep_run_id: int, source: s
     dernier entraînement d'une source ; les métriques et SHAP restent pour l'historique."""
     ids = (await session.execute(select(TransmissionRun.id).where(TransmissionRun.source == source,
                                                                  TransmissionRun.id != keep_run_id))).scalars().all()
-    for table in (TransmissionDatasetRow, TransmissionPrediction, TransmissionAlert, TransmissionEpisode):
+    for table in (TransmissionDatasetRow, TransmissionPrediction, TransmissionAlert, TransmissionAlertShap,
+                  TransmissionEpisode):
         if ids:
             await session.execute(delete(table).where(table.run_id.in_(ids)))
     await session.commit()

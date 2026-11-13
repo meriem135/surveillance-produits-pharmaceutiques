@@ -1,0 +1,261 @@
+\chapter{Analyse et spécification des besoins}\label{chap2}
+\pagestyle{fancy}
+\lhead{Chapitre 2 : Analyse et spécification des besoins}
+
+% =====================================================================
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Ce chapitre précise ce que la plateforme VigiloChain doit faire, sans dire
+comment elle le fait. Nous identifions les acteurs et leurs cas d'utilisation,
+puis les besoins fonctionnels et non fonctionnels, et nous fixons le contrôle
+d'accès par rôles. Les choix de conception et de réalisation sont traités aux
+chapitres suivants.
+
+% =====================================================================
+\section{Acteurs et cas d'utilisation}
+
+VigiloChain compte deux acteurs authentifiés : l'\textbf{opérateur}, qui
+surveille la chaîne du froid et exploite les résultats de la détection, et
+l'\textbf{administrateur}, qui gère en plus le modèle, les paramètres et les
+comptes (tableau~\ref{tab:acteurs}). Un \textbf{visiteur} non connecté accède
+seulement à la page d'accueil, à l'inscription et à la connexion.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Acteurs du système VigiloChain.}
+\label{tab:acteurs}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Acteur}} & \textcolor{white}{\textbf{Rôle}} \\
+\hline
+Opérateur &
+Suit les mesures du frigo, du thermostat et de la météo rejouées une à une
+dans le modèle, consulte les alertes et les recommandations à appliquer, et lit
+les résultats du modèle et ses explications (SHAP). \\
+\rowcolor{trowa}
+Administrateur &
+Possède tous les droits de l'opérateur. Il importe un jeu de données,
+réentraîne le modèle, règle les paramètres, gère les comptes et consulte le
+journal d'audit. \\
+\hline
+\end{tabularx}
+\end{table}
+
+Les capteurs ne sont pas des acteurs : la plateforme travaille sur des traces
+réelles enregistrées (TON\_IoT) qu'elle rejoue comme un flux. La
+\textbf{détection} n'est pas non plus une action de l'opérateur : le modèle
+analyse automatiquement chaque mesure, et l'opérateur observe et décide. Tous
+les cas supposent une connexion préalable, non représentée dans le diagramme de
+la figure~\ref{fig:casutilisation}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  uc/.style={ellipse, draw=thead, fill=white, minimum width=4.3cm,
+             minimum height=0.82cm, align=center, font=\scriptsize, inner sep=1pt},
+  rel/.style={draw=gray!60, thin},
+  gen/.style={draw=thead, thick, -{Triangle[open, length=3mm, width=3mm]}},
+  stereo/.style={font=\tiny\itshape, text=thead, fill=white, inner sep=1pt},
+  albl/.style={font=\footnotesize\bfseries, text=thead},
+  sys/.style={draw=thead!80, dashed, rounded corners=3pt, inner sep=9pt},
+  acteur/.pic={
+    \draw[thead, thick] (0,0.62) circle (0.17);
+    \draw[thead, thick] (0,0.45) -- (0,-0.05);
+    \draw[thead, thick] (-0.3,0.28) -- (0.3,0.28);
+    \draw[thead, thick] (0,-0.05) -- (-0.22,-0.45);
+    \draw[thead, thick] (0,-0.05) -- (0.22,-0.45);
+  }
+]
+% Cas d'utilisation de l'opérateur
+\node[uc] (uc1) at (0,0)    {Consulter la vue d'ensemble};
+\node[uc] (uc2) at (0,-1.2) {Suivre le flux\\en temps réel};
+\node[uc] (uc3) at (0,-2.4) {Comparer détection et attaques,\\lire les recommandations};
+\node[uc] (uc4) at (0,-3.6) {Consulter les résultats\\des modèles};
+\node[uc] (uc5) at (0,-4.8) {Explorer les explications SHAP};
+\node[uc] (uc6) at (0,-6.0) {Gérer son profil\\et son mot de passe};
+% Cas d'utilisation de l'administrateur
+\node[uc] (uc7)  at (5.6,-1.2) {Importer un jeu\\de données (CSV)};
+\node[uc] (uc8)  at (5.6,-2.4) {Réentraîner le modèle\\et gérer les entraînements};
+\node[uc] (uc9)  at (5.6,-3.6) {Régler les paramètres};
+\node[uc] (uc10) at (5.6,-4.8) {Gérer les comptes};
+\node[uc] (uc11) at (5.6,-6.0) {Consulter et purger\\le journal d'audit};
+\begin{scope}[on background layer]
+  \node[sys, fit=(uc1)(uc6)(uc7)(uc11)] (S) {};
+\end{scope}
+\node[albl, anchor=south west] at (S.north west) {Système VigiloChain};
+\pic at (-3.6,-3.0) {acteur};
+\node[albl] (oplbl) at (-3.6,-3.68) {Opérateur};
+\coordinate (op) at (-3.3,-2.8);
+\pic at (9.3,-3.4) {acteur};
+\node[albl] (adlbl) at (9.3,-4.08) {Administrateur};
+\coordinate (ad) at (9.0,-3.2);
+\foreach \i in {uc1,uc2,uc3,uc4,uc5,uc6} \draw[rel] (op) -- (\i);
+\foreach \i in {uc7,uc8,uc9,uc10,uc11} \draw[rel] (ad) -- (\i);
+\draw[gen] (adlbl.south) |- ([yshift=-7mm]S.south) -| (oplbl.south);
+\node[stereo, below=1pt] at ([yshift=-7mm]S.south)
+  {généralisation : l'administrateur hérite des cas de l'opérateur};
+\end{tikzpicture}
+\caption{Diagramme de cas d'utilisation de VigiloChain.}
+\label{fig:casutilisation}
+\end{figure}
+
+% =====================================================================
+\section{Besoins fonctionnels}
+
+Les besoins fonctionnels décrivent ce que chaque acteur peut faire. Ils sont
+regroupés en quatre modules, qui correspondent aux trois groupes du menu du
+tableau de bord (Surveillance, Analyse du modèle, Administration) et à la
+gestion du compte.
+
+\subsection*{Surveillance}
+\begin{itemize}
+  \item \textbf{BF1} : L'opérateur peut consulter une vue d'ensemble : dernier
+        entraînement, modèle retenu, détection par scénario d'attaque et
+        historique des entraînements.
+  \item \textbf{BF2} : L'opérateur peut lancer, mettre en pause et arrêter un
+        flux temps réel qui rejoue les mesures du frigo, du thermostat et de la
+        météo une à une dans le modèle, avec le score, les alertes et la
+        réalité côte à côte. Il choisit la période rejouée (entraînement,
+        validation ou test) et la vitesse.
+\end{itemize}
+
+\subsection*{Analyse du modèle}
+\begin{itemize}
+  \item \textbf{BF3} : L'opérateur peut comparer, dans le temps, les alertes du
+        modèle aux attaques réellement injectées (épisodes détectés, manqués,
+        fausses alertes, matrice de confusion) et lire, pour chaque alerte, un
+        rapport de recommandation : synthèse des faits mesurés, famille
+        d'attaque probable, gravité et actions à mener.
+  \item \textbf{BF4} : L'opérateur peut consulter les résultats des modèles
+        candidats (rappel, précision, F1, délai de détection) et le meilleur
+        modèle retenu.
+  \item \textbf{BF5} : L'opérateur peut consulter l'importance des variables
+        (SHAP), globale ou pour un scénario d'attaque.
+\end{itemize}
+
+\subsection*{Administration}
+\begin{itemize}
+  \item \textbf{BF6} : L'administrateur peut importer un jeu de données au
+        format CSV, réentraîner le modèle retenu sur ce jeu ou sur celui du
+        projet, suivre la progression en direct et supprimer un entraînement
+        de l'historique.
+  \item \textbf{BF7} : L'administrateur peut modifier les paramètres de la
+        plateforme : précision minimale, fausses alertes tolérées par heure et
+        vitesse par défaut du temps réel.
+  \item \textbf{BF8} : L'administrateur peut créer, modifier, activer,
+        désactiver et supprimer un compte, et réinitialiser un mot de passe.
+        Le compte administrateur lui-même n'est pas modifiable depuis
+        l'interface.
+  \item \textbf{BF9} : L'administrateur peut consulter et purger le journal
+        d'audit.
+\end{itemize}
+
+\subsection*{Compte utilisateur}
+\begin{itemize}
+  \item \textbf{BF10} : Un visiteur peut consulter la page d'accueil (chiffres
+        clés publics), s'inscrire (compte opérateur) et se connecter.
+  \item \textbf{BF11} : Tout utilisateur connecté peut modifier son profil et
+        son mot de passe, changer de thème (clair ou sombre) et se déconnecter.
+\end{itemize}
+
+% =====================================================================
+\section{Besoins non fonctionnels}
+\label{sec:bnf}
+
+Les besoins non fonctionnels fixent la qualité attendue de la plateforme
+(tableau~\ref{tab:bnf}).
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Besoins non fonctionnels de VigiloChain.}
+\label{tab:bnf}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{1.4cm} >{\bfseries}p{3.2cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Code}} & \textcolor{white}{\textbf{Catégorie}} &
+\textcolor{white}{\textbf{Description}} \\
+\hline
+BNF1 & Performance &
+Le temps réel doit suivre la vitesse choisie (de 6 à 180 mesures par seconde
+dans l'interface) sans accumuler de retard : le tableau de bord interroge l'API
+chaque seconde et regroupe l'affichage une fois par image. \\
+\rowcolor{trowa}
+BNF2 & Sécurité &
+Toute route métier exige un jeton JWT valide, à l'exception des chiffres clés
+de la page d'accueil ; les mots de passe sont hachés (bcrypt) ; les droits sont
+vérifiés côté serveur selon le rôle, et le tableau de bord masque en plus les
+pages réservées. \\
+BNF3 & Fiabilité de l'évaluation &
+Aucune information du test ne doit fuiter vers l'entraînement : découpage par
+blocs d'une heure et zone de garde de 20~min. \\
+\rowcolor{trowa}
+BNF4 & Explicabilité &
+Le comportement du modèle doit pouvoir être justifié par les valeurs SHAP,
+affichées dans le tableau de bord. \\
+BNF5 & Traçabilité &
+Les actions d'administration sont enregistrées avec leur auteur, leur cible
+et leur horodatage. \\
+\rowcolor{trowa}
+BNF6 & Ergonomie &
+Interface en français, thème clair ou sombre, menu adapté au rôle et
+affichage adaptatif (menu en tiroir sur téléphone et tablette). \\
+BNF7 & Maintenabilité &
+Code organisé en couches et vérifié par des tests automatisés (pytest). \\
+\rowcolor{trowa}
+BNF8 & Déploiement &
+Installation en une commande (\texttt{docker compose up}). \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Contrôle d'accès par rôles}
+\label{sec:rbac}
+
+Le rôle est porté par le jeton JWT et vérifié \textbf{côté serveur}
+(tableau~\ref{tab:rbac}). Le compte administrateur est créé au premier
+démarrage à partir des variables d'environnement ; l'inscription publique ne
+crée que des comptes opérateur. Un opérateur qui appelle une route
+d'administration reçoit le code HTTP~403, et qui ouvre une page réservée voit un
+message « Accès refusé ».
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.4}
+\setlength{\arrayrulewidth}{0.8pt}
+\arrayrulecolor{thead}
+\caption{Périmètre d'accès par rôle.}
+\label{tab:rbac}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{3.4cm} >{\raggedright\arraybackslash}X@{}}
+\rowcolor{thead}
+\textcolor{white}{\textbf{Rôle}} & \textcolor{white}{\textbf{Périmètre}} \\
+\hline
+Administrateur & Tout ce que fait l'opérateur, plus l'entraînement et
+l'import de données, les paramètres, les comptes et le journal d'audit. \\
+\rowcolor{trowa}
+Opérateur & Surveillance (vue d'ensemble, temps réel), analyse du modèle
+(résultats, détection et recommandations, SHAP) et profil. Aucun accès à
+l'administration. \\
+Visiteur non connecté & Page d'accueil, inscription et connexion
+uniquement. \\
+\hline
+\end{tabularx}
+\end{table}
+
+% =====================================================================
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+Ce chapitre a présenté les deux acteurs authentifiés de VigiloChain, le
+visiteur non connecté, ses onze besoins fonctionnels répartis en quatre
+modules, ses huit besoins non fonctionnels et le contrôle d'accès par rôles.
+Ces besoins servent de référence tout au long du rapport : le chapitre de
+réalisation les retrouve un à un dans les pages du tableau de bord et les
+routes de l'API (tableau de traçabilité).

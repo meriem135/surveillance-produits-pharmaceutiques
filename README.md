@@ -111,7 +111,6 @@ choisit le seuil sur la validation, `rank_models` classe les modèles, le test c
 | `transmission.py` | `/api/v1/transmission/...` | Lancer un entraînement (admin), suivre sa progression (`training-status`), historique, rapport opérateur, chiffres de la page d'accueil. |
 | `overview.py` | `/api/v1/overview` | Indicateurs de la page Vue d'ensemble. |
 | `parametres.py` | `/api/v1/parametres` | Lire / modifier les paramètres (précision minimale, fausses alertes tolérées, vitesse du temps réel). |
-| `devices.py`, `risks.py` | `/api/v1/devices`, `/api/v1/risks/...` | Liste des équipements IoT et score de risque. |
 
 **La logique métier (`app/domains/`)** — les routes appellent ces fichiers :
 
@@ -150,8 +149,7 @@ Windows : créer `backend\.venv`, `pip install -r backend\requirements-train.txt
 Le compte administrateur est créé au premier démarrage à partir de `ADMIN_USERNAME` /
 `ADMIN_PASSWORD` ; l'inscription publique ne crée que des opérateurs.
 
-Services optionnels (tous désactivables dans `.env`) : PostgreSQL (sinon SQLite),
-OpenSearch/Wazuh.
+Base de données : PostgreSQL (sinon repli automatique sur SQLite).
 
 ## Avec Docker
 

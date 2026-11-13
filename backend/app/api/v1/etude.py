@@ -42,7 +42,7 @@ from app.domains.auth.models import User
 from app.domains.auth.service import require_any_role
 from app.domains.transmission import live, repository
 from app.domains.transmission.models import (
-    TransmissionAlert, TransmissionDatasetRow as D, TransmissionEpisode as E, TransmissionLearningPoint,
+    TransmissionAlert, TransmissionAlertShap, TransmissionDatasetRow as D, TransmissionEpisode as E, TransmissionLearningPoint,
     TransmissionMetric as M, TransmissionModelResult, TransmissionPrediction as P, TransmissionRun, TransmissionShap,
 )
 
@@ -390,6 +390,15 @@ async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str
     episodes = (await session.execute(eq.order_by(E.start_idx))).scalars().all()
     alerts = (await session.execute(aq.order_by(TransmissionAlert.start_idx))).scalars().all()
     best = run.best_model
+    # SHAP par alerte : features qui ont poussé chaque alerte vers « attaque » (clé : début d'alerte)
+    expl: dict[int, list] = {}
+    if alerts:
+        for r in (await session.execute(select(TransmissionAlertShap).where(
+                TransmissionAlertShap.run_id == rid,
+                TransmissionAlertShap.start_idx.in_([a.start_idx for a in alerts]))
+                .order_by(TransmissionAlertShap.start_idx, TransmissionAlertShap.rang))).scalars().all():
+            expl.setdefault(r.start_idx, []).append({"feature": r.feature, "libelle": r.libelle, "shap": r.shap,
+                                                     "valeur": r.valeur, "valeur_normale": r.valeur_normale})
     mrows = (await session.execute(select(M).where(M.run_id == rid, M.model_key == best))).scalars().all()
     fit = {r: {} for r in ROLES}
     for m in mrows:
@@ -428,7 +437,8 @@ async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str
                              "duree_min": round((e.end_idx - e.start_idx) * 5 / 60, 1), "detecte": e.detecte,
                              "delai_min": e.delai_min} for e in episodes_all],
         "alertes": [{"role": a.role, "debut": a.start_ts.isoformat(), "fin": a.end_ts.isoformat(),
-                     "duree_min": a.duree_min, "score_max": a.score_max, "vraie": a.vraie, "scenario": a.scenario}
+                     "duree_min": a.duree_min, "score_max": a.score_max, "vraie": a.vraie, "scenario": a.scenario,
+                     "capteur": a.capteur, "explication": expl.get(a.start_idx, [])}
                     for a in alerts],
         "par_scenario": sorted(par_sc.values(), key=lambda d: d["scenario"]),
         "ajustement": fit,
@@ -436,7 +446,8 @@ async def _etude_timeline(session: AsyncSession, run: TransmissionRun, role: str
             "serie": "SELECT d.idx / :pas, max(p.score), max(p.alarme), max(d.label) FROM transmission_dataset d "
                      "JOIN transmission_predictions p ON p.run_id = d.run_id AND p.idx = d.idx WHERE d.role = :role GROUP BY 1",
             "episodes": "SELECT * FROM transmission_episodes WHERE repetition = 0 AND role = :role",
-            "alertes": "SELECT * FROM transmission_alerts WHERE role = :role",
+            "alertes": "SELECT a.*, s.* FROM transmission_alerts a LEFT JOIN transmission_alert_shap s "
+                       "ON s.run_id = a.run_id AND s.start_idx = a.start_idx WHERE a.role = :role",
             "ajustement": "SELECT * FROM transmission_metrics WHERE model_key = <meilleur> (train / val / test)",
         },
     }

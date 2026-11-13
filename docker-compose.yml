@@ -25,6 +25,16 @@ services:
       timeout: 3s
       retries: 20
 
+  # Interface web pour consulter la base : http://localhost:8080
+  # (Système : PostgreSQL, Serveur : db, Utilisateur/Base : vigilochain)
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:8080:8080"
+
   app:
     build: .
     image: vigilochain:latest

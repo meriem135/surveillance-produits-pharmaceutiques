@@ -1,0 +1,741 @@
+\chapter{Explicabilité et rapport de recommandations}\label{chapExpl}
+\pagestyle{fancy}
+\lhead{Explicabilité et rapport de recommandations}
+
+\graphicspath{{Chapitre4/images_chapitre4/}{images_chapitre4/}{Chapitre3/images_chapitre3/}{images_chapitre3/}}
+
+% Couleurs de tableaux (déjà définies dans le préambule principal : ne sont créées que si absentes)
+\providecolor{thead}{HTML}{1F3A5F}
+\providecolor{trowa}{HTML}{EEF2F7}
+
+% Insère une figure si le fichier existe, sinon un cadre « à insérer »
+\providecommand{\figtrois}[2]{%
+  \IfFileExists{Chapitre3/images_chapitre3/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \IfFileExists{images_chapitre3/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \IfFileExists{Chapitre4/images_chapitre4/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \IfFileExists{images_chapitre4/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \fbox{\parbox[c][4cm][c]{#2\textwidth}{\centering\small\itshape
+  Figure à insérer : \texttt{\detokenize{#1}}}}}}}}}
+
+% =====================================================================
+\section{Introduction}
+
+Un modèle qui répond seulement « attaque » ou « normal » ne suffit pas à un
+opérateur de chaîne du froid : avant de bloquer un lot de médicaments, il
+doit savoir \emph{pourquoi} le modèle soupçonne une falsification, puis
+\emph{quoi faire}. Ce chapitre apporte ces deux réponses, dans l'ordre où
+l'application les produit :
+
+\begin{itemize}
+  \item l'\textbf{explicabilité} des décisions du modèle retenu, par la
+        méthode SHAP (section~\ref{sec:expl_shap}) : quelles variables font
+        basculer le score vers « attaque », en général et pour chaque
+        scénario ;
+  \item le \textbf{rapport de recommandations} destiné à l'opérateur
+        (section~\ref{sec:expl_rapport}) : pour chaque scénario d'attaque,
+        son niveau de détection mesuré au test, les indices utilisés par le
+        modèle et les consignes à appliquer.
+\end{itemize}
+
+Les deux parties sont enchaînées : le classement des variables donné par
+SHAP est l'une des entrées du rapport, qui est servi par l'API et affiché par
+la page « Rapport pour l'opérateur » du tableau de bord
+(chapitre~\ref{chap5}).
+
+Un point de méthode conditionne tout le chapitre : le modèle est
+\textbf{binaire}. Il est entraîné sur l'étiquette « normal » ou « attaque » et
+ne nomme jamais l'attaque. Les neuf scénarios cités dans le rapport sont ceux
+que nous avons \emph{simulés}, donc connus au moment de l'évaluation : ils
+servent à mesurer comment le modèle réagit à chacun. En service, le type
+d'attaque est inconnu ; la famille d'attaque est alors \emph{déduite} des
+indices qui ont le plus pesé dans le score (section~\ref{sec:expl_deduction}),
+sous forme d'hypothèse à confirmer sur place.
+
+
+% =====================================================================
+\section{Explicabilité du modèle par SHAP}
+\label{sec:expl_shap}
+
+\subsection{Principe des valeurs de Shapley}
+
+SHAP (\textit{SHapley Additive exPlanations}) transpose aux modèles
+prédictifs la théorie des jeux coopératifs : chaque variable est un joueur,
+le score du modèle est le gain à partager. Pour une mesure donnée, la valeur
+de Shapley de la variable $i$ est sa contribution marginale moyenne, moyennée
+sur tous les sous-ensembles $S$ des autres variables :
+
+\begin{equation}
+\phi_i = \sum_{S \subseteq F \setminus \{i\}}
+\frac{|S|!\,(|F|-|S|-1)!}{|F|!}\Big(f(S\cup\{i\}) - f(S)\Big)
+\label{eq:shapley}
+\end{equation}
+
+où $F$ est l'ensemble des variables et $f(S)$ la prédiction obtenue en
+n'utilisant que les variables de $S$. La propriété essentielle est
+l'\textbf{additivité} : le score du modèle est la valeur de base $\phi_0$
+(la prédiction moyenne du modèle) augmentée des contributions de toutes les
+variables :
+
+\begin{equation}
+f(x) = \phi_0 + \sum_{i=1}^{n} \phi_i
+\label{eq:additivite}
+\end{equation}
+
+Une valeur $\phi_i$ positive pousse la mesure vers « attaque », une valeur
+négative vers « normal ». Le notebook d'explicabilité vérifie cette identité
+sur une mesure isolée : la valeur de base (environ 0,5) augmentée des 53
+contributions redonne exactement le score prédit par le modèle.
+
+\subsection{Mise en œuvre dans le projet}
+
+Le modèle retenu (Extra Trees, chapitre~\ref{chap4}) est un ensemble
+d'arbres : nous utilisons \texttt{shap.TreeExplainer}, qui calcule les
+valeurs de l'équation~\eqref{eq:shapley} de façon \emph{exacte} et rapide en
+exploitant la structure des arbres, sans énumérer les sous-ensembles de
+variables. Le calcul, intégré au script d'étude et au service de l'API,
+suit toujours le même principe :
+
+\begin{enumerate}
+  \item \textbf{Lignes expliquées.} Seules des mesures falsifiées jamais
+        vues à l'entraînement sont expliquées, hors zone de garde : on
+        cherche comment le modèle \emph{reconnaît} une attaque, pas ce qu'il
+        a appris par cœur. Pour l'étude de référence, ce sont les mesures
+        d'attaque du test des cinq premières rotations (au plus 1\,000
+        tirées par rotation, graine fixe), soit 4\,394 mesures au total ;
+        après un réentraînement lancé depuis l'interface, le même calcul
+        porte sur les attaques de la validation et du test (au plus 300).
+  \item \textbf{Valeurs SHAP.} \texttt{TreeExplainer} produit une valeur
+        par couple (mesure, variable).
+  \item \textbf{Importance.} On prend la valeur absolue — le sens de
+        l'effet importe peu, seule son intensité classe les variables —
+        puis la moyenne sur les mesures expliquées :
+        \begin{equation}
+        I_j = \frac{1}{N}\sum_{k=1}^{N}\left|\phi_j^{(k)}\right|
+        \label{eq:importance}
+        \end{equation}
+  \item \textbf{Classement.} Les variables sont triées par $I_j$
+        décroissante : une fois sur toutes les mesures (importance globale,
+        les 15 premières), une fois par scénario simulé en ne gardant que
+        ses mesures (les 6 premières). Le regroupement par scénario utilise
+        la colonne \texttt{attack\_type} du jeu de données, qui n'est jamais
+        fournie au modèle.
+\end{enumerate}
+
+Le fichier \texttt{shap\_transmission\_reel.json} enregistre ces résultats ;
+ils sont chargés dans la table \texttt{transmission\_shap} de la base de
+données et affichés par la page « Explicabilité SHAP » du tableau de bord.
+Le notebook \texttt{04\_shap.ipynb}, dans le répertoire
+\texttt{notebook/transmission}, refait le calcul sur 500 mesures (graine
+fixe) et vérifie que le classement est stable d'un tirage à l'autre.
+
+\subsection{Importance globale des variables}
+
+La figure~\ref{fig:expl_shap_global} et le
+tableau~\ref{tab:expl_shap_global} présentent les dix variables les plus
+importantes pour l'Extra Trees.
+
+\begin{figure}[H]
+\centering
+\figtrois{fig_shap_global.png}{0.85}
+\caption{Importance globale des variables (moyenne des valeurs SHAP
+absolues), Extra Trees.}
+\label{fig:expl_shap_global}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{4pt}
+\caption{Dix premières variables par importance SHAP globale (moyenne des
+valeurs absolues).}
+\label{tab:expl_shap_global}
+\begin{tabularx}{\textwidth}{@{}|c|>{\ttfamily\footnotesize}l|r|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Rang}} & \textcolor{white}{\textbf{Variable}} &
+\textcolor{white}{\textbf{SHAP}} &
+\textcolor{white}{\textbf{Interprétation}} \\
+\hline
+1 & fridge\_repeat\_2min & 0,0609 & Séquence de 2 min du frigo déjà transmise
+(rejeu) \\
+\rowcolor{trowa}
+2 & fridge\_max\_5min & 0,0540 & Maximum du frigo sur 5 min \\
+3 & fridge\_q10\_5min & 0,0471 & Quantile 10\,\% du frigo sur 5 min \\
+\rowcolor{trowa}
+4 & fridge\_std\_1min & 0,0443 & Écart-type du frigo sur 1 min (gel,
+injection) \\
+5 & fridge\_mean\_5min & 0,0427 & Moyenne du frigo sur 5 min \\
+\rowcolor{trowa}
+6 & fridge\_mean\_15min & 0,0423 & Moyenne du frigo sur 15 min (biais,
+dérive) \\
+7 & fridge\_max\_15min & 0,0313 & Maximum du frigo sur 15 min \\
+\rowcolor{trowa}
+8 & fridge\_q90\_5min & 0,0233 & Quantile 90\,\% du frigo sur 5 min \\
+9 & fridge\_q10\_15min & 0,0217 & Quantile 10\,\% du frigo sur 15 min \\
+\rowcolor{trowa}
+10 & fridge\_thermostat\_diff\_mean\_15min & 0,0216 & Écart frigo--thermostat
+moyen sur 15 min \\
+\hline
+\end{tabularx}
+\end{table}
+
+Deux enseignements se dégagent. D'abord, toutes les variables de tête
+concernent le \textbf{frigo} : c'est cohérent, puisque la majorité des neuf
+scénarios falsifient cette sonde. Ensuite, la première place revient à la
+répétition de séquence, conçue pour détecter le rejeu, et les suivantes
+décrivent la \emph{forme} de la distribution des mesures sur 5 à 15 minutes
+(maximum, quantiles, moyenne) : le modèle s'appuie sur des indices qui ont
+un sens physique, pas sur des artefacts du jeu de données. Une précaution de
+lecture : l'importance SHAP n'est pas une causalité, et deux variables
+corrélées se partagent l'effet.
+
+\subsection{Importance par scénario et cohérence physique}
+
+Si le modèle a réellement appris la mécanique des attaques, chaque scénario
+doit être reconnu par la variable conçue pour lui. Le
+tableau~\ref{tab:expl_shap_scenario} donne, pour chaque scénario simulé, ses
+trois variables les plus importantes ; la
+figure~\ref{fig:expl_shap_scenario} montre le classement complet.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.35}
+\caption{Variables dominantes selon SHAP, par scénario d'attaque.}
+\label{tab:expl_shap_scenario}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}p{3.3cm}|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Scénario}} &
+\textcolor{white}{\textbf{Trois premières variables (SHAP moyen)}} \\
+\hline
+Gel du frigo & écart-type 1 min (0,099) ; moyenne 5 min (0,077) ;
+maximum 5 min (0,053) \\
+\rowcolor{trowa}
+Rejeu du frigo & répétition de séquence 2 min (\textbf{0,397}) ;
+maximum 15 min (0,026) ; quantile 10\,\% du thermostat 15 min (0,022) \\
+Injection nominale & écart-type 1 min (0,169) ; maximum 5 min (0,070) ;
+écart-type 5 min (0,069) \\
+\rowcolor{trowa}
+Biais $-0{,}5$\,\textdegree C & maximum 5 min (0,048) ; quantile 10\,\% 5 min
+(0,045) ; maximum 15 min (0,043) \\
+Biais $-1$\,\textdegree C & moyenne 15 min (0,071) ; quantile 10\,\% 5 min
+(0,065) ; maximum 5 min (0,064) \\
+\rowcolor{trowa}
+Biais $-2$\,\textdegree C & quantile 10\,\% 5 min (0,095) ; moyenne 5 min
+(0,090) ; moyenne 15 min (0,081) \\
+Dérive & quantile 10\,\% 5 min (0,072) ; maximum 5 min (0,064) ;
+maximum 15 min (0,047) \\
+\rowcolor{trowa}
+Gel du thermostat & écart-type 1 min du thermostat (0,138) ; écart-type 5 min
+(0,082) ; variation absolue 5 min (0,075) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\figtrois{fig_shap_scenario.png}{0.95}
+\caption{Importance des variables par scénario d'attaque.}
+\label{fig:expl_shap_scenario}
+\end{figure}
+
+La lecture du tableau~\ref{tab:expl_shap_scenario} confirme la cohérence
+physique du modèle :
+
+\begin{itemize}
+  \item le \textbf{rejeu} est reconnu presque uniquement par la répétition de
+        séquence (0,397, environ quinze fois plus que la variable suivante) ;
+  \item le \textbf{gel} et l'\textbf{injection nominale} sont reconnus par
+        l'écart-type à 1 minute, qui s'effondre lorsque la mesure est figée
+        ou trop régulière ; pour le gel du thermostat, ce sont les
+        écarts-types du thermostat qui dominent ;
+  \item les \textbf{biais} et la \textbf{dérive} reposent sur la forme de la
+        distribution sur 5 à 15 minutes (quantile 10\,\%, maximum, moyennes) :
+        un décalage de quelques dixièmes de degré déplace le haut et le bas
+        de la distribution bornée du frigo (1--14\,\textdegree C) avant que
+        la moyenne, noyée dans un bruit de $\sigma \approx
+        3{,}4$\,\textdegree C par mesure, ne bouge.
+\end{itemize}
+
+Pour les petits biais ($-0{,}5$ et $-1$\,\textdegree C) et la dérive, les
+importances sont plus faibles et étalées entre plusieurs variables : le
+modèle ne dispose pas d'un indice net. Cette observation annonce les
+résultats de la section suivante, où ces scénarios sont les moins bien
+détectés. Elle montre aussi que les indices ne séparent pas un biais d'une
+dérive, point repris à la section~\ref{sec:expl_deduction}.
+
+\subsection{Explication locale d'une alerte}
+
+SHAP explique aussi \emph{une} alerte précise : pour une mesure donnée, les
+contributions positives (vers « attaque ») et négatives (vers « normal »)
+montrent quelles variables ont fait passer le score au-dessus du seuil
+d'alerte. La figure~\ref{fig:expl_shap_local} prend une mesure de gel :
+l'opérateur y lit que l'alerte vient surtout de l'effondrement de l'écart-type
+à 1 minute. C'est cette lecture, reprise par scénario dans le rapport, qui
+justifie chaque alerte.
+
+\begin{figure}[H]
+\centering
+\figtrois{fig_shap_local.png}{0.90}
+\caption{Explication locale d'une alerte de gel : contributions des variables
+au score de la mesure.}
+\label{fig:expl_shap_local}
+\end{figure}
+
+
+% =====================================================================
+\section{Rapport de recommandations pour l'opérateur}
+\label{sec:expl_rapport}
+
+\subsection{Objectif et génération}
+
+Le rapport transforme les résultats du modèle en \textbf{consignes lisibles
+par un non-spécialiste}. Il est produit par la fonction
+\texttt{operator\_report} du service de transmission, servie par la route
+\texttt{GET /api/v1/transmission/report} et affiché par la page « Rapport
+pour l'opérateur » du tableau de bord. Pour chacun des neuf scénarios
+simulés, il répond à cinq questions : que fait l'attaquant, le modèle réagit-il
+bien, sur quels indices s'appuie-t-il, quelle famille d'attaque ces indices
+laissent-ils deviner, et que doit faire l'opérateur. Le modèle étant
+binaire, le scénario sert ici de regroupement des résultats d'évaluation, et
+non de réponse du modèle.
+
+Aucun chiffre n'est écrit en dur : tous sont lus dans les résultats
+enregistrés — l'étude de référence (20 rotations) par défaut, ou le dernier
+entraînement lancé depuis l'interface — ce qui garantit que le rapport
+reste cohérent après chaque réentraînement. Il est produit en deux formats,
+un document JSON structuré et son rendu Markdown téléchargeable, en suivant
+les étapes suivantes :
+
+\begin{enumerate}
+  \item \textbf{choix du modèle en service} : le meilleur du classement sur
+        la \emph{validation} (jamais sur le test), à l'exclusion de l'ancien
+        modèle de référence ; c'est l'Extra Trees (chapitre~\ref{chap4}) ;
+  \item \textbf{description du réglage d'alerte} retenu sur la validation :
+        un seuil de score et une règle de persistance (alerte lorsque au
+        moins $k$ mesures sur les $n$ dernières dépassent le seuil) ;
+  \item \textbf{calcul, pour chaque scénario,} de la part des épisodes
+        détectés, de la part des mesures falsifiées signalées et du délai
+        médian de détection, mesurés au test ;
+  \item \textbf{attribution d'un niveau de détection}, selon les critères du
+        tableau~\ref{tab:expl_niveaux} ;
+  \item \textbf{ajout des indices du modèle} : les trois premières variables
+        SHAP du scénario, traduites en français lisible (par exemple
+        « écart-type sur 1 min du frigo ») ;
+  \item \textbf{déduction de la famille d'attaque} à partir de ces seules
+        variables (section~\ref{sec:expl_deduction}), comparée à la famille
+        réellement simulée, puis ajout des consignes de la famille ;
+  \item \textbf{ajout des limites connues et des règles générales}, puis
+        assemblage du document.
+\end{enumerate}
+
+\subsection{Le modèle en service}
+
+Le rapport commence par présenter le modèle retenu. Le
+tableau~\ref{tab:expl_modele} reprend ses performances au test, cumulées sur
+les 20 rotations de l'étude.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Modèle en service et performances au test (20 rotations).}
+\label{tab:expl_modele}
+\begin{tabular}{|l|r|}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Indicateur}} & \textcolor{white}{\textbf{Valeur}} \\
+\hline
+Modèle & Extra Trees \\
+\rowcolor{trowa}
+Réglage d'alerte & seuil 0,70 ; 3 mesures sur 6 (30 s) \\
+Épisodes détectés & 70 sur 73 \\
+\rowcolor{trowa}
+Rappel (mesures falsifiées signalées) & 65,2\,\% \\
+Précision & 93,9\,\% \\
+\rowcolor{trowa}
+Score F1 & 0,77 \\
+Fausses alertes par heure & 0,43 \\
+\rowcolor{trowa}
+Délai médian de détection & 3,9 min \\
+\hline
+\end{tabular}
+\end{table}
+
+Le rapport traduit ces chiffres en une phrase accessible : sur 100 mesures
+signalées, environ 94 sont réellement falsifiées, et environ 65\,\% des
+mesures falsifiées sont signalées. Le réglage respecte les contraintes fixées
+sur la validation — précision d'au moins 90\,\% et au plus 0,5 fausse alerte
+par heure — afin de ne pas noyer l'opérateur sous les fausses alertes
+(chapitre~\ref{chap4}).
+
+\subsection{Niveau de détection par scénario}
+
+Un épisode compte comme détecté dès qu'une alerte tombe pendant sa durée.
+Cette mesure seule serait trop indulgente : un scénario peut avoir tous ses
+épisodes détectés tout en ne signalant qu'une petite part des mesures
+falsifiées, ou trop tard. Le niveau combine donc trois mesures, selon le
+tableau~\ref{tab:expl_niveaux}. Ces seuils sont des critères d'acceptation
+fixés a priori pour rendre les résultats lisibles ; ils ne sont pas calculés
+à partir des données et ne servent à aucun choix du modèle.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.35}
+\caption{Critères du niveau de détection d'un scénario (mesurés au test).}
+\label{tab:expl_niveaux}
+\begin{tabularx}{\textwidth}{@{}|>{\bfseries}p{4.2cm}|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Niveau}} & \textcolor{white}{\textbf{Condition}} \\
+\hline
+Bien détecté & Au moins 85\,\% des épisodes détectés, au moins 70\,\% des
+mesures falsifiées signalées et délai médian d'au plus 5 min. \\
+\hline
+\rowcolor{trowa}
+Détecté partiellement & Moins de 85\,\% des épisodes détectés, ou moins de
+70\,\% des mesures falsifiées signalées. \\
+\hline
+Détecté tardivement & Délai médian supérieur à 5 min. \\
+\hline
+\rowcolor{trowa}
+Mal détecté & Moins de 60\,\% des épisodes détectés : vérification humaine
+indispensable. \\
+\hline
+\end{tabularx}
+\end{table}
+
+Le tableau~\ref{tab:expl_resultats_scenarios} applique ces critères aux
+neuf scénarios.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Niveau de détection de chaque scénario au test (Extra Trees).}
+\label{tab:expl_resultats_scenarios}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}X|c|c|c|>{\raggedright\arraybackslash}p{3.3cm}|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Scénario}} & \textcolor{white}{\textbf{Épisodes}} &
+\textcolor{white}{\textbf{Mesures}} & \textcolor{white}{\textbf{Délai}} &
+\textcolor{white}{\textbf{Niveau}} \\
+\hline
+Gel du frigo & 8/8 & 95,0\,\% & 1,0 min & bien détecté \\
+\rowcolor{trowa}
+Rejeu du frigo & 8/9 & 73,8\,\% & 2,1 min & bien détecté \\
+Injection nominale & 9/9 & 88,7\,\% & 2,2 min & bien détecté \\
+\rowcolor{trowa}
+Biais $-0{,}5$\,\textdegree C & 9/10 & 26,9\,\% & 11,0 min & partiel et
+tardif \\
+Biais $-1$\,\textdegree C & 8/8 & 52,3\,\% & 6,0 min & partiel et tardif \\
+\rowcolor{trowa}
+Biais $-2$\,\textdegree C & 7/7 & 83,9\,\% & 3,0 min & bien détecté \\
+Dérive & 7/7 & 31,8\,\% & 11,6 min & partiel et tardif \\
+\rowcolor{trowa}
+Gel du thermostat & 7/7 & 83,4\,\% & 3,6 min & bien détecté \\
+Biais du thermostat & 7/8 & 51,8\,\% & 6,9 min & partiel et tardif \\
+\hline
+\end{tabularx}
+\end{table}
+
+Cinq scénarios sur neuf sont bien détectés : le gel, le rejeu, l'injection
+nominale, le biais de $-2$\,\textdegree C et le gel du thermostat. Les petits
+biais, la dérive et le biais du thermostat sont détectés partiellement et
+tardivement : le décalage est inférieur au bruit naturel du capteur, et seule
+la forme de la distribution sur 5 à 15 minutes trahit l'attaque. Le rapport
+signale explicitement cette limite à l'opérateur, qui ne doit pas se reposer
+sur le seul détecteur pour ces cas.
+
+\subsection{Consignes par famille d'attaque}
+
+Les consignes dépendent du \emph{mécanisme} de l'attaque, pas du capteur
+visé : le même geste convient face à un gel du frigo ou du thermostat. Elles
+sont rédigées une fois par famille ; deux scénarios d'une même famille, par
+exemple les trois biais du frigo, affichent donc les mêmes actions alors que
+leur niveau de détection diffère. Le tableau~\ref{tab:expl_consignes} résume
+les cinq familles.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.35}
+\caption{Consignes de l'opérateur par famille d'attaque.}
+\label{tab:expl_consignes}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}p{2.7cm}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Famille}} & \textcolor{white}{\textbf{Risque}} &
+\textcolor{white}{\textbf{Actions principales}} \\
+\hline
+Gel (mesure figée) & La même valeur est reçue en boucle : une vraie dérive
+passerait inaperçue. & Relever la température sur place ; vérifier la liaison
+capteur--passerelle--broker et redémarrer le capteur ; isoler le lot si la
+mesure réelle est hors 2--8\,\textdegree C. \\
+\hline
+\rowcolor{trowa}
+Rejeu & Des mesures passées sont renvoyées : l'état réel du frigo est
+masqué. & Relever la température sur place ; vérifier les horodatages des
+messages MQTT ; activer TLS et l'authentification sur le broker ; isoler le
+capteur. \\
+\hline
+Injection nominale & Des valeurs forgées proches de la consigne remplacent
+les vraies mesures : le frigo paraît parfait quoi qu'il arrive. & Relever la
+température sur place ; vérifier l'intégrité du firmware ; activer TLS et
+l'authentification ; bloquer la libération des lots (BPF). \\
+\hline
+\rowcolor{trowa}
+Biais & Le frigo paraît plus froid qu'il ne l'est : le produit peut sortir
+de la plage 2--8\,\textdegree C sans alerte. & Comparer avec un thermomètre
+de référence étalonné ; recalibrer ou remplacer le capteur si l'écart est
+confirmé ; vérifier la passerelle. \\
+\hline
+Dérive & Le décalage augmente peu à peu et finit par cacher une sortie de
+plage. & Comparer avec un thermomètre de référence ; examiner l'historique de
+la journée ; recalibrer le capteur ; bloquer la libération des lots (BPF). \\
+\hline
+\end{tabularx}
+\end{table}
+
+Toutes les familles commencent par la même action : \textbf{vérifier sur
+place avec un thermomètre de contrôle}. Le détecteur signale en effet une
+transmission suspecte, pas une température.
+
+\subsection{Déduire la famille d'attaque à partir des indices}
+\label{sec:expl_deduction}
+
+Le modèle ne fournit qu'un score d'attaque : il ne dit pas « ceci est un
+gel ». Pour associer une consigne à une alerte, la fonction
+\texttt{infer\_families} parcourt les variables SHAP dominantes, de la plus
+forte à la plus faible, et applique des règles fondées sur la nature de la
+variable (tableau~\ref{tab:expl_deduction}).
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.35}
+\caption{Règles de déduction de la famille d'attaque à partir des variables
+dominantes.}
+\label{tab:expl_deduction}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Indice dominant}} &
+\textcolor{white}{\textbf{Famille(s) proposée(s)}} \\
+\hline
+Séquence déjà transmise parmi les trois premières variables & Rejeu \\
+\hline
+\rowcolor{trowa}
+Dispersion en tête (écart-type, variation d'une mesure à l'autre) & Gel ou
+injection nominale. L'injection nominale vient en premier si l'écart-type sur
+5 min ou la variation absolue figure parmi les quatre premières variables,
+sinon le gel. \\
+\hline
+Niveau en tête (moyenne, maximum, quantiles) & Biais ou dérive \\
+\hline
+\rowcolor{trowa}
+Aucune règle applicable & Famille non identifiée : consigne générale \\
+\hline
+\end{tabularx}
+\end{table}
+
+Deux précautions s'imposent. D'abord, les indices ne séparent pas toujours
+deux familles voisines : un gel et une injection nominale ont tous deux un
+écart-type à 1 minute très bas, et un biais et une dérive déplacent les mêmes
+quantiles et les mêmes moyennes. La déduction renvoie alors \emph{deux}
+hypothèses, la plus probable en premier. Ensuite, il s'agit d'une hypothèse,
+jamais d'un diagnostic : la fiche porte l'avertissement « à confirmer par
+une vérification sur place », et la consigne reste dans tous les cas de
+relever la température avec un thermomètre de contrôle.
+
+Le rapport teste lui-même cette déduction. Pour chaque scénario simulé, il
+applique les règles aux seules variables SHAP du scénario et vérifie si la
+famille réellement simulée figure parmi les hypothèses
+(tableau~\ref{tab:expl_deduction_resultats}).
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Famille déduite des indices SHAP, comparée à la famille simulée.}
+\label{tab:expl_deduction_resultats}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|c|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Scénario simulé}} &
+\textcolor{white}{\textbf{Hypothèses proposées}} &
+\textcolor{white}{\textbf{Famille simulée retrouvée}} \\
+\hline
+Gel du frigo & gel ; injection nominale & oui (1\textsuperscript{re}) \\
+\rowcolor{trowa}
+Rejeu du frigo & rejeu & oui (1\textsuperscript{re}) \\
+Injection nominale & injection nominale ; gel & oui (1\textsuperscript{re}) \\
+\rowcolor{trowa}
+Biais $-0{,}5$\,\textdegree C & biais ; dérive & oui (1\textsuperscript{re}) \\
+Biais $-1$\,\textdegree C & biais ; dérive & oui (1\textsuperscript{re}) \\
+\rowcolor{trowa}
+Biais $-2$\,\textdegree C & biais ; dérive & oui (1\textsuperscript{re}) \\
+Dérive & biais ; dérive & oui (2\textsuperscript{e}) \\
+\rowcolor{trowa}
+Gel du thermostat & injection nominale ; gel & oui (2\textsuperscript{e}) \\
+Biais du thermostat & --- & non évalué \\
+\hline
+\end{tabularx}
+\end{table}
+
+La bonne famille figure parmi les hypothèses pour les huit scénarios
+évalués, et en première position pour six d'entre eux. Le biais du
+thermostat n'est pas évalué faute de valeurs SHAP enregistrées pour ce
+scénario. Ce résultat est mesuré sur des attaques simulées dont les
+variables dominantes sont connues ; il montre que les indices portent
+l'information nécessaire, sans garantir la même réussite sur une attaque
+réelle inédite. La perspective naturelle est un modèle multiclasse, entraîné
+à prédire aussi la famille, au prix d'un nouvel entraînement et d'une
+nouvelle évaluation.
+
+\subsection{Exemple de fiche et page du tableau de bord}
+
+L'encadré suivant présente la fiche générée pour le scénario de gel du
+frigo : les indices du modèle proviennent de l'analyse SHAP et les chiffres
+des résultats au test.
+
+\begin{center}
+\fbox{\parbox{0.93\textwidth}{\small
+\textbf{Mesure figée (MITM) --- MITM\_gel (frigo)}\\[2pt]
+\textbf{Ce que fait l'attaquant :} la dernière mesure du frigo est répétée en
+boucle.\\
+\textbf{Détection :} épisodes 8/8, délai médian 1,0 min, 95\,\% des mesures
+signalées --- \textbf{bien détecté}.\\
+\textbf{Ce que le modèle regarde :} écart-type sur 1 min du frigo ; moyenne
+sur 5 min du frigo ; maximum sur 5 min du frigo.\\
+\textbf{Famille déduite de ces indices :} mesure figée (MITM) ou injection de
+valeurs plausibles --- famille simulée retrouvée.\\
+\textbf{Risque :} le serveur reçoit la même valeur en boucle ; une vraie
+dérive de température passerait inaperçue.\\
+\textbf{À faire :} (1) relever la température sur place avec un thermomètre
+de contrôle ; (2) vérifier la liaison capteur, passerelle et broker, puis
+redémarrer le capteur ; (3) si la mesure réelle est hors
+2--8\,\textdegree C, isoler le lot et ouvrir un incident chaîne du froid ;
+(4) comparer l'horodatage des messages MQTT avec l'horloge du capteur.}}
+\end{center}
+
+La figure~\ref{fig:expl_capture_rapport} montre la page « Rapport pour
+l'opérateur » du tableau de bord, qui affiche le modèle en service, le bloc
+rappelant que le modèle ne nomme pas l'attaque, le critère du niveau, les
+fiches de chaque scénario avec la famille déduite, les limites et les règles
+générales.
+
+\begin{figure}[H]
+\centering
+\figtrois{rapport_recommandations.png}{0.95}
+\caption{Page du rapport de recommandations dans le tableau de bord.}
+\label{fig:expl_capture_rapport}
+\end{figure}
+
+\subsection{Recommandation d'une alerte précise}
+
+Pour une alerte en temps réel, la fonction \texttt{alert\_recommendation}
+(route \texttt{POST /transmission/report}) produit une consigne ciblée à
+partir de la probabilité de l'alerte, des variables SHAP dominantes et,
+facultativement, du capteur concerné. Le modèle étant binaire, le type
+d'attaque n'est pas une entrée obligatoire :
+
+\begin{itemize}
+  \item sans type indiqué, la famille est \emph{déduite} des variables
+        dominantes (section~\ref{sec:expl_deduction}) ; la fiche porte
+        l'avertissement « hypothèse à confirmer sur place », la mention
+        « famille probable » et les autres hypothèses éventuelles ; le
+        capteur est lu dans le préfixe de la première variable
+        (\texttt{fridge\_}, \texttt{thermostat\_}) ;
+  \item si le type est indiqué (scénario connu, par exemple en simulation), il
+        est repris tel quel ;
+  \item si aucune règle ne s'applique, la fiche annonce une « attaque de
+        transmission suspectée (type non identifié) » et donne les règles
+        générales de la section suivante.
+\end{itemize}
+
+La fonction y ajoute un niveau de \textbf{confiance} déduit de la
+probabilité (tableau~\ref{tab:expl_confiance}), puis la consigne : contrôler
+la température sur place avant toute décision, puis appliquer l'action
+adaptée à la famille retenue.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Niveau de confiance associé à la probabilité d'une alerte.}
+\label{tab:expl_confiance}
+\begin{tabular}{|l|l|}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Probabilité}} & \textcolor{white}{\textbf{Confiance}} \\
+\hline
+supérieure ou égale à 0,80 & élevée \\
+\rowcolor{trowa}
+entre 0,50 et 0,80 & moyenne \\
+inférieure à 0,50 & faible \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Limites connues et règles générales}
+
+Le rapport se termine par les limites du détecteur, écrites pour
+l'opérateur. La première concerne les petits biais du frigo ($-0{,}5$ et
+$-1$\,\textdegree C) : le décalage est plus petit que le bruit du capteur
+($\sigma \approx 3{,}4$\,\textdegree C par mesure), la détection vient de la
+forme de la distribution sur 5 à 15 min et reste plus lente et moins sûre
+que pour les autres scénarios. L'étude complémentaire sur les biais longs
+(épisodes de 1 à 3 h) le confirme : avec les mêmes variables, les biais de
+$-0{,}5$ et $-1$\,\textdegree C sont détectés dans 15 épisodes sur 15
+chacun, mais avec un délai médian de 8,1 et 9,1 min et un seuil plus
+permissif (1,47 fausse alerte par heure au test) ; ajouter des moyennes
+glissantes sur 30 et 60 minutes n'améliore rien.
+
+La seconde limite tient à la nature binaire du modèle : la famille d'attaque
+n'est qu'une hypothèse déduite des indices, que la vérification sur place
+confirme ou corrige.
+
+Les règles de conduite valables pour toutes les attaques sont ensuite
+rappelées :
+
+\begin{itemize}
+  \item une alerte se vérifie d'abord sur place, avec un thermomètre de
+        contrôle ;
+  \item un lot ne se libère jamais sur la seule base d'une mesure
+        contestée ;
+  \item le capteur est isolé du réseau et le broker vérifié (TLS,
+        authentification, horodatage) dès que l'attaque est confirmée ;
+  \item chaque alerte, la vérification faite et la décision prise sont
+        journalisées.
+\end{itemize}
+
+
+% =====================================================================
+\section{Conclusion}
+
+Ce chapitre a répondu aux deux questions de l'opérateur. L'analyse SHAP,
+calculée de façon exacte sur le modèle à arbres, montre que l'Extra Trees
+s'appuie sur des indices cohérents avec la mécanique des attaques : la
+répétition de séquence pour le rejeu, l'écart-type à 1 minute pour le gel
+et l'injection, la forme de la distribution (quantiles, maximum, moyennes)
+pour les biais et la dérive. Le rapport de recommandations utilise ces
+indices, avec les résultats mesurés au test, pour attribuer à chaque
+scénario simulé un niveau de détection et une consigne.
+
+Le modèle étant binaire, il ne reconnaît pas le type d'attaque : la famille
+est déduite des variables dominantes, et la bonne famille figure parmi les
+hypothèses pour les huit scénarios évalués (six fois en première position).
+Cette déduction reste une hypothèse, que la vérification sur place confirme
+ou corrige ; entraîner un modèle multiclasse est la perspective qui
+supprimerait cette limite.
+
+Le bilan est nuancé et assumé : cinq scénarios sur neuf sont bien détectés,
+tandis que les petits biais, la dérive et le biais du thermostat restent
+détectés partiellement et tardivement. Le rapport l'indique à l'opérateur,
+qui conserve la vérification sur place comme premier réflexe. Le chapitre
+suivant décrit la réalisation de l'API et du tableau de bord qui exposent
+ces résultats.

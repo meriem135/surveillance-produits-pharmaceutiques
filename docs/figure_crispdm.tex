@@ -1,0 +1,57 @@
+% ---------------------------------------------------------------------
+% Figure CRISP-DM adaptée à VigiloChain (à coller dans le chapitre)
+% Prérequis dans le préambule : \usepackage{tikz}
+%   \usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric,backgrounds}
+% ---------------------------------------------------------------------
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\small,
+    phase/.style={rounded corners=7pt, minimum width=4.4cm, minimum height=1.5cm,
+                  text width=3.95cm, align=center, draw=#1!70!black, fill=#1!14, line width=0.9pt},
+    num/.style={circle, fill=#1, text=white, font=\bfseries\small, minimum size=0.62cm,
+                inner sep=0pt},
+    fleche/.style={-{Stealth[length=3.2mm]}, line width=1.3pt, color=black!65},
+    retour/.style={-{Stealth[length=3mm]}, line width=1pt, dashed, color=black!50},
+  ]
+  \definecolor{cA}{HTML}{F4623A}
+  \definecolor{cB}{HTML}{2FA89A}
+  \definecolor{cC}{HTML}{2F8FC0}
+  \definecolor{cD}{HTML}{3F9C6D}
+  \definecolor{cE}{HTML}{E0A93B}
+  \definecolor{cF}{HTML}{6F63D9}
+
+  % positions : 1 en haut, puis sens horaire
+  \node[phase=cA] (p1) at (0,3.7)      {\textbf{Compréhension métier}\\[-1pt]{\footnotesize chaîne du froid, menaces MQTT}};
+  \node[phase=cB] (p2) at (5.1,1.95)   {\textbf{Compréhension des données}\\[-1pt]{\footnotesize traces réelles, qualité}};
+  \node[phase=cC] (p3) at (5.1,-1.95)  {\textbf{Préparation des données}\\[-1pt]{\footnotesize grille de 5\,s,\\ 9 attaques injectées}};
+  \node[phase=cD] (p4) at (0,-3.7)     {\textbf{Modélisation}\\[-1pt]{\footnotesize 4 modèles supervisés\\ à base d'arbres}};
+  \node[phase=cE] (p5) at (-5.1,-1.95) {\textbf{Évaluation}\\[-1pt]{\footnotesize seuil, 20 rotations,\\ explications SHAP}};
+  \node[phase=cF] (p6) at (-5.1,1.95)  {\textbf{Déploiement}\\[-1pt]{\footnotesize API, tableau de bord,\\ recommandations}};
+
+  % pastilles numérotées
+  \node[num=cA] at (p1.north west) {1};
+  \node[num=cB] at (p2.north west) {2};
+  \node[num=cC] at (p3.north west) {3};
+  \node[num=cD] at (p4.north west) {4};
+  \node[num=cE] at (p5.north west) {5};
+  \node[num=cF] at (p6.north west) {6};
+
+  % centre : les données
+  \node[circle, draw=black!55, fill=black!6, line width=0.9pt, minimum size=2.1cm,
+        align=center, font=\small\bfseries] (data) at (0,0) {Jeu de\\données\\[-1pt]{\footnotesize\normalfont étiqueté}};
+
+  % flèches du cycle (sens horaire)
+  \draw[fleche] (p1.east)  to[out=0,in=90]    (p2.north);
+  \draw[fleche] (p2.south) -- (p3.north);
+  \draw[fleche] (p3.south) to[out=-90,in=0]   (p4.east);
+  \draw[fleche] (p4.west)  to[out=180,in=-90] (p5.south);
+  \draw[fleche] (p5.north) -- (p6.south);
+  \draw[fleche] (p6.north) to[out=90,in=180]  (p1.west);
+
+  % itération : l'évaluation peut renvoyer à la compréhension métier
+  \draw[retour] (p5.east) to[bend left=28] node[pos=0.5, fill=white, inner sep=1.5pt, font=\scriptsize\itshape] {itération} (p1.south);
+\end{tikzpicture}
+\caption{Cycle CRISP-DM adapté à VigiloChain}
+\label{fig:crispdm}
+\end{figure}

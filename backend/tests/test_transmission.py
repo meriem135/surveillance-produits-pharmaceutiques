@@ -59,6 +59,38 @@ def test_alert_recommendation():
     assert "contrôler la température sur place" in out["consigne"]
 
 
+def test_family_is_inferred_from_the_dominant_features():
+    inf = service.infer_families
+    assert inf(["fridge_repeat_2min", "fridge_max_15min"])["candidats"] == ["rejeu"]
+    assert inf(["fridge_std_1min", "fridge_mean_5min", "fridge_max_5min"])["candidats"] == ["gel", "nominale"]
+    assert inf(["fridge_std_1min", "fridge_max_5min", "fridge_std_5min"])["candidats"] == ["nominale", "gel"]
+    assert inf(["fridge_q10_5min", "fridge_mean_15min"])["candidats"] == ["biais", "derive"]
+    assert inf(["thermostat_std_1min"])["capteur"] == "thermostat"
+    assert inf([])["candidats"] == []
+
+
+def test_alert_recommendation_without_attack_type():
+    out = service.alert_recommendation(None, None, 0.9, ["fridge_repeat_2min", "fridge_max_15min"])
+    assert out["famille"].startswith("Rejeu") and out["famille_source"].startswith("déduite")
+    assert out["capteur"] == "frigo" and "hypothèse" in out["avertissement"]
+    biais = service.alert_recommendation(None, "fridge", 0.6, ["fridge_q10_5min"])
+    assert biais["autres_hypotheses"] == ["Dérive lente des mesures (injection)"]
+    generic = service.alert_recommendation(None, "fridge", 0.7, [])
+    assert generic["famille_source"] == "non identifiée" and generic["actions"] == service.GENERAL_RULES
+    assert "contrôler la température sur place" in generic["consigne"]
+
+
+def test_report_checks_that_the_family_can_be_found_from_the_indices():
+    shap_data = {"par_scenario": {"MITM_gel": [{"feature": "fridge_std_1min"}, {"feature": "fridge_mean_5min"}],
+                                  "MITM_rejeu": [{"feature": "fridge_q10_5min"}]}}
+    report = service.operator_report({"RandomForest": _model("Random Forest", 0.62)}, shap_data, "test")
+    by = {s["scenario"]: s for s in report["scenarios"]}
+    assert by["MITM_gel"]["deduction_correcte"] is True
+    assert by["MITM_rejeu"]["deduction_correcte"] is False        # faux : l'indice dominant est un niveau
+    assert by["Injection_derive"]["deduction_correcte"] is None   # pas de SHAP pour ce scénario
+    assert "1 scénarios sur 2" in report["identification"] and "binaire" in report["markdown"]
+
+
 def test_public_kpis_come_from_the_reference_results():
     kpis = service.public_kpis()
     assert kpis is not None, "models/transmission_reel/comparaison_modeles.json est versionné"

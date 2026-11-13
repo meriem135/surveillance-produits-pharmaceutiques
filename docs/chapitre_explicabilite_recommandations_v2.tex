@@ -1,0 +1,464 @@
+\chapter{Explicabilité et rapport de recommandations}\label{chapExpl}
+\pagestyle{fancy}
+\lhead{Explicabilité et rapport de recommandations}
+
+\graphicspath{{Chapitre4/images_chapitre4/}{images_chapitre4/}{Chapitre3/images_chapitre3/}{images_chapitre3/}}
+
+% Couleurs de tableaux (déjà définies dans le préambule principal : ne sont créées que si absentes)
+\providecolor{thead}{HTML}{1F3A5F}
+\providecolor{trowa}{HTML}{EEF2F7}
+
+% Insère une figure si le fichier existe, sinon un cadre « à insérer »
+\providecommand{\figtrois}[2]{%
+  \IfFileExists{Chapitre3/images_chapitre3/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \IfFileExists{images_chapitre3/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \IfFileExists{Chapitre4/images_chapitre4/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \IfFileExists{images_chapitre4/#1}{\includegraphics[width=#2\textwidth]{#1}}{%
+  \fbox{\parbox[c][4cm][c]{#2\textwidth}{\centering\small\itshape
+  Figure à insérer : \texttt{\detokenize{#1}}}}}}}}}
+
+% =====================================================================
+\section{Introduction}
+
+Un modèle qui répond seulement « attaque » ou « normal » ne suffit pas à un
+opérateur de chaîne du froid : avant de bloquer un lot de médicaments, il doit
+savoir \emph{pourquoi} le modèle soupçonne une falsification, puis \emph{quoi
+faire}. Ce chapitre apporte ces deux réponses \textbf{pour chaque alerte}
+levée par le modèle :
+
+\begin{enumerate}
+  \item l'\textbf{explication} de l'alerte par la méthode SHAP : quelles
+        variables ont fait basculer le score vers « attaque » ;
+  \item un \textbf{rapport de recommandations} rédigé à partir de cette
+        explication : ce qui s'est passé, la cause probable, la gravité et les
+        actions à mener.
+\end{enumerate}
+
+Un point de méthode conditionne tout le chapitre : le modèle est
+\textbf{binaire}. Il est entraîné sur l'étiquette « normal » ou « attaque » et
+ne nomme jamais l'attaque. Le type d'attaque que le rapport propose est donc
+une \emph{hypothèse déduite} des variables qui ont le plus pesé dans l'alerte,
+jamais une réponse du modèle. Dans l'étude, les scénarios sont connus parce que
+nous les avons injectés : ils servent à \emph{mesurer} la fiabilité de cette
+déduction (section~\ref{sec:expl_eval}).
+
+
+% =====================================================================
+\section{Explicabilité par SHAP}
+\label{sec:expl_shap}
+
+\subsection{Principe}
+
+SHAP (\textit{SHapley Additive exPlanations}) transpose aux modèles prédictifs
+la théorie des jeux coopératifs : chaque variable est un joueur, le score du
+modèle est le gain à partager. La propriété essentielle est l'\textbf{additivité} :
+pour une mesure $x$, le score est la valeur de base $\phi_0$ (prédiction moyenne)
+augmentée des contributions $\phi_i$ de toutes les variables :
+
+\begin{equation}
+f(x) = \phi_0 + \sum_{i=1}^{n} \phi_i
+\label{eq:additivite}
+\end{equation}
+
+Une valeur $\phi_i$ positive pousse la mesure vers « attaque », une valeur
+négative vers « normal ». Le modèle retenu (Extra Trees, chapitre~\ref{chap4})
+est un ensemble d'arbres : nous utilisons \texttt{shap.TreeExplainer}, qui
+calcule ces valeurs de façon exacte en exploitant la structure des arbres.
+
+\subsection{Importance globale et par scénario}
+
+Pour savoir si le modèle s'appuie sur des indices cohérents, nous calculons
+l'importance d'une variable $j$ comme la moyenne des valeurs absolues de ses
+contributions sur $N$ mesures d'attaque non vues à l'entraînement :
+
+\begin{equation}
+I_j = \frac{1}{N}\sum_{k=1}^{N}\left|\phi_j^{(k)}\right|
+\label{eq:importance}
+\end{equation}
+
+Les variables sont classées une fois sur l'ensemble des attaques (importance
+globale) et une fois par scénario injecté. Ces classements sont enregistrés
+dans la table \texttt{transmission\_shap} et affichés par la page
+« Explicabilité SHAP » du tableau de bord.
+
+\begin{figure}[H]
+\centering
+\figtrois{fig_shap_global.png}{0.85}
+\caption{Importance globale des variables (moyenne des valeurs SHAP
+absolues), Extra Trees.}
+\label{fig:expl_shap_global}
+\end{figure}
+
+Ces classements montrent que chaque famille d'attaque est reconnue par la
+variable conçue pour elle : la séquence de 2 minutes déjà transmise pour le
+rejeu, l'écart-type à 1 minute pour le gel et l'injection nominale, et la forme
+de la distribution sur 5 à 15 minutes (moyenne, maximum, quantiles) pour les
+biais et la dérive. C'est cette correspondance entre un type d'attaque et une
+signature dans les variables qui rend possible la déduction décrite plus bas.
+Une précaution de lecture : l'importance SHAP n'est pas une causalité, et deux
+variables corrélées se partagent l'effet.
+
+\subsection{SHAP par alerte}
+\label{sec:expl_alerte}
+
+L'importance globale décrit le modèle, pas une alerte précise. Pour qu'un
+opérateur comprenne \emph{son} alerte, nous calculons le SHAP de chaque alerte,
+c'est-à-dire d'une suite continue de mesures en alarme (règle de persistance :
+au moins $k$ mesures sur les $n$ dernières au-dessus du seuil). Le calcul est
+le suivant :
+
+\begin{enumerate}
+  \item on prend les lignes de l'alerte ; au-delà de 6 lignes, on en retient 6
+        réparties régulièrement sur sa durée, car le calcul exact sur 400 arbres
+        profonds coûte environ 0,3 s par ligne ;
+  \item \texttt{TreeExplainer} donne une valeur SHAP par ligne et par variable ;
+  \item on fait la moyenne \emph{signée} sur les lignes retenues (et non la
+        valeur absolue) : on cherche les variables qui ont poussé \emph{vers}
+        « attaque » ;
+  \item on garde les 6 variables dont la moyenne est la plus positive ;
+  \item pour chacune, on enregistre aussi sa valeur moyenne pendant l'alerte et
+        sa valeur moyenne hors attaque, prise comme référence « fonctionnement
+        normal ».
+\end{enumerate}
+
+Le résultat est stocké dans la table \texttt{transmission\_alert\_shap}
+(colonnes : alerte, rang, variable, valeur SHAP, valeur pendant l'alerte,
+valeur normale) et renvoyé par la route \texttt{GET /api/v1/etude/timeline}
+avec chaque alerte. Il est calculé à la fin d'un entraînement lancé depuis
+l'interface ; pour un entraînement déjà enregistré, le script
+\texttt{shap\_alertes.py} le recalcule sans réentraîner. Sur notre entraînement
+(56 alertes), le calcul prend environ une minute et demie.
+
+Le point clé est la comparaison « valeur pendant l'alerte contre valeur
+normale » : elle transforme un nombre abstrait en fait lisible. Par exemple,
+pour un gel du frigo, l'écart-type à 1 minute vaut 0,00 pendant l'alerte contre
+3,16 en fonctionnement normal.
+
+
+% =====================================================================
+\section{Du SHAP au rapport de recommandations}
+\label{sec:expl_rapport}
+
+\subsection{Principe : faits mesurés, puis hypothèse, puis actions}
+
+Le rapport d'une alerte est généré automatiquement par la fonction
+\texttt{rapportAlerte} du tableau de bord. Il sépare nettement ce qui est
+\emph{mesuré} de ce qui est \emph{supposé} :
+
+\begin{itemize}
+  \item la \textbf{synthèse} (mesuré) : date, durée, capteur concerné, score
+        maximal et variable la plus déterminante avec sa valeur normale ;
+  \item l'\textbf{hypothèse} (supposé) : la famille d'attaque probable et sa
+        confiance, toujours accompagnée de la mention « à confirmer sur le
+        terrain » ;
+  \item la \textbf{gravité} (règle) : élevée, moyenne ou à vérifier ;
+  \item les \textbf{actions} (règle métier), classées en trois niveaux :
+        immédiat, vérification, suivi.
+\end{itemize}
+
+\subsection{Synthèse}
+
+La synthèse est une phrase assemblée à partir de données lues en base :
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Origine de chaque élément de la synthèse.}
+\label{tab:expl_synthese}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Élément}} & \textcolor{white}{\textbf{Origine}} \\
+\hline
+Date et durée & début et durée de l'alerte (table \texttt{transmission\_alerts}) \\
+\rowcolor{trowa}
+Capteur & capteur de l'épisode injecté ; à défaut, préfixe de la première
+variable SHAP (\texttt{fridge\_}, \texttt{thermostat\_}) \\
+Score maximal & plus haut score du modèle sur les lignes de l'alerte \\
+\rowcolor{trowa}
+Variable déterminante & première variable du SHAP de l'alerte, avec sa valeur
+pendant l'alerte et sa valeur normale \\
+\hline
+\end{tabularx}
+\end{table}
+
+Le score de chaque mesure est la probabilité d'attaque donnée par
+\texttt{predict\_proba} : pour un Extra Trees de 400 arbres, c'est la moyenne
+des probabilités des arbres. Le \emph{score maximal} est le plus haut de ces
+scores sur l'alerte. Il décrit le pic, pas l'ensemble de l'alerte : c'est une
+limite à garder en tête (section~\ref{sec:expl_limites}).
+
+\subsection{Famille probable et confiance}
+\label{sec:expl_deduction}
+
+Le modèle ne dit pas « ceci est un gel ». Les variables SHAP sont donc
+regroupées en trois familles selon leur nature :
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Familles d'attaque et variables associées.}
+\label{tab:expl_familles}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Famille}} & \textcolor{white}{\textbf{Variables}} &
+\textcolor{white}{\textbf{Scénarios simulés}} \\
+\hline
+Signal figé & écart-type, variation absolue, variation d'une mesure à l'autre
+& gel du frigo, gel du thermostat, injection nominale \\
+\rowcolor{trowa}
+Séquence rejouée & séquence de 2 min déjà transmise & rejeu du frigo \\
+Décalage de niveau & moyenne, minimum, maximum, quantiles, écart entre
+capteurs & biais ($-0{,}5$, $-1$, $-2$\,\textdegree C, thermostat), dérive \\
+\hline
+\end{tabularx}
+\end{table}
+
+La famille est ensuite choisie par trois règles, appliquées dans cet ordre :
+
+\begin{enumerate}
+  \item \textbf{Rejeu.} Si la variable « séquence de 2 min déjà transmise » est
+        active pendant l'alerte (elle vaut 0 en fonctionnement normal) et pousse
+        vers « attaque », la famille est « séquence rejouée ». La confiance
+        affichée est l'écart à la valeur normale.
+  \item \textbf{Signal figé.} Si un écart-type ou une variation absolue tombe à
+        moins de 25\,\% de sa valeur normale, la famille est « signal figé ». La
+        confiance est l'écart relatif à la valeur normale (0,00 contre 3,16
+        donne 100\,\%).
+  \item \textbf{Vote pondéré.} Sinon, on additionne l'effet SHAP positif de
+        chaque variable par famille. La famille dominante est retenue si elle
+        pèse au moins 50\,\% du total, avec cette part pour confiance ; sinon la
+        réponse est « indéterminé » : le rapport ne force pas une réponse.
+\end{enumerate}
+
+Les deux premières règles ont été ajoutées après un constat : un gel fige la
+mesure mais fait \emph{aussi} baisser la moyenne, et un rejeu copie des valeurs
+normales passées. Dans les deux cas, le simple vote pondéré donnait « décalage
+de niveau » ou « indéterminé » à tort, parce que des variables de niveau
+cumulaient plus d'effet que l'écart-type ou la séquence répétée. Le seuil de
+25\,\% a été choisi sur un plateau : tout seuil entre 20 et 30\,\% donne le même
+résultat sur nos données. La confiance affichée est un indicateur de netteté du
+signal, pas une probabilité calibrée.
+
+\subsection{Gravité}
+
+La gravité aide l'opérateur à ordonner ses interventions. Elle n'utilise que
+deux informations que l'opérateur connaît au moment de l'alerte : sa
+\textbf{durée} et son \textbf{score maximal}, c'est-à-dire le plus haut score de
+probabilité d'attaque donné par le modèle sur les mesures de l'alerte. Elle
+n'utilise jamais l'étiquette « vraie » ou « fausse », qui n'est connue dans
+l'étude que parce que les attaques sont injectées. La règle est la suivante :
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Règle de gravité d'une alerte.}
+\label{tab:expl_gravite}
+\begin{tabular}{|l|l|}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Gravité}} & \textcolor{white}{\textbf{Condition}} \\
+\hline
+Élevée & durée d'au moins 15 min, ou score maximal d'au moins 0,95 \\
+\rowcolor{trowa}
+À vérifier & durée de moins de 5 min et score maximal inférieur à 0,80 \\
+Moyenne & tous les autres cas \\
+\hline
+\end{tabular}
+\end{table}
+
+L'idée est qu'une manipulation longue expose plus longtemps les produits, qu'un
+score très élevé traduit un modèle très sûr de lui, et qu'une alerte courte au
+score peu élevé est plus souvent un faux déclenchement. Sur les 56 alertes de
+l'entraînement de référence, cette règle classe 49 des 51 alertes vraies en
+gravité élevée et 2 en moyenne ; aucune alerte vraie n'est « à vérifier », contre
+3 des 5 fausses alertes. L'échantillon de fausses alertes est très petit. Les
+seuils de 15 min, 0,95, 5 min et 0,80 sont des \textbf{choix de conception} : ils
+ne résultent ni d'une étude ni d'une norme pharmaceutique et doivent être
+ajustés avec un responsable qualité. La gravité ne tient compte ni du type de produit, ni de l'écart réel à
+la plage de conservation (2--8\,\textdegree C).
+
+\subsection{Actions suggérées}
+
+Les actions sont classées dans l'ordre d'un incident qualité : protéger,
+comprendre, tracer.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.35}
+\caption{Actions suggérées dans le rapport d'une alerte vraie.}
+\label{tab:expl_actions}
+\begin{tabularx}{\textwidth}{@{}|>{\raggedright\arraybackslash}p{2.6cm}|>{\raggedright\arraybackslash}X|@{}}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Niveau}} & \textcolor{white}{\textbf{Contenu}} \\
+\hline
+Immédiat & mettre les produits concernés en quarantaine ; contrôler la
+température avec un thermomètre de référence, sans se fier au capteur concerné
+\\
+\hline
+\rowcolor{trowa}
+Vérification (signal figé) & vérifier que le capteur et la liaison ne sont pas
+bloqués ; comparer avec le second capteur \\
+\hline
+Vérification (rejeu) & vérifier l'intégrité de la liaison
+capteur--passerelle ; contrôler l'horodatage des mesures reçues \\
+\hline
+\rowcolor{trowa}
+Vérification (niveau) & vérifier l'étalonnage et le groupe froid ; chercher
+une cause réelle (porte ouverte, panne de froid) avant de conclure à une
+falsification \\
+\hline
+Suivi & consigner l'incident et prévenir le responsable qualité \\
+\hline
+\end{tabularx}
+\end{table}
+
+Pour une alerte d'un type « indéterminé », seules les actions immédiates et de
+suivi sont proposées. Pour une \textbf{fausse alerte connue} (cas qui n'existe
+que dans la page d'évaluation « Détection vs réalité », où l'on compare le
+modèle à la réalité), le rapport ne demande pas de quarantaine : il propose de
+contrôler la température, puis de consigner la fausse alerte pour ajuster le
+seuil. Un opérateur en exploitation ne connaît pas cette étiquette : il s'appuie
+sur la gravité « à vérifier ». Ces actions relèvent du bon sens
+métier de la chaîne du froid ; elles sont présentées comme des suggestions que
+l'opérateur valide.
+
+\subsection{Affichage dans le tableau de bord}
+
+Le rapport est intégré au tableau « score du modèle et attaques réelles » de la
+page « Détection vs réalité ». Ce tableau compte une ligne par minute ; une
+alerte de 22 minutes couvrirait donc 22 lignes. Pour ne pas répéter la même
+recommandation, elle n'apparaît que sur la \textbf{première ligne de chaque
+alerte}, avec sa gravité, sa famille probable et un bouton « Rapport ». Les
+lignes suivantes de la même alerte renvoient à la première. Le bouton déroule
+la synthèse, l'hypothèse, les variables SHAP et les actions.
+
+\begin{figure}[H]
+\centering
+\figtrois{capture_detection_rapport.png}{0.95}
+\caption{Rapport de recommandation d'une alerte dans la page « Détection vs
+réalité ».}
+\label{fig:expl_capture_rapport}
+\end{figure}
+
+\subsection{Deux exemples}
+
+\textbf{Gel du frigo} (alerte de 22,2 min, score maximal 1,00). Variables
+dominantes : écart-type à 1 min (0,00 contre 3,16 en fonctionnement normal),
+moyenne à 5 min (3,79 contre 7,13), maximum à 5 min (4,89 contre 13,38). La
+règle « signal figé » s'applique (confiance 100\,\%), la gravité est élevée, et
+la vérification demandée porte sur un capteur ou une liaison bloqués.
+
+\textbf{Rejeu du frigo} (alerte de 15,6 min, score maximal 0,96). Variable
+dominante : séquence de 2 min déjà transmise (1,00 contre 0,00). La règle
+« rejeu » s'applique (confiance 100\,\%), la gravité est élevée, et la
+vérification demandée porte sur la liaison capteur--passerelle et les
+horodatages.
+
+
+% =====================================================================
+\section{Évaluation de la famille déduite}
+\label{sec:expl_eval}
+
+Puisque les scénarios sont injectés, nous pouvons mesurer si la famille déduite
+du SHAP correspond à la famille réellement simulée. L'évaluation porte sur les
+alertes vraies de la répétition 0 de l'entraînement n$^\circ$\,2 (Extra Trees,
+20 répétitions) : 56 alertes au total, dont 51 vraies avec un scénario connu.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\caption{Famille déduite correcte, selon les règles employées (51 alertes
+vraies).}
+\label{tab:expl_eval}
+\begin{tabular}{|l|c|}
+\hline
+\rowcolor{thead}
+\textcolor{white}{\textbf{Méthode}} & \textcolor{white}{\textbf{Alertes correctes}} \\
+\hline
+Vote pondéré seul & 44 sur 51 \\
+\rowcolor{trowa}
+Vote + règle du signal figé & 49 sur 51 \\
+Vote + règles du signal figé et du rejeu & 51 sur 51 \\
+\hline
+\end{tabular}
+\end{table}
+
+Ce résultat doit être lu avec prudence, pour trois raisons.
+
+\begin{enumerate}
+  \item \textbf{Peu d'alertes hors apprentissage.} Sur les 51 alertes, 43
+        tombent sur des heures d'entraînement et seulement 8 sur des heures de
+        validation (4) et de test (4). Sur ces 8 alertes, le vote seul en
+        classe 7 correctement et les trois règles les 8. La
+        proportion est encourageante, mais l'échantillon est petit.
+  \item \textbf{Règles réglées sur ces mêmes alertes.} Le seuil de 25\,\% et la
+        règle du rejeu ont été construits en observant ces 51 alertes : le
+        résultat de 51 sur 51 mesure l'adéquation des règles à ce run, pas leur
+        capacité à généraliser. Une validation honnête demanderait un autre
+        entraînement, avec d'autres épisodes injectés.
+  \item \textbf{Attaques simulées.} Les attaques sont injectées dans des traces
+        réelles TON\_IoT avec des signatures connues. Une attaque réelle
+        pourrait avoir une autre signature.
+\end{enumerate}
+
+Nous formulons donc ainsi le résultat : « les règles ont été construites et
+vérifiées sur les 51 alertes de l'entraînement de référence ; la généralisation
+reste à confirmer sur de nouveaux épisodes ».
+
+
+% =====================================================================
+\section{Limites}
+\label{sec:expl_limites}
+
+\begin{itemize}
+  \item \textbf{Hypothèse, pas diagnostic.} Le modèle est binaire ; la famille
+        n'est qu'une déduction, à confirmer par une vérification sur place.
+  \item \textbf{Échantillonnage du SHAP.} Une alerte longue est expliquée par 6
+        lignes réparties sur sa durée, pour limiter le temps de calcul.
+  \item \textbf{Score maximal.} Il décrit le pic de l'alerte, pas sa tenue
+        dans la durée ; le score moyen serait un complément utile.
+  \item \textbf{Seuils de gravité.} 15 min, 0,95, 5 min et 0,80 sont des choix de
+        conception, sans lien avec le type de produit ni avec l'écart réel à la
+        plage de conservation. Ils ont été vérifiés sur 56 alertes seulement,
+        dont 5 fausses.
+  \item \textbf{Familles proches.} Un biais et une dérive déplacent les mêmes
+        variables : les indices ne permettent pas de les distinguer, ils sont
+        regroupés dans la même famille « décalage de niveau ».
+  \item \textbf{Temps réel simulé.} Les alertes de ce chapitre viennent de
+        traces rejouées, pas d'un flux de capteurs réels.
+\end{itemize}
+
+Les règles de conduite valables pour toute alerte restent : vérifier d'abord
+sur place avec un thermomètre de contrôle, ne jamais libérer un lot sur la seule
+base d'une mesure contestée, et journaliser chaque alerte, la vérification
+faite et la décision prise.
+
+
+% =====================================================================
+\section{Conclusion}
+
+Ce chapitre a relié le modèle de détection à l'action de l'opérateur. Pour
+chaque alerte, l'application calcule un SHAP propre à cette alerte, en déduit
+une famille probable de manipulation par trois règles simples, puis rédige un
+rapport : une synthèse de faits mesurés, une hypothèse avec sa confiance, une
+gravité et des actions classées par priorité. Le rapport n'apparaît qu'une
+fois par alerte, dans le tableau de détection, et sépare toujours ce qui est
+mesuré de ce qui est supposé.
+
+Sur les 51 alertes vraies de l'entraînement de référence, la famille déduite
+correspond au scénario injecté dans tous les cas après ajout des deux règles
+prioritaires, contre 44 sur 51 avec un vote simple. Ce chiffre reste mesuré sur
+les données qui ont servi à régler les règles, et seules 8 alertes sont hors
+apprentissage : la généralisation reste à confirmer. La perspective naturelle
+est un modèle multiclasse, entraîné à prédire directement la famille, au prix
+d'un nouvel entraînement et d'une nouvelle évaluation. Le chapitre suivant
+décrit la réalisation de l'API et du tableau de bord qui exposent ces
+résultats.

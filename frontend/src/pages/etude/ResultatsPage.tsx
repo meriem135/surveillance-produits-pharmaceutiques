@@ -138,24 +138,7 @@ export default function ResultatsPage() {
           courbe précision-rappel, indépendante du seuil). « réf. » : Random Forest avec les anciennes features, même protocole corrigé (avant / après).</Note>
       </Section>
 
-      <div className="grid xl:grid-cols-2 gap-6">
-        <Section title="Entraînement, validation, test : sur- ou sous-apprentissage ?" subtitle="Le même modèle mesuré sur ses données d'entraînement et sur des heures jamais vues." source={data.sources.modeles}>
-          <Table>
-            <thead><tr><th>Modèle</th><th className="vc-num">AP train</th><th className="vc-num">AP val</th><th className="vc-num">AP test</th><th className="vc-num">F1 train</th><th className="vc-num">F1 test</th></tr></thead>
-            <tbody>
-              {ranking.map(k => {
-                const m = data.modeles[k];
-                return (
-                  <tr key={k}><td>{MODEL_FR[k] ?? k}</td>
-                    <td className="vc-num">{nf(m.alarme.train?.avg_precision, 3)}</td><td className="vc-num">{nf(m.alarme.val?.avg_precision, 3)}</td>
-                    <td className="vc-num">{nf(m.alarme.test?.avg_precision, 3)}</td><td className="vc-num">{nf(m.alarme.train?.f1, 3)}</td>
-                    <td className="vc-num">{nf(m.alarme.test?.f1, 3)}</td></tr>
-                );
-              })}
-            </tbody>
-          </Table>
-          {best?.diagnostic && <Note><strong>{MODEL_FR[bestKey]}</strong> : {best.diagnostic.verdict} (écart d'AP train − validation {nf(best.diagnostic.ecart_ap_train_val, 3)}).</Note>}
-        </Section>
+      <div>
         <Section title={`Courbe d’apprentissage, ${MODEL_FR[data.courbe_apprentissage.modele ?? ''] ?? '—'}`}
           subtitle="AP selon la part des blocs d'entraînement utilisée (moyenne de 3 rotations)." source={data.sources.courbe_apprentissage}>
           {lc.length ? (

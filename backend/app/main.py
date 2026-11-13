@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.paths import ensure_dirs
 from app.db.seed import seed_defaults
 from app.db.session import init_db, close_db
-from app.api.v1 import devices, risks, auth, transmission, overview, etude, parametres
+from app.api.v1 import auth, transmission, overview, etude, parametres
 
 # ──────────────────────────────────────────────────────────────────────
 # [EN BREF] _charger_etude
@@ -151,8 +151,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(devices.router, prefix=settings.API_V1_STR, tags=["devices"])
-app.include_router(risks.router, prefix=settings.API_V1_STR, tags=["risks"])
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
 app.include_router(transmission.router, prefix=settings.API_V1_STR, tags=["transmission"])
 app.include_router(overview.router, prefix=settings.API_V1_STR, tags=["overview"])

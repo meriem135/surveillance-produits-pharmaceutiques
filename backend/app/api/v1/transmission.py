@@ -56,10 +56,11 @@ async def _emit(step: str, progress: int, message: str, **extra):
 
 # ──────────────────────────────────────────────────────────────────────
 # [EN BREF] AlertContext
-#   Rôle   : Corps de la requête « consigne pour une alerte » : scénario, capteur, probabilité.
+#   Rôle   : Corps de la requête « consigne pour une alerte » : indices dominants, capteur, probabilité
+#            (scénario facultatif : le modèle ne nomme pas l'attaque).
 # ──────────────────────────────────────────────────────────────────────
 class AlertContext(BaseModel):
-    attack_type: str = Field(..., examples=["MITM_gel"])
+    attack_type: str | None = Field(None, examples=["MITM_gel"], description="Facultatif : le modèle est binaire, la famille est sinon déduite de top_features")
     sensor: str | None = Field(None, examples=["fridge"])
     probability: float | None = Field(None, ge=0, le=1)
     top_features: list[str] = Field(default_factory=list)

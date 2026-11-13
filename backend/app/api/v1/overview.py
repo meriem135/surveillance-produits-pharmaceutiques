@@ -217,10 +217,16 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         select(Device.device_type, Device.status, func.count()).group_by(Device.device_type, Device.status)
     )).all()
     devices = (await session.execute(select(Device).order_by(Device.id))).scalars().all()
-    tel = (await session.execute(
-        select(func.count(), func.count(func.distinct(Telemetry.device_id)),
-               func.min(Telemetry.timestamp), func.max(Telemetry.timestamp))
-    )).one()
+    try:
+        # SAVEPOINT : si la table telemetry a un ancien schéma, seule cette lecture échoue (bloc vide), pas la page
+        async with session.begin_nested():
+            tel = (await session.execute(
+                select(func.count(), func.count(func.distinct(Telemetry.device_id)),
+                       func.min(Telemetry.timestamp), func.max(Telemetry.timestamp))
+            )).one()
+    except Exception:  # noqa: BLE001
+        logger.exception("Lecture de la table telemetry impossible (schéma de la base à mettre à jour ?)")
+        tel = (0, 0, None, None)
     user_rows = (await session.execute(
         select(User.role, User.is_active, func.count()).group_by(User.role, User.is_active)
     )).all()

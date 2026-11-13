@@ -81,7 +81,16 @@ async def load(only_if_needed: bool = False, log=print) -> dict | None:
     if len(scores) != len(df):
         raise RuntimeError("scores_repetition0.npz ne correspond pas au jeu de données")
     op = pooled["resultats"][best]["point_fonctionnement"]
-    records = service.study_records(df, episodes, 0, scores, op)
+    # SHAP par alerte : modèle en service (répétition 0) et ses features, s'il est à arbres
+    model, feats = None, None
+    try:
+        import joblib
+        cfg = service._load_json(service.OUT_DIR / "meilleur_modele.json") or {}
+        if cfg.get("modele") == best and (service.OUT_DIR / "meilleur_modele.pkl").exists():
+            model, feats = joblib.load(service.OUT_DIR / "meilleur_modele.pkl"), cfg.get("features")
+    except Exception as e:  # noqa: BLE001
+        log(f"charger_base : modèle non chargé, pas de SHAP par alerte ({e})")
+    records = service.study_records(df, episodes, 0, scores, op, model, feats)
     n_runs = pooled["protocole"]["repetitions"]
     all_eps = [{**e, "run": r} for r in range(n_runs)
                for e in tr.build_schedule(len(df), np.random.default_rng(tr.SEED + r), r, roles=("train", "val", "test"))]

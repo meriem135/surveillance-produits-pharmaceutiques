@@ -3,9 +3,10 @@ import { Download } from 'lucide-react';
 import { Empty, Loading, Note, PageHeader, Readouts, Section, Stat, State, type StateKind, minutes, nf, pct, useApi } from '../../components/etude/kit';
 
 interface Scen { scenario: string; capteur: string; description: string; famille: string; taux_detection: number | null; niveau: string; niveau_raison?: string;
-  lignes_signalees: number | null; episodes: string; delai_median_min: number | null; ce_que_le_modele_regarde: string[]; risque: string; actions: string[] }
+  lignes_signalees: number | null; episodes: string; delai_median_min: number | null; ce_que_le_modele_regarde: string[]; risque: string; actions: string[];
+  famille_deduite?: string[]; deduction_correcte?: boolean | null }
 interface Report {
-  titre: string; date: string; source: string; message?: string; markdown: string; desequilibre: string; regles_generales: string[]; limites?: string[]; critere_niveau?: string;
+  titre: string; date: string; source: string; message?: string; markdown: string; desequilibre: string; regles_generales: string[]; limites?: string[]; critere_niveau?: string; type_attaque?: string; identification?: string;
   modele: null | { nom: string; point_fonctionnement: string; recall: number; precision: number; f1: number; fausses_alertes_par_heure: number;
     delai_median_min: number | null; episodes: string; lecture: string; seuil: string };
   scenarios: Scen[];
@@ -59,6 +60,13 @@ export default function RapportPage() {
         <h2 className="text-[24px]" style={{ color: 'var(--text-primary)' }}>Consignes par type d’attaque</h2>
         <p className="text-[14px] mt-1 max-w-[75ch]" style={{ color: 'var(--text-secondary)' }}>Chaque fiche dit ce que le modèle regarde, le risque pour les produits et quoi faire.</p>
       </div>
+      {data.type_attaque && (
+        <div className="vc-panel px-4 sm:px-5 py-3.5 -mt-2" data-testid="type-attaque">
+          <div className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>Le modèle ne nomme pas l’attaque</div>
+          <p className="text-[13.5px] mt-1 max-w-[110ch] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{data.type_attaque}</p>
+          {data.identification && <p className="text-[13.5px] mt-1 max-w-[110ch]" style={{ color: 'var(--text-muted)' }}>{data.identification}</p>}
+        </div>
+      )}
       {data.critere_niveau && (
         <div className="vc-panel px-4 sm:px-5 py-3.5 -mt-2" data-testid="critere-niveau">
           <div className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>Comment le niveau est attribué</div>
@@ -90,6 +98,10 @@ export default function RapportPage() {
                 <div><dt className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Mesures signalées</dt><dd className="vc-readout-value" style={{ fontSize: 24 }}>{s.lignes_signalees != null ? `${nf(s.lignes_signalees, 0)}\u202f%` : '—'}</dd></div>
               </dl>
               <p><strong style={{ color: 'var(--text-primary)' }}>Ce que le modèle regarde :</strong> {s.ce_que_le_modele_regarde.join(', ')}</p>
+              <p><strong style={{ color: 'var(--text-primary)' }}>Famille déduite de ces indices :</strong>{' '}
+                {s.famille_deduite && s.famille_deduite.length > 0
+                  ? `${s.famille_deduite.join(' ou ')} ${s.deduction_correcte ? '✔' : '✘'}`
+                  : 'non identifiée'}</p>
               <p><strong style={{ color: 'var(--text-primary)' }}>Risque :</strong> {s.risque}</p>
               <div>
                 <strong style={{ color: 'var(--text-primary)' }}>Que faire</strong>

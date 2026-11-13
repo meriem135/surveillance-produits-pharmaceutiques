@@ -253,6 +253,27 @@ class TransmissionAlert(SQLModel, table=True):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# [EN BREF] TransmissionAlertShap
+#   Rôle   : TABLE transmission_alert_shap : les features qui ont poussé une alerte donnée (SHAP par alerte).
+# ──────────────────────────────────────────────────────────────────────
+class TransmissionAlertShap(SQLModel, table=True):
+    """SHAP d'une alerte : moyenne des valeurs SHAP signées des lignes de l'alerte, par feature (top).
+    L'alerte est identifiée par (run_id, start_idx), comme dans transmission_alerts."""
+    __tablename__ = "transmission_alert_shap"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="transmission_runs.id", index=True)
+    model_key: str
+    start_idx: int = Field(index=True)
+    rang: int
+    feature: str
+    libelle: str = Field(default="")
+    shap: float = Field(description="valeur SHAP moyenne signée : > 0 pousse vers « attaque »")
+    valeur: Optional[float] = Field(default=None, description="valeur moyenne de la feature pendant l'alerte")
+    valeur_normale: Optional[float] = Field(default=None, description="valeur moyenne de la feature hors attaque (référence)")
+
+
+# ──────────────────────────────────────────────────────────────────────
 # [EN BREF] TransmissionLearningPoint
 #   Rôle   : TABLE transmission_learning_curve : un point de la courbe d'apprentissage.
 # ──────────────────────────────────────────────────────────────────────

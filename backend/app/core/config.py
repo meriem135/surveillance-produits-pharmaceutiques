@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     Application settings powered by Pydantic Settings
     Loads from environment variables or .env file
     """
-    APP_NAME: str = "PeakSoft Security Platform"
+    APP_NAME: str = "VigiloChain"
     APP_VERSION: str = "2.0.0"
     DEBUG: bool = False
     
@@ -32,11 +32,6 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://iot_user:iot_secure_password@localhost:5432/iot_security"
     )
     
-    # OpenSearch/Wazuh Configuration
-    OPENSEARCH_URL: str = os.getenv("OPENSEARCH_URL", "https://localhost:9200")
-    OPENSEARCH_USERNAME: str = os.getenv("OPENSEARCH_USERNAME", "admin")
-    OPENSEARCH_PASSWORD: str = os.getenv("OPENSEARCH_PASSWORD", "admin")
-
     # Compte administrateur créé au démarrage s'il n'existe aucun admin
     # (l'inscription publique ne crée que des opérateurs).
     ADMIN_USERNAME: str = "admin"

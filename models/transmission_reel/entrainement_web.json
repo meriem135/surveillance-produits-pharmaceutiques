@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-11-07T21:35:50",
-  "duree_s": 321.6,
+  "generated_at": "2026-11-12T14:55:33",
+  "duree_s": 552.7,
   "mode": "modele_retenu",
   "description": "20 répétitions (rotations du découpage par blocs, 73 épisodes d'attaque au test en tout) du modèle retenu, Extra Trees, avec le réglage de l'étude de référence. Courbe en direct, SHAP et lignes détaillées : répétition 0.",
   "repetitions": 20,
   "reference": null,
   "dataset": {
     "fichier": "dataset_transmission_reel.csv",
-    "importe": false,
+    "importe": true,
     "construit": false,
     "lignes": 44443,
     "features": 53,
