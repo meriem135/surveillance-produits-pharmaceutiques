@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "5173"],
       "port": 5173
+    },
+    {
+      "name": "frontend-docker",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set BACKEND_URL=http://localhost:8011&& npm --prefix frontend run dev -- --port 5173"],
+      "port": 5173
     }
   ]
 }

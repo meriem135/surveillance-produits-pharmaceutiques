@@ -337,6 +337,42 @@ def public_kpis() -> dict | None:
     }
 
 
+def kpis_from_result(res: dict, debut: str | None, fin: str | None) -> dict | None:
+    """Mêmes chiffres que public_kpis, calculés sur un entraînement lu en base (result_json) :
+    meilleur modèle au point de fonctionnement choisi sur la validation, mesuré sur le test."""
+    modeles = (res or {}).get("modeles") or {}
+    best_id = res.get("meilleur") if res else None
+    m = modeles.get(best_id) or {}
+    if not m:
+        return None
+    ds = res.get("dataset") or {}
+    op = m.get("point_fonctionnement") or {}
+    mesures = int(ds.get("lignes") or 0)
+    par_scenario = sorted(m.get("per_episode", {}).items(),
+                          key=lambda kv: -(kv[1]["detected"] / max(1, kv[1]["n"])))
+    return {
+        "generated_at": res.get("generated_at"),
+        "traces": {"debut": debut, "fin": fin, "pas": "5s", "mesures": mesures, "heures": round(mesures * 5 / 3600, 1)},
+        "capteurs": list(SENSOR_FR),
+        "repetitions": res.get("repetitions"),
+        "scenarios": len(par_scenario),
+        "critere": op.get("critere") or res.get("critere"),
+        "part_attaques_test": (ds.get("prevalence") or {}).get("test", {}).get("part"),
+        "meilleur": {"id": best_id, "nom": m.get("nom"), "recall": m.get("recall"),
+                     "fausses_alarmes_par_heure": m.get("fausses_alarmes_evenements_par_heure"),
+                     "delai_median_min": m.get("delai_median_min"), "precision": m.get("precision"),
+                     "f1": m.get("f1"), "roc_auc": m.get("roc_auc"),
+                     "episodes": m.get("episodes"), "episodes_detectes": m.get("episodes_detectes"),
+                     "seuil": op.get("seuil"), "k": op.get("k"), "n": op.get("n")},
+        "modeles": [{"id": k, "nom": v.get("nom"), "f1": v.get("f1")} for k, v in modeles.items()],
+        "detection_par_scenario": [
+            {"scenario": k, "description": SCENARIOS_FR.get(k, k),
+             "taux": round(100 * v["detected"] / max(1, v["n"]), 1), "episodes": v["n"], "detectes": v["detected"],
+             "lignes_signalees": (m.get("per_attack", {}).get(k) or {}).get("rate")}
+            for k, v in par_scenario],
+    }
+
+
 # ── Entraînement ─────────────────────────────────────────────────────────────
 
 def _dataset_is_current(tr, tm) -> bool:

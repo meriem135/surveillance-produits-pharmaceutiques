@@ -3,11 +3,11 @@
 #   LECTURE / ÉCRITURE DES TABLES transmission_* : enregistrer un entraînement, historique,
 #   étude de référence.
 # ══════════════════════════════════════════════════════════════════════════
-"""Persistance des entraînements « attaques de transmission » (PostgreSQL, repli SQLite)."""
+"""Persistance des entraînements « attaques de transmission » (PostgreSQL)."""
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import delete, desc, insert, update
+from sqlalchemy import delete, desc, func, insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -110,6 +110,19 @@ async def latest_result(session: AsyncSession, source: str = "web") -> Optional[
     if run is None or not run.result_json:
         return None
     return {**run.result_json, "run_id": run.id, "source": "postgresql"}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# [EN BREF] dataset_span
+#   Rôle   : Première et dernière mesure du jeu de données d'un entraînement (lues dans transmission_dataset).
+#   Entrée : session ; run_id
+#   Sortie : (début, fin) en texte, ou (None, None)
+# ──────────────────────────────────────────────────────────────────────
+async def dataset_span(session: AsyncSession, run_id: int) -> tuple[Optional[str], Optional[str]]:
+    first, last = (await session.execute(
+        select(func.min(TransmissionDatasetRow.ts), func.max(TransmissionDatasetRow.ts))
+        .where(TransmissionDatasetRow.run_id == run_id))).one()
+    return (first.isoformat(sep=" ") if first else None, last.isoformat(sep=" ") if last else None)
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 │   │   ├── main.py          point d'entrée (lifespan : BDD, seed, chargement de l'étude)
 │   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview…)
 │   │   ├── core/            configuration (.env) et chemins canoniques (paths.py)
-│   │   ├── db/              session (PostgreSQL → repli SQLite), seed
+│   │   ├── db/              session (PostgreSQL), seed
 │   │   ├── domains/         auth, devices, intelligence (score de risque), ml (features), transmission
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
@@ -35,7 +35,7 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 ├── notebook/Raw/            traces brutes TON_IoT (Normal + 9 types d'attaque)
 ├── notebook/transmission/   4 notebooks : prétraitement, injection des attaques, 6 modèles supervisés, SHAP
 ├── docs/resultats_finaux.md résultats finaux (tableaux pour le rapport)
-├── data/                    généré (dataset_fusionne.csv, flux de démo, SQLite)
+├── data/                    généré (dataset_fusionne.csv, flux de démo)
 ├── models/                  modèles entraînés + résultats JSON (versionnés)
 └── Soutenance/              notes de soutenance
 ```
@@ -97,7 +97,7 @@ choisit le seuil sur la validation, `rank_models` classe les modèles, le test c
 | `main.py` | Point d'entrée. Au démarrage : crée les tables, crée le compte admin, charge l'étude en base. Branche toutes les routes `/api/v1/...` et sert le dashboard compilé. |
 | `core/config.py` | Les réglages lus dans `backend/.env` (base de données, secret JWT, compte admin, CORS). |
 | `core/paths.py` | Tous les chemins de fichiers (data/, models/…) au même endroit. |
-| `db/session.py` | Connexion à la base : PostgreSQL si disponible, sinon repli automatique sur SQLite. |
+| `db/session.py` | Connexion à la base PostgreSQL. |
 | `db/seed.py` | Données de départ : compte administrateur et paramètres par défaut. |
 | `db/base_repository.py` | Opérations de base réutilisables (lire, créer, modifier, supprimer une ligne). |
 | `api/deps.py` | Fabrique les services injectés dans les routes (FastAPI `Depends`). |
@@ -149,7 +149,7 @@ Windows : créer `backend\.venv`, `pip install -r backend\requirements-train.txt
 Le compte administrateur est créé au premier démarrage à partir de `ADMIN_USERNAME` /
 `ADMIN_PASSWORD` ; l'inscription publique ne crée que des opérateurs.
 
-Base de données : PostgreSQL (sinon repli automatique sur SQLite).
+Base de données : PostgreSQL (conteneur Docker).
 
 ## Avec Docker
 
@@ -264,6 +264,6 @@ cd frontend && npx tsc -b && npm run build
 
 ## Stack
 
-- **Backend** : FastAPI, SQLModel, PostgreSQL / SQLite, scikit-learn, PyTorch, SHAP
+- **Backend** : FastAPI, SQLModel, PostgreSQL, scikit-learn, PyTorch, SHAP
 - **Frontend** : React 19, Vite 8, TypeScript, Tailwind 4, Radix UI, Recharts
 - **Données IoT** : traces réelles TON_IoT (frigo, thermostat, météo), rejouées en temps réel simulé

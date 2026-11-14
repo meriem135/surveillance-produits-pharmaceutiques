@@ -3,7 +3,7 @@
 #   TABLES DE L'ÉTUDE (transmission_*) : entraînements, résultats par modèle, métriques, SHAP,
 #   jeu de données, épisodes, prédictions, alertes.
 # ══════════════════════════════════════════════════════════════════════════
-"""Tables des entraînements « attaques de transmission » (PostgreSQL, repli SQLite).
+"""Tables des entraînements « attaques de transmission » (PostgreSQL).
 
 Une ligne par entraînement lancé depuis le dashboard (transmission_runs) et une ligne par
 modèle candidat de cet entraînement (transmission_model_results).

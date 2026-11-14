@@ -2,9 +2,8 @@
  *  GET /api/v1/etude/timeline : transmission_dataset ⋈ transmission_predictions, transmission_alerts,
  *  transmission_episodes, transmission_metrics. */
 import { Fragment, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
 import {
-  Empty, Loading, Meter, MODEL_FR, Note, PageHeader, ROLE_FR, SCENARIO_FR, Section, Segmented, State, Table, Tally,
+  Empty, Loading, Meter, MODEL_FR, Note, PageHeader, ROLE_FR, SCENARIO_FR, Section, Segmented, State, Table,
   dateFr, minutes, nf, pct, useApi,
 } from '../../components/etude/kit';
 import { FAMILLE_FR, FAMILLE_REELLE, estimer, rapportAlerte, type Contribution } from './recommandations';
@@ -32,28 +31,6 @@ const niveauDe = (alarme: boolean, score: number, seuil: number | null): Niveau 
   alarme ? 'Alerte' : seuil != null && score >= seuil ? 'À surveiller' : 'Normal';
 const NIVEAU_COULEUR: Record<Niveau, string> = { Normal: 'var(--border-strong)', 'À surveiller': 'var(--alarm-amber-fill)', Alerte: 'var(--accent-danger)' };
 
-function Confusion({ f }: { f: Fit }) {
-  const cell = (label: string, v: number, good: boolean) => (
-    <div className="p-2.5 text-center" style={{ background: good ? 'color-mix(in srgb, var(--accent-primary) 9%, var(--bg-panel))' : 'color-mix(in srgb, var(--accent-danger) 8%, var(--bg-panel))' }}>
-      <div className="vc-readout-value" style={{ fontSize: 24, color: good ? 'var(--text-primary)' : 'var(--accent-danger)' }}>{nf(v)}</div>
-      <div className="text-[12px] mt-1" style={{ color: 'var(--text-secondary)' }}>{label}</div>
-    </div>
-  );
-  return (
-    <div>
-      <div className="grid grid-cols-[auto_1fr_1fr] gap-px text-[12px]" style={{ background: 'var(--border)', border: '1px solid var(--border)' }}>
-        <div style={{ background: 'var(--bg-panel)' }} />
-        <div className="px-2 py-1 text-center font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Signalé</div>
-        <div className="px-2 py-1 text-center font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Non signalé</div>
-        <div className="px-2 flex items-center font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Attaque</div>
-        {cell('attaques signalées', f.tp, true)}{cell('attaques ratées', f.fn, false)}
-        <div className="px-2 flex items-center font-semibold" style={{ background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>Normal</div>
-        {cell('fausses alertes', f.fp, false)}{cell('normal non signalé', f.tn, true)}
-      </div>
-    </div>
-  );
-}
-
 export default function DetectionPage() {
   const [role, setRole] = useState<string>('test');
   const { data, error, loading, reload } = useApi<TimelineResp>(`/api/v1/etude/timeline?role=${role}&minutes=1`);
@@ -75,8 +52,6 @@ export default function DetectionPage() {
     </PageHeader>
   );
   if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
-  const fit = data.ajustement;
-  const fa = data.alertes.filter(a => !a.vraie);
   const eps = [...data.episodes].sort((a, b) => a.debut.localeCompare(b.debut));
   const toutes = data.episodes_toutes && data.episodes_toutes.length ? data.episodes_toutes : data.episodes.map(e => ({ ...e, repetition: 0 }));
   const det = eps.filter(e => e.detecte).length;
@@ -199,38 +174,6 @@ export default function DetectionPage() {
 
 
       <div>
-        <h2 className="text-[22px]" style={{ color: 'var(--text-primary)' }}>Entraînement, validation, test : le même modèle sur les trois</h2>
-        <p className="text-[13.5px] mt-1 max-w-[80ch]" style={{ color: 'var(--text-secondary)' }}>
-          Mesures après persistance, cumul des répétitions. Presque parfait à l’entraînement mais nettement moins bon en validation
-          et en test : sur-apprentissage. Médiocre partout : sous-apprentissage.
-        </p>
-      </div>
-      <div className="grid lg:grid-cols-3 gap-6 -mt-2">
-        {ROLES.map(r => {
-          const f = fit[r]?.alarme;
-          return (
-            <Section key={r} title={ROLE_FR[r]} source={data.sources.ajustement}
-              action={r === data.role ? <span className="text-[12.5px] font-semibold" style={{ color: 'var(--accent-primary)' }}>affiché ci-dessus</span> : undefined}>
-              {f ? (
-                <>
-                  <Confusion f={f} />
-                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1 mt-4 text-[13.5px]" style={{ color: 'var(--text-secondary)' }}>
-                    <dt>Précision</dt><dd className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{pct(f.precision)}</dd>
-                    <dt>Fausses alertes par heure</dt><dd className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{nf(f.fausses_alertes_par_heure, 2)}</dd>
-                    <dt>Rappel</dt><dd className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{pct(f.recall)}</dd>
-                    <dt>F1</dt><dd className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{nf(f.f1, 3)}</dd>
-                    <dt>AP (sans seuil)</dt><dd className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{nf(f.avg_precision, 3)}</dd>
-                    <dt>Épisodes détectés</dt><dd className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{f.episodes_detectes}/{f.episodes}</dd>
-                  </dl>
-                </>
-              ) : <Empty>Pas de mesure enregistrée pour ce rôle.</Empty>}
-            </Section>
-          );
-        })}
-      </div>
-      <Note>Voir aussi la courbe d’apprentissage dans « Résultats ».</Note>
-
-      <div className="grid lg:grid-cols-2 gap-6">
         <Section title="Épisodes réels et détection" subtitle={toutes.length > data.episodes.length
           ? `${toutes.length} épisodes en ${ROLE_FR[data.role].toLowerCase()}, toutes répétitions confondues (${new Set(toutes.map(e => e.repetition)).size} répétitions).`
           : `${data.episodes.length} épisodes en ${ROLE_FR[data.role].toLowerCase()} (répétition 0).`} source={data.sources.episodes} flush>
@@ -245,27 +188,6 @@ export default function DetectionPage() {
               ))}
             </tbody>
           </Table>
-        </Section>
-        <Section title="Par scénario" subtitle={`${toutes.length > data.episodes.length ? 'Toutes répétitions confondues' : 'Répétition 0'}, rôle choisi. Le scénario est connu parce qu’il a été injecté : il sert à évaluer la détection, le modèle ne le reconnaît pas (il répond seulement « attaque » ou « normal »).`} source={data.sources.episodes} flush>
-          <Table min={420}>
-            <thead><tr><th className="sm:pl-5">Scénario</th><th>Épisodes détectés</th><th className="vc-num sm:pr-5">Délai médian</th></tr></thead>
-            <tbody>
-              {data.par_scenario.map(s => (
-                <tr key={s.scenario}><td className="sm:pl-5">{SCENARIO_FR[s.scenario] ?? s.scenario}</td>
-                  <td><span className="inline-flex items-center gap-2"><Tally detected={s.detectes} total={s.episodes} /><span className="tabular-nums text-[13px]">{s.detectes}/{s.episodes}</span></span></td>
-                  <td className="vc-num sm:pr-5">{minutes(s.delai_median_min)}</td></tr>
-              ))}
-            </tbody>
-          </Table>
-          <div className="px-4 sm:px-5 py-4 text-sm" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-            <strong style={{ color: 'var(--text-primary)' }}>{data.alertes.length}</strong> alertes levées, dont{' '}
-            <strong style={{ color: fa.length ? 'var(--accent-danger)' : 'var(--text-primary)' }}>{fa.length}</strong> fausse{fa.length > 1 ? 's' : ''} (aucune mesure falsifiée pendant l’alerte).
-            {fa.length > 0 && (
-              <ul className="mt-2 text-[13px] space-y-1" style={{ color: 'var(--text-muted)' }}>
-                {fa.slice(0, 8).map(a => <li key={a.debut} className="flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent-warning)' }} aria-hidden />{new Date(a.debut).toLocaleString('fr-FR')} : {minutes(a.duree_min)}, score max {nf(a.score_max, 3)}</li>)}
-              </ul>
-            )}
-          </div>
         </Section>
       </div>
     </div>

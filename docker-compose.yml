@@ -43,7 +43,7 @@ services:
       - path: backend/.env
         required: false
     environment:
-      # La base du conteneur db (sans elle, l'application se replierait sur SQLite)
+      # La base du conteneur db
       DATABASE_URL: postgresql+asyncpg://vigilochain:${POSTGRES_PASSWORD:-vigilochain}@db:5432/vigilochain
       API_BASE_URL: http://127.0.0.1:8000/api/v1
       # Heures affichées (rapport, « dernier entraînement ») à l'heure de la Tunisie ; la base reste en UTC

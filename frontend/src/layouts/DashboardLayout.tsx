@@ -48,6 +48,7 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
   {
     title: 'Analyse du modèle',
     items: [
+      { label: 'Jeu de données', path: '/dashboard/donnees', icon: Database, roles: ALL, hint: 'KPI des traces réelles avec attaques' },
       { label: 'Résultats', path: '/dashboard/resultats', icon: Brain, roles: ALL, hint: 'Métriques train / validation / test' },
       { label: 'Détection vs réalité', path: '/dashboard/detection', icon: Crosshair, roles: ALL, hint: 'Alertes du modèle face aux attaques réelles' },
       { label: 'Explicabilité SHAP', path: '/dashboard/explicabilite', icon: Sparkles, roles: ALL, hint: 'Ce qui influence le score du modèle' },
@@ -66,8 +67,6 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
 
 // Pages accessibles sans entrée dans la barre latérale (« Mon profil » est dans le menu du compte, en haut à droite)
 const HIDDEN_ITEMS: Item[] = [
-  // Page « Jeu de données » masquée pour le moment (roles: [] : ni menu ni accès). Pour la réactiver : la remettre dans NAV_GROUPS avec roles: ALL.
-  { label: 'Jeu de données', path: '/dashboard/donnees', icon: Database, roles: [], hint: 'KPI des traces réelles avec attaques' },
   { label: 'Mon profil', path: '/dashboard/profile', icon: User, roles: ALL },
 ];
 

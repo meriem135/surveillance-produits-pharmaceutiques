@@ -92,6 +92,56 @@ async def _app():
     return app, engine, Session
 
 
+def test_dataset_page_reads_the_latest_web_training_when_no_reference_study():
+    """Sans étude de référence en base, la page Jeu de données lit le dernier entraînement du site."""
+    async def scenario():
+        app, engine, Session = await _app()
+        async with Session() as s:
+            rid = await repository.start_run(s, "admin", None, source="web")
+            await repository.finish_run(s, rid, OUT)
+            await repository.store_details(s, rid, OUT, _records(), None, service.feature_label)
+        app.dependency_overrides[get_current_user] = lambda: OPERATOR
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+            r = await c.get("/api/v1/etude/dataset")
+        await engine.dispose()
+        return r
+
+    r = asyncio.run(scenario())
+    assert r.status_code == 200
+    d = r.json()
+    assert d["run"]["source"] == "web" and d["total"]["lignes"] == N and d["total"]["attaques"] == 400
+
+
+def test_public_kpis_come_from_the_database_not_from_the_results_file():
+    """La fiche de la page d'accueil lit le dernier entraînement en base (route publique, sans connexion)."""
+    out = {**OUT, "repetitions": 20,
+           "dataset": {**OUT["dataset"], "prevalence": {"test": {"part": 0.23}}}, "meilleur": "HistGB"}
+    out["modeles"] = {k: {**v, "episodes": 73, "episodes_detectes": 70, "roc_auc": 0.91,
+                          "fausses_alarmes_evenements_par_heure": 0.348, "delai_median_min": 4.0,
+                          "per_episode": {"MITM_gel": {"n": 8, "detected": 8, "delai_median_min": 1.2}},
+                          "per_attack": {"MITM_gel": {"n": 100, "detected": 90, "rate": 90.0}}}
+                      for k, v in OUT["modeles"].items()}
+
+    async def scenario():
+        app, engine, Session = await _app()
+        async with Session() as s:
+            rid = await repository.start_run(s, "admin", None, source="web")
+            await repository.finish_run(s, rid, out)
+            await repository.store_details(s, rid, out, _records(), None, service.feature_label)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+            r = await c.get("/api/v1/transmission/kpis")           # aucun utilisateur connecté
+        await engine.dispose()
+        return r
+
+    r = asyncio.run(scenario())
+    assert r.status_code == 200
+    k = r.json()
+    assert k["meilleur"]["id"] == "HistGB" and k["meilleur"]["episodes"] == 73 and k["meilleur"]["episodes_detectes"] == 70
+    assert k["meilleur"]["precision"] == 0.95 and k["meilleur"]["fausses_alarmes_par_heure"] == 0.348
+    assert k["traces"]["mesures"] == N and k["traces"]["debut"].startswith("2019-04-01") and k["repetitions"] == 20
+    assert k["detection_par_scenario"][0]["scenario"] == "MITM_gel" and k["detection_par_scenario"][0]["taux"] == 100.0
+
+
 def test_reference_study_is_stored_and_pages_read_the_tables():
     async def scenario():
         app, engine, Session = await _app()

@@ -142,7 +142,7 @@ async def etude_run(_u=Depends(require_any_role("operator")), session: AsyncSess
 # ──────────────────────────────────────────────────────────────────────
 @router.get("/etude/dataset")
 async def etude_dataset(_u=Depends(require_any_role("operator")), session: AsyncSession = Depends(get_session)):
-    run = await _run(session)
+    run = await _run_detection(session)
     return await _cached(("dataset", run.id, run.finished_at), lambda: _etude_dataset(session, run))
 
 

@@ -13,7 +13,7 @@ emplacement. Chaque dossier peut être surchargé par variable d'environnement.
     <racine>/
       notebook/Raw/Normal/                 traces TON_IoT normales (brutes)
       notebook/Raw/Attaques/Attaque/<t>/   traces TON_IoT d'attaque (brutes)
-      data/processed/                      dataset_fusionne.csv, *_concat.csv, SQLite
+      data/processed/                      dataset_fusionne.csv, *_concat.csv
       data/generated/                      flux de démonstration saisonnier
       models/                              modèles entraînés + résultats JSON
 """
@@ -56,7 +56,6 @@ CONCAT_CSV = {
     "thermostat": PROCESSED_DIR / "thermostat_concat.csv",
 }
 SEASONAL_STREAM_CSV = GENERATED_DIR / "extraits_saisonniers_fusionne.csv"
-SQLITE_DB = PROCESSED_DIR / "iot_security.db"
 INFERRED_OCSVM = PROCESSED_DIR / "multivarie_inferred_ocsvm.json"
 
 # Modèles et résultats

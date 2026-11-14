@@ -73,11 +73,18 @@ class AlertContext(BaseModel):
 #   Sortie : dictionnaire
 # ──────────────────────────────────────────────────────────────────────
 @router.get("/transmission/kpis")
-async def transmission_kpis():
-    """Agrégats publics des résultats de référence (aucune donnée de compte ni de session)."""
-    kpis = await asyncio.to_thread(service.public_kpis)
+async def transmission_kpis(session: AsyncSession = Depends(get_session)):
+    """Agrégats publics (aucune donnée de compte ni de session), lus en base : dernier entraînement terminé,
+    sinon étude de référence. Le fichier de résultats n'est qu'un repli quand la base est vide."""
+    res = await _latest_from_db(session) or await _reference_from_db(session)
+    kpis = None
+    if res and res.get("run_id") is not None:
+        debut, fin = await repository.dataset_span(session, res["run_id"])
+        kpis = service.kpis_from_result(res, debut, fin)
     if kpis is None:
-        raise HTTPException(status_code=404, detail="Résultats de référence introuvables")
+        kpis = await asyncio.to_thread(service.public_kpis)
+    if kpis is None:
+        raise HTTPException(status_code=404, detail="Résultats introuvables : lancer un entraînement")
     return kpis
 
 

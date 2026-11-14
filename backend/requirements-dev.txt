@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8
+aiosqlite>=0.20  # bases temporaires en mémoire des tests uniquement
 ruff>=0.5
