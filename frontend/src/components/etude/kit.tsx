@@ -152,7 +152,7 @@ export function Section({ title, subtitle, source, action, children, className =
 
 export function SourceLine({ source }: { source: string }) {
   // Les pages d'archives lisent des fichiers (CSV, JSON) : le libellé le dit au lieu de « Lu en base ».
-  const fichier = /\.(csv|json|pkl)\b/i.test(source) && !/\b(SELECT|FROM|transmission_|telemetry|users|audit_logs|devices)\b/.test(source);
+  const fichier = /\.(csv|json|pkl)\b/i.test(source) && !/\b(SELECT|FROM|transmission_|users|audit_logs)\b/.test(source);
   return (
     <div className="vc-panel-foot px-4 sm:px-5 py-2 flex items-start gap-1.5">
       <Database className="w-3 h-3 shrink-0 mt-[3px]" aria-hidden />

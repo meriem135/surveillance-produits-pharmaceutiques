@@ -1,20 +1,3 @@
-export interface Device {
-  id: string;
-  name: string;
-  ip_address: string;
-  protocol: string;
-  risk_score: number;
-  status: string;
-  device_type: string;
-  location?: string;
-  compliance_score: number;
-  compliance_status: string;
-  firmware_version?: string;
-  manufacturer?: string;
-  last_seen?: string;
-  registered_at?: string;
-}
-
 export type AttackType = 'recon' | 'mitm' | 'ddos' | 'ransom';
 export type ThemeMode = 'light' | 'dark';
 

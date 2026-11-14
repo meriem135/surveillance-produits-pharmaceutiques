@@ -12,12 +12,10 @@ Chaque bloc de la réponse porte, dans ``sources``, la table et la requête dont
 pour que chaque chiffre affiché soit vérifiable directement en SQL. Aucun chiffre n'est lu dans
 un fichier ni écrit en dur : une table vide donne un bloc vide (``None`` ou liste vide).
 
-Tables lues : transmission_runs, transmission_model_results, devices, telemetry,
-users, audit_logs.
+Tables lues : transmission_runs, transmission_model_results, users, audit_logs.
 """
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import Any, Optional
 
@@ -30,11 +28,9 @@ from app.db.session import get_session
 from app.domains.auth.audit import AuditLog
 from app.domains.auth.models import User
 from app.domains.auth.service import require_any_role
-from app.domains.devices.models import Device, Telemetry
 from app.domains.transmission import repository
 from app.domains.transmission.models import TransmissionModelResult, TransmissionRun
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SOURCES = {
@@ -46,8 +42,6 @@ SOURCES = {
     "historique": "SELECT r.*, m.* FROM transmission_runs r LEFT JOIN transmission_model_results m "
                   "ON m.run_id = r.id AND m.is_best WHERE r.status = 'termine' AND r.source = 'web' ORDER BY r.started_at",
     "donnees": "transmission_runs.n_rows, n_features, n_episodes, dataset (dernier entraînement)",
-    "capteurs": "SELECT device_type, status, count(*) FROM devices GROUP BY device_type, status",
-    "telemetrie": "SELECT count(*), count(DISTINCT device_id), min(timestamp), max(timestamp) FROM telemetry",
     "comptes": "SELECT role, is_active, count(*) FROM users GROUP BY role, is_active",
     "audit": "SELECT count(*), max(created_at) FROM audit_logs",
 }
@@ -62,16 +56,6 @@ SOURCES = {
 def _utc(d: Optional[datetime]) -> Optional[str]:
     """Horodatage stocké en UTC naïf (utcnow) : suffixe Z pour que le navigateur l'affiche en heure locale."""
     return d.isoformat(timespec="seconds") + "Z" if d else None
-
-
-# ──────────────────────────────────────────────────────────────────────
-# [EN BREF] _iso
-#   Rôle   : Date en texte ISO.
-#   Entrée : d : date
-#   Sortie : texte
-# ──────────────────────────────────────────────────────────────────────
-def _iso(d: Optional[datetime]) -> Optional[str]:
-    return d.isoformat(timespec="seconds") if d else None
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -212,21 +196,7 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         "mode": (r.result_json or {}).get("mode") or "tous_les_modeles",
     } for r, m in hist_rows]
 
-    # ── Capteurs, télémétrie, comptes, audit ─────────────────────────────────
-    dev_rows = (await session.execute(
-        select(Device.device_type, Device.status, func.count()).group_by(Device.device_type, Device.status)
-    )).all()
-    devices = (await session.execute(select(Device).order_by(Device.id))).scalars().all()
-    try:
-        # SAVEPOINT : si la table telemetry a un ancien schéma, seule cette lecture échoue (bloc vide), pas la page
-        async with session.begin_nested():
-            tel = (await session.execute(
-                select(func.count(), func.count(func.distinct(Telemetry.device_id)),
-                       func.min(Telemetry.timestamp), func.max(Telemetry.timestamp))
-            )).one()
-    except Exception:  # noqa: BLE001
-        logger.exception("Lecture de la table telemetry impossible (schéma de la base à mettre à jour ?)")
-        tel = (0, 0, None, None)
+    # ── Comptes, audit ───────────────────────────────────────────────────────
     user_rows = (await session.execute(
         select(User.role, User.is_active, func.count()).group_by(User.role, User.is_active)
     )).all()
@@ -240,14 +210,6 @@ async def build_overview(session: AsyncSession) -> dict[str, Any]:
         "entrainements": entrainements,
         "dernier_entrainement": dernier,
         "historique": historique,
-        "capteurs": {
-            "total": sum(n for _, _, n in dev_rows),
-            "en_ligne": sum(n for _, s, n in dev_rows if s == "online"),
-            "par_type": {t: sum(n for tt, _, n in dev_rows if tt == t) for t in sorted({t for t, _, _ in dev_rows})},
-            "liste": [{"id": d.id, "nom": d.name, "type": d.device_type, "statut": d.status,
-                       "emplacement": d.location, "vu_le": _iso(d.last_seen)} for d in devices],
-        },
-        "telemetrie": {"mesures": tel[0], "appareils": tel[1], "debut": _iso(tel[2]), "fin": _iso(tel[3])},
         "comptes": {"total": sum(par_role.values()),
                     "actifs": sum(n for _, a, n in user_rows if a), "par_role": par_role},
         "audit": {"actions": audit[0], "derniere": _utc(audit[1])},

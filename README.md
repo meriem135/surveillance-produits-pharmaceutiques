@@ -22,7 +22,7 @@ Projet de Fin d'Études — Data Science & Cybersécurité IoT.
 │   │   ├── api/v1/          routes REST (auth, etude, transmission, parametres, overview…)
 │   │   ├── core/            configuration (.env) et chemins canoniques (paths.py)
 │   │   ├── db/              session (PostgreSQL), seed
-│   │   ├── domains/         auth, devices, intelligence (score de risque), ml (features), transmission
+│   │   ├── domains/         auth, ml (features), transmission, parametres.py
 │   ├── scripts/
 │   │   ├── build_dataset.py construit data/ depuis les traces brutes TON_IoT
 │   │   ├── transmission_real.py    traces réelles, injection des attaques, découpage et zone de garde (aucun modèle)
@@ -123,8 +123,6 @@ choisit le seuil sur la validation, `rank_models` classe les modèles, le test c
 | `ml/features.py` | Les 21 features de base des capteurs (réutilisées par les scripts). |
 | `ml/progress.py` | Garde les messages de progression de l'entraînement, lus par la page toutes les secondes. |
 | `auth/` | Utilisateurs, mots de passe chiffrés (bcrypt), jetons JWT, rôles admin / opérateur, journal d'audit. |
-| `devices/` | Équipements IoT et leurs mesures (télémétrie). |
-| `intelligence/` | Score de risque des équipements (criticité, tendance). |
 | `parametres.py` | Table et validation des paramètres modifiables par l'administrateur. |
 
 **Les tests (`backend/tests/`)** vérifient le protocole (pas de fuite entre train / val / test, zone de

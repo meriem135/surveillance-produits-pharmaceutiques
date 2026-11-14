@@ -13,7 +13,6 @@ from app.api.v1 import overview as api
 from app.db.session import get_session
 from app.domains.auth.models import User
 from app.domains.auth.service import get_current_user
-from app.domains.devices.models import Device, Telemetry
 from app.domains.transmission import repository
 
 OUT = {
@@ -73,7 +72,6 @@ def test_empty_database_gives_empty_blocks():
     d = r.json()
     assert d["entrainements"]["total"] == 0 and d["entrainements"]["dernier_lancement"] is None
     assert d["dernier_entrainement"] is None and d["historique"] == []
-    assert d["capteurs"]["total"] == 0 and d["telemetrie"]["mesures"] == 0 and d["telemetrie"]["debut"] is None
     assert d["comptes"]["total"] == 0 and d["audit"]["actions"] == 0
     assert "transmission_runs" in d["sources"]["entrainements"]
 
@@ -86,16 +84,6 @@ def test_overview_reports_what_the_database_holds():
         await repository.finish_run(s, first, {**OUT, "modeles": {"RandomForest": {**OUT["modeles"]["RandomForest"], "f1": 0.57}}})
         second = await repository.start_run(s, "admin")
         await repository.finish_run(s, second, OUT)
-        s.add(Device(id="fridge-01", name="Chambre froide", device_type="fridge", status="online", location="storage",
-                     ip_address="10.0.0.2", mac_address="aa", risk_score=0, compliance_score=0,
-                     compliance_status="ok", last_seen=datetime(2026, 10, 7), registered_at=datetime(2026, 10, 7)))
-        s.add(Device(id="weather-01", name="Météo", device_type="weather", status="offline", location="outdoor",
-                     ip_address="10.0.0.3", mac_address="bb", risk_score=0, compliance_score=0,
-                     compliance_status="ok", last_seen=datetime(2026, 10, 7), registered_at=datetime(2026, 10, 7)))
-        await s.commit()
-        for sec in (1, 5):
-            s.add(Telemetry(device_id="fridge-01", timestamp=datetime(2026, 10, 7, 17, 0, sec), metric_key="k",
-                            metric_value={}))
         s.add(User(email="a@b.c", username="admin", hashed_password="x", role="admin", is_active=True,
                    created_at=datetime(2026, 10, 7)))
         await s.commit()
@@ -118,7 +106,4 @@ def test_overview_reports_what_the_database_holds():
     assert last["donnees"]["lignes"] == 44443 and last["donnees"]["scenarios"] == 3
     assert [h["f1"] for h in d["historique"]] == [0.57, 0.76]
     assert all(h["repetitions"] == 1 and h["mode"] == "tous_les_modeles" for h in d["historique"])
-    assert d["capteurs"]["total"] == 2 and d["capteurs"]["en_ligne"] == 1
-    assert d["capteurs"]["par_type"] == {"fridge": 1, "weather": 1}
-    assert d["telemetrie"]["mesures"] == 2 and d["telemetrie"]["fin"] == "2026-10-07T17:00:05"
     assert d["comptes"] == {"total": 1, "actifs": 1, "par_role": {"admin": 1}}

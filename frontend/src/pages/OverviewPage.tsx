@@ -1,7 +1,7 @@
 /**
  * Vue d'ensemble — chaque chiffre de cette page vient de GET /api/v1/overview, qui ne lit que
- * la base de données (transmission_runs, transmission_model_results, devices, telemetry,
- * users, audit_logs). Aucun chiffre écrit en dur.
+ * la base de données (transmission_runs, transmission_model_results, users, audit_logs).
+ * Aucun chiffre écrit en dur.
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -42,9 +42,6 @@ interface Overview {
     dernier_lancement: null | { id: number; debut: string; fin: string | null; statut: string; lance_par: string | null; duree_s: number | null; erreur: string | null } };
   dernier_entrainement: LastRun | null;
   historique: HistoryRow[];
-  capteurs: { total: number; en_ligne: number; par_type: Record<string, number>;
-    liste: { id: string; nom: string; type: string; statut: string; emplacement: string; vu_le: string | null }[] };
-  telemetrie: { mesures: number; appareils: number; debut: string | null; fin: string | null };
   comptes: { total: number; actifs: number; par_role: Record<string, number> };
   audit: { actions: number; derniere: string | null };
   sources: Record<string, string>;
