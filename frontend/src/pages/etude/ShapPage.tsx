@@ -55,6 +55,7 @@ export default function ShapPage() {
             options={scenarios.map(s => ({ value: s, label: SCENARIO_FR[s] ?? s }))} />
         </div>
         {current && <Bars rows={data.par_scenario[current]} color={pal.series[1]} height={Math.max(200, data.par_scenario[current].length * 30)} />}
+        <Note>Seuls les scénarios présents dans la validation et le test sont expliqués : le SHAP est calculé sur des attaques que le modèle n’a pas vues à l’entraînement. Les autres scénarios (biais de −1 °C et −2 °C, dérive lente, gel et biais du thermostat) servent uniquement à l’entraînement ; les expliquer sur ces données donnerait des importances faussées, puisque le modèle les a déjà apprises.</Note>
       </Section>
     </div>
   );
