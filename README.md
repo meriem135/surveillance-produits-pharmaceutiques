@@ -107,7 +107,7 @@ choisit le seuil sur la validation, `rank_models` classe les modèles, le test c
 | Fichier | URL | Rôle |
 | --- | --- | --- |
 | `auth.py` | `/api/v1/auth/...` (dont `auth/users`, `auth/audit-logs`) | Inscription, connexion (jeton JWT), profil, gestion des comptes et journal d'audit (admin). |
-| `etude.py` | `/api/v1/etude/...` | Données des pages Jeu de données, Résultats, SHAP, Détection vs réalité, et **Temps réel** (`live/start`, `live/{id}/next`, `live/{id}`). |
+| `etude.py` | `/api/v1/etude/...` | Données des pages Vue d'ensemble (KPI du jeu), Résultats, SHAP, Détection vs réalité, et **Temps réel** (`live/start`, `live/{id}/next`, `live/{id}`). |
 | `transmission.py` | `/api/v1/transmission/...` | Lancer un entraînement (admin), suivre sa progression (`training-status`), historique, rapport opérateur, chiffres de la page d'accueil. |
 | `overview.py` | `/api/v1/overview` | Indicateurs de la page Vue d'ensemble. |
 | `parametres.py` | `/api/v1/parametres` | Lire / modifier les paramètres (précision minimale, fausses alertes tolérées, vitesse du temps réel). |
@@ -220,14 +220,12 @@ Toutes les pages de l'étude lisent **PostgreSQL** (`/api/v1/etude/*`), jamais u
 
 | Section | Page | Contenu | Rôles |
 | --- | --- | --- | --- |
-| Surveillance | Vue d'ensemble | indicateurs clés lus en base | admin, opérateur |
-| | Temps réel | les mesures passent une à une dans le modèle sauvegardé (polling REST `/api/v1/etude/live/*`) | admin, opérateur |
-| | Détection vs réalité | alertes du modèle face aux épisodes réels, par rôle ; ajustement train / val / test | admin, opérateur |
-| | Rapport d'alerte | consignes pour l'opérateur par type d'attaque | admin, opérateur |
-| Modèle | Résultats | métriques train / val / test, classement, persistance, courbe d'apprentissage, validation croisée | admin, opérateur |
+| Surveillance | Vue d'ensemble | KPI du jeu de données (mesures, durée, mesures falsifiées, épisodes, zone de garde) et détection par scénario, lus en base | admin, opérateur |
+| | Temps réel | les mesures **du jeu de test** passent une à une dans le modèle sauvegardé (polling REST `/api/v1/etude/live/*`) ; courbes des trois capteurs (frigo, thermostat, météo) et du score ; journal des alertes ; alerte en cours avec acquittement (local) et rappel au bout de 15 min | admin, opérateur |
+| | Détection vs réalité | score du modèle et alertes minute par minute sur le test, filtres, statut de chaque alerte (terminée, prolongée) ; bouton **Rapport** qui déplie, sous l'alerte, le rapport d'alerte (gravité, cause probable, SHAP, plan d'action, validation par l'opérateur) avec export **PDF** (impression du navigateur) | admin, opérateur |
+| Modèle | Résultats | fiche du meilleur modèle (test), détection par scénario, épisodes réels et détection (20 répétitions), validation croisée naïve contre groupée | admin, opérateur |
 | | Explicabilité SHAP | importances globales et par scénario | admin, opérateur |
-| | Jeu de données | KPI du jeu réel avec attaques | admin, opérateur |
-| Administration | Entraînement | réentraîne le modèle retenu (répétition 0), progression mise à jour chaque seconde | admin |
+| Administration | Entraînement | réentraîne le modèle retenu (20 répétitions, détail minute par minute enregistré pour la répétition 0), progression mise à jour chaque seconde | admin |
 | | Paramètres | précision minimale, fausses alertes tolérées, vitesse du temps réel | admin |
 | | Comptes, Journal d'audit | gestion des utilisateurs, traçabilité | admin |
 
