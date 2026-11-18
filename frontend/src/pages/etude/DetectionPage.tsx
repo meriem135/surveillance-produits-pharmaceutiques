@@ -118,17 +118,12 @@ export default function DetectionPage() {
                           <div className="flex items-center gap-2">
                             <span><strong>{rap.gravite}</strong> · {al.vraie ? FAMILLE_FR[est.famille] : 'Fausse alerte'}<span className="text-[12px]" style={{ color: 'var(--text-muted)' }}> · Terminée après {minutes(al.duree_min)}</span>
                               {al.duree_min >= ESCALADE_MIN && <span className="ml-1.5"><State kind="manque">Prolongée</State></span>}</span>
-                            <button className="vc-btn" onClick={() => setFiche(fiche?.cle === l.ts ? null : { cle: l.ts, rap, al })}>{fiche?.cle === l.ts ? 'Masquer' : 'Rapport'}</button>
+                            <button className="vc-btn" onClick={() => setFiche({ cle: l.ts, rap, al })}>Rapport</button>
                           </div>
                         ) : al ? <span style={{ color: 'var(--text-muted)' }}>↳ même alerte (rapport sur la première ligne)</span>
                           : <span style={{ color: 'var(--text-muted)' }}>{l.resultat === 'manquee' ? 'pas d’alerte, pas d’explication' : '—'}</span>}
                       </td>
                     </tr>
-                    {fiche?.cle === l.ts && (
-                      <tr><td colSpan={7} className="whitespace-normal" style={{ background: 'var(--bg-subtle)' }}>
-                        <RapportAlerte rap={fiche.rap} al={fiche.al} seuil={data.seuil} onClose={() => setFiche(null)} />
-                      </td></tr>
-                    )}
                   </Fragment>
                 );
               })}
@@ -144,6 +139,7 @@ export default function DetectionPage() {
           </div>
         )}
       </Section>
+      {fiche && <RapportAlerte rap={fiche.rap} al={fiche.al} seuil={data.seuil} onClose={() => setFiche(null)} />}
     </div>
   );
 }

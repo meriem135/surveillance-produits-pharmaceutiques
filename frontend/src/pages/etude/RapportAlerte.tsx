@@ -2,7 +2,8 @@
  *  explication du modèle, plan d'action, validation par l'opérateur). Bouton PDF : ouvre la feuille seule dans une
  *  fenêtre d'impression (choisir « Enregistrer au format PDF »). Les textes viennent de recommandations.ts. */
 import { useEffect, useRef, type ReactNode } from 'react';
-import { ChevronUp, Download, Gauge, Target, Thermometer, Timer } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Download, X, Gauge, Target, Thermometer, Timer } from 'lucide-react';
 import { Meter, dateFr, minutes, nf, pct } from '../../components/etude/kit';
 import { FAMILLE_FR, capteurDe, estimer, type AlerteRapport, type Contribution, type Rapport } from './recommandations';
 
@@ -17,9 +18,14 @@ const ETAPE: Record<string, string> = { Immédiat: '#C92A2A', Vérification: '#D
 
 export default function RapportAlerte({ rap, al, seuil, onClose }: { rap: Rapport; al: AlerteFiche; seuil: number | null; onClose: () => void }) {
   const feuille = useRef<HTMLDivElement>(null);
-  const haut = useRef<HTMLDivElement>(null);
-  // Le rapport s'affiche dans la page, sous l'alerte : on le fait défiler dans la vue à l'ouverture.
-  useEffect(() => { haut.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, []);
+  // Fenêtre popup au-dessus de la page : Échap ou clic sur le fond la ferme, la page derrière ne défile pas.
+  useEffect(() => {
+    const touche = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', touche);
+    const avant = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', touche); document.body.style.overflow = avant; };
+  }, [onClose]);
 
   const g = GRAVITE[rap.gravite];
   const cap = capteurDe(al);
@@ -35,15 +41,20 @@ export default function RapportAlerte({ rap, al, seuil, onClose }: { rap: Rappor
     { icone: <Target className="w-5 h-5" />, k: 'Cause probable', v: cause },
   ];
 
-  return (
-    <div ref={haut} className="sticky left-0 w-full max-w-[920px] py-3 scroll-mt-4" aria-label={titre}>
-      {/* Barre d'actions (absente du PDF) */}
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <button className="vc-btn" onClick={onClose}><ChevronUp className="w-4 h-4" />Masquer le rapport</button>
-        <button className="vc-btn vc-btn-primary" onClick={() => exporterPdf(feuille.current, titre)}><Download className="w-4 h-4" />Télécharger en PDF</button>
-      </div>
-
-      <div>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-3 sm:p-6" style={{ background: 'rgba(15, 23, 42, 0.55)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={titre} className="w-full max-w-[920px] max-h-full overflow-y-auto rounded-[16px]"
+        style={{ background: 'var(--bg-base)', boxShadow: '0 24px 70px -20px rgba(0,0,0,0.55)' }}>
+        {/* Barre d'actions (absente du PDF) */}
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-3" style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+          <span className="font-semibold text-[14px]" style={{ color: 'var(--text-primary)' }}>{titre}</span>
+          <div className="flex items-center gap-2">
+            <button className="vc-btn vc-btn-primary" onClick={() => exporterPdf(feuille.current, titre)}><Download className="w-4 h-4" />PDF</button>
+            <button className="vc-btn" onClick={onClose} aria-label="Fermer le rapport"><X className="w-4 h-4" />Fermer</button>
+          </div>
+        </div>
+        <div className="p-3 sm:p-5">
         <div ref={feuille} className="vc-report mx-auto max-w-[860px] text-[14px] leading-relaxed"
           style={{ background: '#FFFFFF', color: '#334155', border: '1px solid #E5E9F2', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 40px -18px rgba(15,23,42,0.35)' }}>
 
@@ -144,8 +155,10 @@ export default function RapportAlerte({ rap, al, seuil, onClose }: { rap: Rappor
             « attaque » ou « normal ». Document généré par VigiloChain le {dateFr(new Date().toISOString())}.
           </footer>
         </div>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
