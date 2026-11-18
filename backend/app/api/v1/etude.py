@@ -526,7 +526,7 @@ async def etude_live_start(body: LiveStart, user: User = Depends(require_any_rol
     src = await live.stream_source(session)
     if src is None:
         raise HTTPException(status_code=404, detail="Modèle ou jeu de données introuvable")
-    role = body.role if body.role in ROLES else "test"
+    role = "test"   # le temps réel ne rejoue que le jeu de test
     sid = uuid.uuid4().hex
     _LIVE[sid] = {"streamer": live.Streamer(src, role, max(0, body.depuis)), "user_id": user.id,
                   "vu": time.monotonic(), "lock": asyncio.Lock()}

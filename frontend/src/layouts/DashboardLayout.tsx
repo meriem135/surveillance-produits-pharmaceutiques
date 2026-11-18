@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   ShieldAlert, Users, Moon, Sun, ChevronDown, LogOut, User, Brain, Sparkles,
-  ScrollText, Radio, Gauge, Menu, X, Crosshair, Database, Play, Settings,
+  ScrollText, Radio, Gauge, Menu, X, Crosshair, Play, Settings,
 } from 'lucide-react';
 
 const OverviewPage = lazy(() => import('../pages/OverviewPage'));
@@ -22,7 +22,6 @@ const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const AuditLogsPage = lazy(() => import('../pages/AuditLogsPage'));
 const TempsReelPage = lazy(() => import('../pages/etude/TempsReelPage'));
 const DetectionPage = lazy(() => import('../pages/etude/DetectionPage'));
-const DatasetPage = lazy(() => import('../pages/etude/DatasetPage'));
 const ResultatsPage = lazy(() => import('../pages/etude/ResultatsPage'));
 const ShapPage = lazy(() => import('../pages/etude/ShapPage'));
 // const RapportPage = lazy(() => import('../pages/etude/RapportPage')); // page masquée temporairement
@@ -48,7 +47,6 @@ const NAV_GROUPS: { title: string; items: Item[] }[] = [
   {
     title: 'Analyse du modèle',
     items: [
-      { label: 'Jeu de données', path: '/dashboard/donnees', icon: Database, roles: ALL, hint: 'KPI des traces réelles avec attaques' },
       { label: 'Résultats', path: '/dashboard/resultats', icon: Brain, roles: ALL, hint: 'Métriques train / validation / test' },
       { label: 'Détection vs réalité', path: '/dashboard/detection', icon: Crosshair, roles: ALL, hint: 'Alertes du modèle face aux attaques réelles' },
       { label: 'Explicabilité SHAP', path: '/dashboard/explicabilite', icon: Sparkles, roles: ALL, hint: 'Ce qui influence le score du modèle' },
@@ -227,7 +225,6 @@ export default function DashboardLayout() {
                 <Route path="/dashboard/rapport" element={<Navigate to="/dashboard/overview" replace />} />
                 <Route path="/dashboard/resultats" element={canAccess('/dashboard/resultats') ? <ResultatsPage /> : <AccessDenied />} />
                 <Route path="/dashboard/explicabilite" element={canAccess('/dashboard/explicabilite') ? <ShapPage /> : <AccessDenied />} />
-                <Route path="/dashboard/donnees" element={canAccess('/dashboard/donnees') ? <DatasetPage /> : <AccessDenied />} />
                 <Route path="/dashboard/entrainement" element={canAccess('/dashboard/entrainement') ? <EntrainementPage /> : <AccessDenied />} />
                 <Route path="/dashboard/parametres" element={canAccess('/dashboard/parametres') ? <ParametresPage /> : <AccessDenied />} />
                 <Route path="/dashboard/transmission" element={<Navigate to="/dashboard/resultats" replace />} />

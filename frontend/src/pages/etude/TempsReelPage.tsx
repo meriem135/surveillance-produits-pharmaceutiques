@@ -4,8 +4,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Pause, Play, Square } from 'lucide-react';
+import { ESCALADE_MIN } from './recommandations';
 import { authHeaders } from '../../lib/auth';
-import { BandLegend, Empty, MODEL_FR, Note, PageHeader, Readouts, ROLE_FR, SCENARIO_FR, Section, Stat, State, heure, nf, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
+import { BandLegend, Empty, MODEL_FR, Note, PageHeader, Readouts, Section, Stat, State, heure, nf, tooltipStyle, useApi, usePalette } from '../../components/etude/kit';
 
 interface Info { modele: string; nom: string; seuil: number; k: number; n: number; critere: string | null;
   roles: Record<string, { lignes: number; episodes: number }>; vitesse_defaut: number; sources: Record<string, string> }
@@ -13,18 +14,19 @@ interface Pt { idx: number; ts: string; fridge: number; thermostat: number; weat
 interface Ev { type: 'debut' | 'fin'; idx: number; ts?: string; attaque_reelle?: string; score?: number; duree_min?: number; vraie?: boolean; debut_idx?: number }
 interface Stats { mesures: number; alertes: number; vraies: number; fausses: number; attaque_lignes: number }
 
-const WINDOW = 720;   // 1 h de mesures affichées
+const WINDOW = 720;
 
 export default function TempsReelPage() {
   const { data: info, error } = useApi<Info>('/api/v1/etude/live/info');
   const pal = usePalette();
-  const [role, setRole] = useState('test');
+  const role = 'test';   // le temps réel ne rejoue que le jeu de test (jamais vu à l'entraînement ni au réglage)
   const [speed, setSpeed] = useState<number | null>(null);
   const [state, setState] = useState<'arret' | 'connexion' | 'lecture' | 'pause' | 'fini'>('arret');
   const [points, setPoints] = useState<Pt[]>([]);
   const [events, setEvents] = useState<(Ev & { recu: string })[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [progress, setProgress] = useState(0);
+  const [acquittee, setAcquittee] = useState<{ idx: number; heure: string } | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);
   // Lecture en cours côté serveur, interrogée chaque seconde (polling).
   const sid = useRef<string | null>(null);
@@ -94,7 +96,7 @@ export default function TempsReelPage() {
     release();
     if (frame.current != null) { cancelAnimationFrame(frame.current); frame.current = null; }
     pending.current = { points: [], events: [], stats: null, progress: null, fini: false };
-    setPoints([]); setEvents([]); setStats(null); setProgress(0); setLiveError(null); setState('connexion');
+    setAcquittee(null); setPoints([]); setEvents([]); setStats(null); setProgress(0); setLiveError(null); setState('connexion');
     paused.current = false;
     try {
       const r = await fetch('/api/v1/etude/live/start', {
@@ -116,6 +118,12 @@ export default function TempsReelPage() {
   if (!info) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <div className="vc-panel h-40 animate-pulse" />}</div>;
 
   const last = points[points.length - 1];
+  // Alerte en cours : mesures consécutives en alerte, jusqu'à la dernière reçue (une mesure toutes les 5 s).
+  let nbAlarme = 0;
+  while (nbAlarme < points.length && points[points.length - 1 - nbAlarme].alarme) nbAlarme++;
+  const debutEnCours = nbAlarme ? points[points.length - nbAlarme].idx : null;
+  const dureeEnCours = (nbAlarme * 5) / 60;
+  const prise = acquittee && acquittee.idx === debutEnCours ? acquittee : null;
   // Périodes continues d'attaque réelle et d'alerte, tracées comme des bandes verticales sur les deux courbes.
   const bandes = (pick: (p: Pt) => boolean) => {
     const out: { a: string; b: string }[] = [];
@@ -149,11 +157,11 @@ export default function TempsReelPage() {
       {header}
       <div className="vc-fiche p-4 sm:p-5">
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
-          <label className="text-[13px] font-semibold flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>Données rejouées
-            <select value={role} onChange={e => setRole(e.target.value)} disabled={state === 'lecture'} className="vc-select font-normal">
-              {(['test', 'val', 'train'] as const).map(r => <option key={r} value={r}>{ROLE_FR[r]} ({nf(info.roles[r]?.lignes)} mesures évaluées)</option>)}
-            </select>
-          </label>
+          <div className="text-[13px] font-semibold flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>Données rejouées
+            <span className="h-[34px] flex items-center font-normal" style={{ color: 'var(--text-primary)' }}>
+              Jeu de test ({nf(info.roles.test?.lignes)} mesures évaluées)
+            </span>
+          </div>
           <label className="text-[13px] font-semibold flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>Vitesse de lecture
             <span className="flex items-center gap-2 h-[34px] font-normal">
               <input type="range" min={6} max={180} step={6} value={vitesse} aria-label="Vitesse de lecture"
@@ -193,7 +201,7 @@ export default function TempsReelPage() {
       </Readouts>
 
       <div className="grid xl:grid-cols-3 gap-6">
-        <Section title="Flux des capteurs" subtitle="Dernière heure rejouée : température transmise par le frigo et score du modèle." className="xl:col-span-2" source={info.sources.mesures}>
+        <Section title="Flux des capteurs" subtitle="Dernière heure rejouée : températures transmises par les trois capteurs (frigo, thermostat, météo) et score du modèle." className="xl:col-span-2" source={info.sources.mesures}>
           {points.length ? (
             <>
               <BandLegend items={[
@@ -219,6 +227,26 @@ export default function TempsReelPage() {
                   </ResponsiveContainer>
                 </div>
               </div>
+              {([['thermostat', 'Thermostat (production)', pal.series[0]], ['weather', 'Météo (extérieur)', pal.series[0]]] as const).map(([cle, nom, couleur]) => (
+                <div key={cle} className="mt-4">
+                  <div className="mb-1 text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>{nom}</div>
+                  <div className="vc-card p-3 pr-4" style={{ boxShadow: 'none' }}>
+                    <div className="h-[130px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={chart} margin={{ top: 6, right: 4, left: -8, bottom: 0 }}>
+                          <CartesianGrid stroke={pal.grid} vertical={false} />
+                          <XAxis dataKey="ts" tickFormatter={heure} minTickGap={56} tick={{ fill: pal.axis, fontSize: 12 }} tickLine={false} />
+                          <YAxis domain={[(m: number) => Math.floor(m - 1), (m: number) => Math.ceil(m + 1)]} allowDecimals={false} width={52}
+                            tickFormatter={(v: number) => `${v} °C`} tick={{ fill: pal.axis, fontSize: 12 }} tickLine={false} axisLine={false} />
+                          <Tooltip {...tooltipStyle} labelFormatter={v => new Date(String(v)).toLocaleString('fr-FR')} formatter={(v) => [`${nf(Number(v), 2)} °C`, nom]} />
+                          {calques}
+                          <Line dataKey={cle} name={nom} stroke={couleur} dot={false} strokeWidth={2} isAnimationActive={false} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              ))}
               <div className="mt-4 mb-1"><BandLegend items={[
                 { label: 'Score de risque du modèle', color: pal.series[0], kind: 'line' },
                 { label: `Seuil ${nf(info.seuil * 100, 0)} %`, color: pal.alert, kind: 'dash' },
@@ -248,6 +276,21 @@ export default function TempsReelPage() {
           ) : <Empty>Choisissez les données puis cliquez sur « Démarrer » : le modèle analyse les mesures au fil de l’eau.</Empty>}
         </Section>
         <Section title="Journal des alertes" subtitle="Début et fin de chaque alerte, comparée à la réalité.">
+          {debutEnCours != null && (
+            <div className="mb-3 rounded-[12px] p-3 text-[13.5px]" style={{ background: 'rgba(201, 42, 42, 0.08)', border: '1px solid var(--accent-danger)' }}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span><State kind="manque">Alerte en cours</State> <strong className="ml-1" style={{ color: 'var(--text-primary)' }}>depuis {nf(dureeEnCours, 1)}&#160;min</strong></span>
+                {prise
+                  ? <span style={{ color: 'var(--accent-primary)' }} className="font-semibold">✓ Prise en charge à {prise.heure}</span>
+                  : <button className="vc-btn" onClick={() => setAcquittee({ idx: debutEnCours, heure: new Date().toLocaleTimeString('fr-FR') })}>Acquitter l’alerte</button>}
+              </div>
+              {dureeEnCours >= ESCALADE_MIN && (
+                <p className="mt-2 font-semibold" style={{ color: 'var(--accent-danger)' }}>
+                  Alerte prolongée (plus de {ESCALADE_MIN} min) : prévenir le responsable qualité. C’est la même alerte, pas une nouvelle.
+                </p>
+              )}
+            </div>
+          )}
           {events.length ? (
             <ol className="max-h-[440px] overflow-y-auto -my-1">
               {events.map((e, i) => (
@@ -258,7 +301,7 @@ export default function TempsReelPage() {
                         <State kind="alerte">Alerte levée</State>
                         <span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{e.ts && new Date(e.ts).toLocaleTimeString('fr-FR')}</span>
                       </div>
-                      <div className="mt-0.5" style={{ color: 'var(--text-muted)' }}>Type réel (connu du jeu de données, pas du modèle) : {SCENARIO_FR[e.attaque_reelle ?? 'normal'] ?? e.attaque_reelle} ; score {nf(e.score, 3)}</div>
+                      <div className="mt-0.5" style={{ color: 'var(--text-muted)' }}>Seuil de {nf(info.seuil * 100, 0)}&#8239;% dépassé sur {info.k} des {info.n} dernières mesures</div>
                     </>
                   ) : (
                     <div className="flex items-center justify-between gap-2">

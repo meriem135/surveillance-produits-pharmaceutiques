@@ -29,6 +29,9 @@ export function familleDe(feature: string): Famille {
   return 'indetermine';
 }
 
+/** Durée (min) au-delà de laquelle une alerte est « prolongée » : relance du responsable qualité (même alerte). */
+export const ESCALADE_MIN = 15;
+
 export interface Estimation { famille: Famille; confiance: number }
 
 /** Part de l'effet SHAP positif portée par chaque famille ; la famille dominante est retenue si elle pèse au

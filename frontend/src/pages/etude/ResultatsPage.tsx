@@ -1,10 +1,9 @@
 /** Résultats et métriques — transmission_metrics, transmission_model_results, transmission_learning_curve
  *  (GET /api/v1/etude/metrics). Le modèle est choisi sur la validation ; le test ne fait que confirmer. */
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Empty, Loading, MODEL_FR, Note, PageHeader, Readouts, State, ROLE_FR, SCENARIO_FR, Section, Stat, Table, dateFr, minutes, nf, pct,
-  tooltipStyle, useApi, usePalette,
+  Empty, Loading, MODEL_FR, Note, PageHeader, Readouts, State, ROLE_FR, SCENARIO_FR, Section, Stat, Table, minutes, nf, pct,
+  useApi,
 } from '../../components/etude/kit';
 
 export interface Metric {
@@ -36,39 +35,21 @@ interface MetricsResp {
 interface RunItem { id: number; source: string; date: string; meilleur_modele: string | null; lance_par: string | null;
   jeu_de_donnees: string | null; importe: boolean }
 
-function runLabel(r: RunItem) {
-  if (r.source === 'reference') return `Étude de référence (n° ${r.id})`;
-  const model = r.meilleur_modele ? MODEL_FR[r.meilleur_modele] ?? r.meilleur_modele : '—';
-  return `Entraînement n° ${r.id} du ${dateFr(r.date)} : ${model}, ${r.jeu_de_donnees ?? 'jeu du projet'}${r.importe ? ' (importé)' : ''}`;
-}
+interface EpisodeRow { repetition?: number; scenario: string; debut: string; duree_min: number; detecte: boolean | null; delai_min: number | null }
+interface EpisodesResp { role: string; episodes: EpisodeRow[]; episodes_toutes?: (EpisodeRow & { repetition: number })[]; sources: Record<string, string> }
 
 export default function ResultatsPage() {
+  const ep = useApi<EpisodesResp>('/api/v1/etude/timeline?role=test&minutes=1');
   // Entraînement affiché : ?run=<id> dans l'adresse, sinon le plus récent terminé (dernier entraînement lancé).
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const runs = useApi<{ runs: RunItem[]; defaut: number | null }>('/api/v1/etude/runs');
   const asked = Number(params.get('run')) || null;
   const runId = asked ?? runs.data?.runs[0]?.id ?? null;
   const { data, error, loading, reload } = useApi<MetricsResp>(runId ? `/api/v1/etude/metrics?run_id=${runId}` : '/api/v1/etude/metrics');
-  const pal = usePalette();
-  const current = runs.data?.runs.find(r => r.id === (data?.run.id ?? runId));
   const header = (
     <>
       <PageHeader title="Résultats et métriques" loading={loading} onRefresh={() => { runs.reload(); reload(); }}
         subtitle="Un seul réglage d'alerte par modèle, choisi sur la validation ; les chiffres du test confirment le choix sans y avoir servi." />
-      {runs.data && runs.data.runs.length > 0 && (
-        <div className="vc-fiche p-4 flex flex-wrap items-center gap-3 text-[14px]" style={{ color: 'var(--text-secondary)' }}>
-          <label htmlFor="run-select" className="font-semibold" style={{ color: 'var(--text-primary)' }}>Résultats affichés :</label>
-          <select id="run-select" className="vc-select max-w-full" value={runId ?? ''} data-testid="select-run"
-            onChange={e => setParams({ run: e.target.value })}>
-            {runs.data.runs.map(r => <option key={r.id} value={r.id}>{runLabel(r)}</option>)}
-          </select>
-          {current && current.source === 'web' && (
-            <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
-              Métriques réelles enregistrées en base pour cet entraînement (table transmission_metrics, run_id = {current.id}).
-            </span>
-          )}
-        </div>
-      )}
     </>
   );
   if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
@@ -77,9 +58,7 @@ export default function ResultatsPage() {
   const best = data.modeles[bestKey];
   const bt = best?.alarme.test;
   const op = best?.point_fonctionnement;
-  const v1 = data.modeles.RF_v1;
   const reps = data.run.repetitions;
-  const lc = data.courbe_apprentissage.points.map(p => ({ ...p, pct: Math.round(p.part_train * 100) }));
 
   return (
     <div className="space-y-6">
@@ -107,62 +86,8 @@ export default function ResultatsPage() {
         </section>
       )}
 
-      <Section title="Comparaison des modèles" subtitle="Classement sur la validation : contrainte tenue (précision, fausses alertes/h), puis rappel, puis fausses alertes, puis délai." source={data.sources.modeles}>
-        <Table min={860}>
-          <thead><tr><th>#</th><th>Modèle</th><th>Réglage</th><th>Rôle</th><th className="vc-num">Épisodes</th><th className="vc-num">FA/h</th>
-            <th className="vc-num">Précision</th><th className="vc-num">Rappel</th><th className="vc-num">F1</th><th className="vc-num">Délai</th><th className="vc-num">AP</th></tr></thead>
-          <tbody>
-            {[...ranking, ...(v1 ? ['RF_v1'] : [])].flatMap((k, i) => {
-              const m = data.modeles[k];
-              const o = m.point_fonctionnement;
-              return (['val', 'test'] as const).map((r, j) => {
-                const v = m.alarme[r];
-                if (!v) return null;
-                return (
-                  <tr key={`${k}-${r}`} style={k === 'RF_v1' ? { color: 'var(--text-secondary)' } : k === bestKey ? { background: 'var(--accent-glow)' } : undefined}>
-                    {j === 0 && <td rowSpan={2}>{k === 'RF_v1' ? 'réf.' : i + 1}</td>}
-                    {j === 0 && <td rowSpan={2}><div className="font-semibold">{MODEL_FR[k] ?? k}</div>
-                      {o && (o.contrainte_tenue ? <State kind="ok">contrainte tenue</State> : <State kind="manque">contrainte non tenue</State>)}</td>}
-                    {j === 0 && <td rowSpan={2} className="text-[13px] whitespace-nowrap">{o ? `≥ ${nf(o.seuil, 3)}, ${o.k} sur ${o.n}` : '—'}</td>}
-                    <td className="text-[13px]">{ROLE_FR[r]}</td>
-                    <td className="vc-num">{v.episodes_detectes}/{v.episodes}</td><td className="vc-num">{nf(v.fausses_alertes_par_heure, 2)}</td>
-                    <td className="vc-num">{pct(v.precision)}</td><td className="vc-num">{pct(v.recall)}</td><td className="vc-num">{nf(v.f1, 3)}</td>
-                    <td className="vc-num">{minutes(v.delai_median_min)}</td><td className="vc-num">{nf(v.avg_precision, 3)}</td>
-                  </tr>
-                );
-              });
-            })}
-          </tbody>
-        </Table>
-        <Note>FA/h : alertes sans aucune mesure falsifiée, par heure de fonctionnement normal. AP : précision moyenne (aire sous la
-          courbe précision-rappel, indépendante du seuil). « réf. » : Random Forest avec les anciennes features, même protocole corrigé (avant / après).</Note>
-      </Section>
-
-      <div>
-        <Section title={`Courbe d’apprentissage, ${MODEL_FR[data.courbe_apprentissage.modele ?? ''] ?? '—'}`}
-          subtitle="AP selon la part des blocs d'entraînement utilisée (moyenne de 3 rotations)." source={data.sources.courbe_apprentissage}>
-          {lc.length ? (
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={lc} margin={{ top: 4, right: 8, left: -14, bottom: 0 }}>
-                  <CartesianGrid stroke={pal.grid} vertical={false} />
-                  <XAxis dataKey="pct" unit=" %" tick={{ fill: pal.axis, fontSize: 12 }} />
-                  <YAxis domain={[0.4, 1]} tick={{ fill: pal.axis, fontSize: 12 }} />
-                  <Tooltip {...tooltipStyle} labelFormatter={v => `${v} % du train`} formatter={(v, n) => [nf(Number(v), 3), n]} />
-                  <Legend iconType="plainline" wrapperStyle={{ fontSize: 12.5 }} />
-                  <Line dataKey="ap_train" name="AP entraînement" stroke={pal.series[1]} strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3, fill: 'var(--bg-panel)' }} isAnimationActive={false} />
-                  <Line dataKey="ap_val" name="AP validation" stroke={pal.series[0]} strokeWidth={2} dot={{ r: 3, fill: 'var(--bg-panel)' }} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : <Empty>Courbe d'apprentissage non calculée pour cette étude.</Empty>}
-          <Note>Un écart qui reste grand quand le train grandit, avec une validation qui monte encore, indique un modèle limité par la
-            quantité de données (variance) plutôt qu'un modèle trop simple.</Note>
-        </Section>
-      </div>
-
       {best && bt && (
-        <div className="grid xl:grid-cols-2 gap-6">
+        <div>
           <Section title={`Par scénario, ${MODEL_FR[bestKey]} sur le test`} subtitle="Évaluation par scénario injecté : le modèle répond seulement « attaque » ou « normal », il ne reconnaît pas le type. Épisodes détectés, délai médian et part des mesures falsifiées signalées." source={data.sources.modeles}>
             <Table>
               <thead><tr><th>Scénario</th><th className="vc-num">Épisodes</th><th className="vc-num">Délai</th><th className="vc-num">Mesures signalées</th></tr></thead>
@@ -174,22 +99,30 @@ export default function ResultatsPage() {
               </tbody>
             </Table>
           </Section>
-          <Section title="Effet de la règle de persistance" subtitle={`${MODEL_FR[bestKey]} au même seuil, sans persistance (chaque mesure) et avec (${op?.k} sur ${op?.n}).`} source={data.sources.modeles}>
+        </div>
+      )}
+
+      {ep.data && (() => {
+        const d = ep.data;
+        const toutes = d.episodes_toutes?.length ? d.episodes_toutes : d.episodes.map(e => ({ ...e, repetition: 0 }));
+        return (
+          <Section title="Épisodes réels et détection" subtitle={toutes.length > d.episodes.length
+            ? `${toutes.length} épisodes en ${ROLE_FR[d.role].toLowerCase()}, toutes répétitions confondues (${new Set(toutes.map(e => e.repetition)).size} répétitions).`
+            : `${d.episodes.length} épisodes en ${ROLE_FR[d.role].toLowerCase()} (répétition 0).`} source={d.sources.episodes} flush>
             <Table>
-              <thead><tr><th>Rôle</th><th>Niveau</th><th className="vc-num">FA/h</th><th className="vc-num">Précision</th><th className="vc-num">Rappel</th><th className="vc-num">Épisodes</th></tr></thead>
+              <thead><tr><th className="sm:pl-5">Rép.</th><th>Début</th><th>Scénario</th><th className="vc-num">Durée</th><th>Détection</th><th className="vc-num sm:pr-5">Délai</th></tr></thead>
               <tbody>
-                {(['val', 'test'] as const).flatMap(r => ([['ligne', 'mesure par mesure'], ['alarme', 'avec persistance']] as const).map(([lvl, lab]) => {
-                  const v = best[lvl][r];
-                  return v ? (
-                    <tr key={r + lvl}><td>{ROLE_FR[r]}</td><td className="text-[13px]">{lab}</td><td className="vc-num">{nf(v.fausses_alertes_par_heure, 2)}</td>
-                      <td className="vc-num">{pct(v.precision)}</td><td className="vc-num">{pct(v.recall)}</td><td className="vc-num">{v.episodes_detectes}/{v.episodes}</td></tr>
-                  ) : null;
-                }))}
+                {toutes.map(e => (
+                  <tr key={`${e.repetition}-${e.debut}`}><td className="sm:pl-5 tabular-nums">{e.repetition}</td><td className="whitespace-nowrap tabular-nums">{new Date(e.debut).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td>{SCENARIO_FR[e.scenario] ?? e.scenario}</td><td className="vc-num">{minutes(e.duree_min)}</td>
+                    <td>{e.detecte ? <State kind="ok">détecté</State> : <State kind="manque">manqué</State>}</td>
+                    <td className="vc-num sm:pr-5">{minutes(e.delai_min)}</td></tr>
+                ))}
               </tbody>
             </Table>
           </Section>
-        </div>
-      )}
+        );
+      })()}
 
       {data.validation_croisee && (
         <Section title="Validation croisée : naïve contre groupée par bloc" subtitle={`Lignes d'entraînement de la répétition 0 (${nf(data.validation_croisee.lignes)} lignes, ${data.validation_croisee.blocs} blocs), seuil 0,5.`} source={data.sources.validation_croisee}>

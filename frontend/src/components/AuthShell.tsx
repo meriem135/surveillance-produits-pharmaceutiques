@@ -18,23 +18,8 @@ export default function AuthShell({ title, subtitle, children, footer, topLink }
           <h1 className="text-[40px] leading-[1.02]" style={{ color: 'var(--text-primary)' }}>
             Les mesures de la chaîne du froid <span className="whitespace-nowrap">sont-elles vraies&nbsp;?</span>
           </h1>
-          <p className="mt-4 text-[15.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            Surveillance des capteurs frigo, thermostat et météo : les attaques de transmission (MITM, injection) sont détectées
-            par apprentissage supervisé et expliquées avec SHAP.
-          </p>
-          <ul className="mt-6 space-y-2.5 text-[14.5px]" style={{ color: 'var(--text-secondary)' }}>
-            {[
-              'Traces réelles TON_IoT, attaques MITM et injection simulées',
-              'Modèles comparés sur la validation, entraînement suivi en direct',
-              'Rapport de consignes pour l’opérateur',
-            ].map(t => (
-              <li key={t} className="flex items-start gap-2.5">
-                <span className="w-2 h-2 mt-[7px] shrink-0 rounded-full" style={{ background: 'var(--accent-primary)' }} aria-hidden />{t}
-              </li>
-            ))}
-          </ul>
         </div>
-        <div className="text-[13px]" style={{ color: 'var(--text-muted)' }}>Projet de fin d’études en sécurité IoT, produits pharmaceutiques</div>
+        <div />
       </aside>
 
       {/* Formulaire */}

@@ -3,10 +3,11 @@
  *  transmission_episodes, transmission_metrics. */
 import { Fragment, useState } from 'react';
 import {
-  Empty, Loading, Meter, MODEL_FR, Note, PageHeader, ROLE_FR, SCENARIO_FR, Section, Segmented, State, Table,
+  Empty, Loading, Meter, MODEL_FR, Note, PageHeader, SCENARIO_FR, Section, Segmented, State, Table,
   dateFr, minutes, nf, pct, useApi,
 } from '../../components/etude/kit';
-import { FAMILLE_FR, FAMILLE_REELLE, estimer, rapportAlerte, type Contribution } from './recommandations';
+import RapportAlerte, { type AlerteFiche } from './RapportAlerte';
+import { ESCALADE_MIN, FAMILLE_FR, FAMILLE_REELLE, estimer, rapportAlerte, type Contribution } from './recommandations';
 
 interface Fit { tp: number; fp: number; fn: number; tn: number; recall: number; precision: number; f1: number; avg_precision: number | null;
   fausses_alertes_par_heure: number; episodes: number; episodes_detectes: number; delai_median_min: number | null }
@@ -22,7 +23,7 @@ interface TimelineResp {
   sources: Record<string, string>;
 }
 
-const ROLES = ['test', 'val', 'train'] as const;
+const role = 'test';   // seuls les résultats du jeu de test sont affichés
 type Filtre = 'attaques' | 'alertes' | 'erreurs' | 'tout';
 type Niveau = 'Normal' | 'À surveiller' | 'Alerte';
 const PAGE = 15;
@@ -32,29 +33,23 @@ const niveauDe = (alarme: boolean, score: number, seuil: number | null): Niveau 
 const NIVEAU_COULEUR: Record<Niveau, string> = { Normal: 'var(--border-strong)', 'À surveiller': 'var(--alarm-amber-fill)', Alerte: 'var(--accent-danger)' };
 
 export default function DetectionPage() {
-  const [role, setRole] = useState<string>('test');
   const { data, error, loading, reload } = useApi<TimelineResp>(`/api/v1/etude/timeline?role=${role}&minutes=1`);
   const [filtre, setFiltre] = useState<Filtre>('attaques');
   const [shown, setShown] = useState(PAGE);
-  const [ouverte, setOuverte] = useState<string | null>(null);
+  const [fiche, setFiche] = useState<{ cle: string; rap: ReturnType<typeof rapportAlerte>; al: AlerteFiche } | null>(null);
   const changeFiltre = (f: Filtre) => { setFiltre(f); setShown(PAGE); };
-  const changeRole = (r: string) => { setRole(r); setShown(PAGE); };
   const header = (
     <PageHeader title="Détection vs réalité" loading={loading} onRefresh={reload}
       subtitle={`Le modèle apprend-il vraiment les attaques ? Ses alertes, minute par minute, face aux épisodes réellement injectés${data?.run
         ? ` — ${data.run.source === 'web' ? `votre entraînement n° ${data.run.id} du ${dateFr(data.run.date)}` : 'étude de référence'}. ${
           data.run.repetitions && data.run.repetitions > 1
-            ? `Résultats cumulés sur ${data.run.repetitions} répétitions ; la frise minute par minute montre la répétition 0.`
-            : 'Une seule répétition (la 0).'}`
-        : ' (répétition 0).'}`}>
-      <Segmented label="Données affichées" value={role as typeof ROLES[number]} onChange={changeRole}
-        options={ROLES.map(r => ({ value: r, label: ROLE_FR[r] }))} />
+            ? `Résultats cumulés sur ${data.run.repetitions} répétitions ; la frise minute par minute montre la répétition n° 1.`
+            : 'Une seule répétition (la n° 1).'}`
+        : ' (répétition n° 1).'}`}>
     </PageHeader>
   );
   if (!data) return <div className="space-y-5">{header}{error ? <Empty>{error}</Empty> : <Loading />}</div>;
   const eps = [...data.episodes].sort((a, b) => a.debut.localeCompare(b.debut));
-  const toutes = data.episodes_toutes && data.episodes_toutes.length ? data.episodes_toutes : data.episodes.map(e => ({ ...e, repetition: 0 }));
-  const det = eps.filter(e => e.detecte).length;
   const plages = eps.map(e => ({ a: new Date(e.debut).getTime() - 60_000, b: new Date(e.fin).getTime(), nom: SCENARIO_FR[e.scenario] ?? e.scenario }));
   const alertesT = data.alertes.map(a => ({ a, d: new Date(a.debut).getTime(), f: new Date(a.fin).getTime() }));
   const lignes = data.serie.filter(p => p.evaluee).map(p => {
@@ -73,7 +68,7 @@ export default function DetectionPage() {
   return (
     <div className="space-y-6">
       {header}
-      <Section title={`${ROLE_FR[data.role]} : score du modèle et attaques réelles`}
+      <Section title="Score du modèle et attaques réelles"
         subtitle={`${MODEL_FR[data.modele] ?? data.modele}, score maximal par minute. Les blocs d’une heure d’un même rôle sont mis bout à bout.`}
         source={data.sources.serie}>
         <div className="rounded-[12px] p-4 mb-4 text-[13.5px]" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
@@ -84,11 +79,7 @@ export default function DetectionPage() {
             <div className="flex items-start gap-2.5"><dt className="shrink-0 w-[128px]"><State kind="alerte">Fausse alerte</State></dt><dd>Une alerte sans attaque.</dd></div>
           </dl>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="text-[13.5px]" style={{ color: 'var(--text-secondary)' }}>
-            <strong style={{ color: 'var(--text-primary)' }}>{det}</strong> épisodes détectés sur <strong style={{ color: 'var(--text-primary)' }}>{eps.length}</strong>
-            {data.seuil != null && <> · seuil de risque <strong style={{ color: 'var(--text-primary)' }}>{pct(data.seuil, 0)}</strong></>}
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-3 mb-3">
           <Segmented<Filtre> label="Filtrer les lignes" value={filtre} onChange={changeFiltre} options={[
             { value: 'attaques', label: `Attaques (${lignes.filter(l => l.attaque).length})` },
             { value: 'alertes', label: `Alertes (${lignes.filter(l => l.niveau === 'Alerte').length})` },
@@ -99,24 +90,21 @@ export default function DetectionPage() {
         {visibles.length ? (
           <Table min={820}>
             <thead><tr>
-              <th>Heure</th><th className="vc-num">Frigo</th><th className="vc-num">Thermostat</th><th>Attaque réelle</th>
+              <th>Heure</th><th className="vc-num">Frigo</th><th className="vc-num">Thermostat</th>
               <th style={{ minWidth: 160 }}>Score du modèle</th><th>Niveau</th><th>Résultat</th><th>Recommandation</th>
             </tr></thead>
             <tbody data-testid="table-score-attaques">
               {visibles.slice(0, shown).map((l, i, tab) => {
                 const al = l.alerte;
                 const premiere = !!al && tab[i - 1]?.alerte !== al;   // une seule recommandation par alerte
-                const nb = al ? lignes.filter(x => x.alerte === al).length : 0;
                 const est = al ? estimer(al.explication ?? []) : null;
                 const rap = premiere && al ? rapportAlerte(al, { date: dateFr(al.debut), duree: minutes(al.duree_min), nf, pct }) : null;
-                const expl = al?.explication ?? [];
                 return (
                   <Fragment key={l.ts}>
                     <tr>
                       <td className="whitespace-nowrap tabular-nums">{dateFr(l.ts)}</td>
                       <td className="vc-num">{nf(l.frigo, 1)}&nbsp;°C</td>
                       <td className="vc-num">{nf(l.thermostat, 1)}&nbsp;°C</td>
-                      <td>{l.attaque ? <span className="font-semibold" style={{ color: 'var(--accent-danger)' }}>{l.nom}</span> : <span style={{ color: 'var(--text-muted)' }}>Aucune</span>}</td>
                       <td>
                         <div className="flex items-center gap-2.5">
                           <div className="w-24 shrink-0"><Meter value={l.score * 100} color={NIVEAU_COULEUR[l.niveau]} /></div>
@@ -128,32 +116,17 @@ export default function DetectionPage() {
                       <td className="text-[13px]">
                         {premiere && al && est && rap ? (
                           <div className="flex items-center gap-2">
-                            <span><strong>{rap.gravite}</strong> · {al.vraie ? FAMILLE_FR[est.famille] : 'Fausse alerte'}<span className="text-[12px]" style={{ color: 'var(--text-muted)' }}> ({nb} min d’alerte)</span></span>
-                            <button className="vc-btn" onClick={() => setOuverte(ouverte === l.ts ? null : l.ts)}>{ouverte === l.ts ? 'Masquer' : 'Rapport'}</button>
+                            <span><strong>{rap.gravite}</strong> · {al.vraie ? FAMILLE_FR[est.famille] : 'Fausse alerte'}<span className="text-[12px]" style={{ color: 'var(--text-muted)' }}> · Terminée après {minutes(al.duree_min)}</span>
+                              {al.duree_min >= ESCALADE_MIN && <span className="ml-1.5"><State kind="manque">Prolongée</State></span>}</span>
+                            <button className="vc-btn" onClick={() => setFiche(fiche?.cle === l.ts ? null : { cle: l.ts, rap, al })}>{fiche?.cle === l.ts ? 'Masquer' : 'Rapport'}</button>
                           </div>
                         ) : al ? <span style={{ color: 'var(--text-muted)' }}>↳ même alerte (rapport sur la première ligne)</span>
                           : <span style={{ color: 'var(--text-muted)' }}>{l.resultat === 'manquee' ? 'pas d’alerte, pas d’explication' : '—'}</span>}
                       </td>
                     </tr>
-                    {rap && ouverte === l.ts && (
-                      <tr><td colSpan={8} className="text-[13px] whitespace-normal" style={{ background: 'var(--bg-subtle)' }}>
-                        <div className="sticky left-0 max-w-[600px] py-1">
-                          <p className="mb-2">{rap.synthese}</p>
-                          <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>{rap.hypothese}</p>
-                          {expl.length > 0 && (
-                            <details className="mb-2">
-                              <summary className="cursor-pointer">Features déterminantes (SHAP de l’alerte)</summary>
-                              <ul className="mt-1 space-y-0.5">
-                                {expl.map(c => <li key={c.feature}>{c.libelle} : <span className="tabular-nums">{nf(c.valeur, 2)}</span> contre <span className="tabular-nums">{nf(c.valeur_normale, 2)}</span> en fonctionnement normal (effet SHAP {nf(c.shap, 3)})</li>)}
-                              </ul>
-                            </details>
-                          )}
-                          <div className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Actions suggérées, à confirmer par un opérateur</div>
-                          {rap.etapes.map(e => (
-                            <div key={e.niveau} className="mb-1"><strong>{e.niveau}</strong>
-                              <ul className="list-disc pl-5">{e.items.map(it => <li key={it}>{it}</li>)}</ul></div>
-                          ))}
-                        </div>
+                    {fiche?.cle === l.ts && (
+                      <tr><td colSpan={7} className="whitespace-normal" style={{ background: 'var(--bg-subtle)' }}>
+                        <RapportAlerte rap={fiche.rap} al={fiche.al} seuil={data.seuil} onClose={() => setFiche(null)} />
                       </td></tr>
                     )}
                   </Fragment>
@@ -171,25 +144,6 @@ export default function DetectionPage() {
           </div>
         )}
       </Section>
-
-
-      <div>
-        <Section title="Épisodes réels et détection" subtitle={toutes.length > data.episodes.length
-          ? `${toutes.length} épisodes en ${ROLE_FR[data.role].toLowerCase()}, toutes répétitions confondues (${new Set(toutes.map(e => e.repetition)).size} répétitions).`
-          : `${data.episodes.length} épisodes en ${ROLE_FR[data.role].toLowerCase()} (répétition 0).`} source={data.sources.episodes} flush>
-          <Table>
-            <thead><tr><th className="sm:pl-5">Rép.</th><th>Début</th><th>Scénario</th><th className="vc-num">Durée</th><th>Détection</th><th className="vc-num sm:pr-5">Délai</th></tr></thead>
-            <tbody>
-              {toutes.map(e => (
-                <tr key={`${e.repetition}-${e.debut}`}><td className="sm:pl-5 tabular-nums">{e.repetition}</td><td className="whitespace-nowrap tabular-nums">{new Date(e.debut).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td>{SCENARIO_FR[e.scenario] ?? e.scenario}</td><td className="vc-num">{minutes(e.duree_min)}</td>
-                  <td>{e.detecte ? <State kind="ok">détecté</State> : <State kind="manque">manqué</State>}</td>
-                  <td className="vc-num sm:pr-5">{minutes(e.delai_min)}</td></tr>
-              ))}
-            </tbody>
-          </Table>
-        </Section>
-      </div>
     </div>
   );
 }
